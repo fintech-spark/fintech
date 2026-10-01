@@ -35,7 +35,7 @@ jobs:
           PROMPTFOO_MODEL: ${{ secrets.PROMPTFOO_MODEL }}
       - name: Upload evaluation output
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: promptfoo-results
           path: |
