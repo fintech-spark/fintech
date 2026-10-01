@@ -1,1 +1,13 @@
 * text=auto eol=lf
+
+# GitHub Linguist overrides to reflect actual application codebase
+# Vendor AI agent skills, IDE tools, and prompts
+.agents/** linguist-vendored
+.claude/** linguist-vendored
+
+# Scaffolding and internal utility scripts
+scripts/** linguist-documentation
+
+# Root build and bundler config files
+*.config.mjs linguist-generated
+*.config.ts linguist-generated
