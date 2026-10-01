@@ -1,0 +1,37 @@
+# Dependencies
+node_modules/
+
+# Next.js / build output
+.next/
+out/
+build/
+coverage/
+playwright-report/
+test-results/
+*.tsbuildinfo
+
+# Local environment and secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+credentials.json
+secrets/
+private/
+
+# Tooling and OS files
+.DS_Store
+.vscode/settings.json
+.idea/
+*.log
+npm-debug.log*
+.yarn/
+.pnpm-store/
+
+# Local agent/runtime state
+.omnirush/
+__agent__/

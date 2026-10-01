@@ -1,0 +1,44 @@
+name: AI evaluations
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_evals:
+        description: "Run paid/provider-backed Promptfoo evaluations"
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+jobs:
+  promptfoo:
+    if: inputs.run_evals == true
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Require an explicit local eval config
+        run: test -f evals/promptfooconfig.yaml
+      - name: Run Promptfoo
+        run: npx --yes promptfoo@latest eval evals/promptfooconfig.yaml --no-cache
+        env:
+          PROMPTFOO_API_KEY: ${{ secrets.PROMPTFOO_API_KEY }}
+          PROMPTFOO_MODEL: ${{ secrets.PROMPTFOO_MODEL }}
+      - name: Upload evaluation output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: promptfoo-results
+          path: |
+            promptfoo-output.json
+            promptfoo-results.json
+          if-no-files-found: ignore

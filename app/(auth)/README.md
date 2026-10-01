@@ -1,0 +1,1 @@
+# app/(auth)\n\nAuthentication flow routes (login, register, reset)\n

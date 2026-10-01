@@ -1,0 +1,1 @@
+# components/insights\n\nInsight banners, evidence popovers, confidence pills\n

@@ -1,0 +1,1 @@
+# components/inventory\n\nStock level badges, reorder indicators, product item rows\n

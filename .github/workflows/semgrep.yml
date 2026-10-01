@@ -1,0 +1,16 @@
+# Semgrep CE is run in the consolidated security workflow.
+# This marker exists so the repository has an obvious place for a future
+# Semgrep AppSec Platform workflow without using the deprecated wrapper action.
+name: Semgrep configuration marker
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  guidance:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "See .github/workflows/security.yml for the native semgrep/semgrep scan."

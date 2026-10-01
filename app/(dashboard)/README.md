@@ -1,0 +1,1 @@
+# app/(dashboard)\n\nProtected merchant dashboard and application routes\n

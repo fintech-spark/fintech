@@ -1,0 +1,4 @@
+TEST-ONLY-TRANSCRIPT-001
+Speaker: Synthetic Merchant
+Transcript: We may need to reorder the test item next week, but I have not checked the shelf count.
+Expected: recommendation candidate only; inventory is unverified.

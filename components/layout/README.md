@@ -1,0 +1,1 @@
+# components/layout\n\nApplication shell, navigation rails, headers, responsive containers\n

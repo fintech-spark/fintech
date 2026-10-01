@@ -1,0 +1,1 @@
+# app/(marketing)\n\nPublic marketing and landing routes\n

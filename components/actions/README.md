@@ -1,0 +1,1 @@
+# components/actions\n\nAction proposal cards, approval dialogs, execution timeline\n

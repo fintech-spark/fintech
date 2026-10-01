@@ -1,0 +1,13 @@
+# Template only. Copy to a local Promptfoo config after selecting and verifying a provider/model.
+# Do not commit provider keys or an unverified model ID.
+description: Merchant Brain synthetic AI evaluation template
+prompts:
+  - file://../prompts/assistant/assistant.v1.md
+providers: []
+tests:
+  - vars:
+      input: "Synthetic input only"
+    assert:
+      - type: javascript
+        value: "return output.length > 0"
+# Configure providers explicitly through environment/CI secrets before running.

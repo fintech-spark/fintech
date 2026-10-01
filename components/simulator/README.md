@@ -1,0 +1,1 @@
+# components/simulator\n\nWhat-if sliders, scenario comparison diffs, parameter inputs\n

@@ -1,0 +1,4 @@
+[
+  { "fixture": "TEST-ONLY-CUSTOMER-001", "customerId": "synthetic-customer-a", "balanceMinor": 2000, "currency": "INR" },
+  { "fixture": "TEST-ONLY-CUSTOMER-002", "customerId": "synthetic-customer-b", "balanceMinor": 0, "currency": "INR" }
+]

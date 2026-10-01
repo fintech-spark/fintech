@@ -1,0 +1,1 @@
+# components/customers\n\nCustomer summary cards, receivable status badges\n

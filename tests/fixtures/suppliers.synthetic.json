@@ -1,0 +1,3 @@
+[
+  { "fixture": "TEST-ONLY-SUPPLIER-001", "supplierId": "synthetic-supplier-a", "payableMinor": 3200, "currency": "INR" }
+]

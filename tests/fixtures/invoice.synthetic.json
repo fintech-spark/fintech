@@ -1,0 +1,10 @@
+{
+  "fixture": "TEST-ONLY-INVOICE-001",
+  "tenant": "synthetic-tenant-a",
+  "invoiceNumber": "TEST-INV-001",
+  "supplierName": "Synthetic Supplier",
+  "currency": "INR",
+  "lineItems": [{ "description": "Test item", "quantity": 2, "unitPriceMinor": 500, "totalMinor": 1000 }],
+  "totalMinor": 1000,
+  "expectedReviewState": "verified-synthetic"
+}

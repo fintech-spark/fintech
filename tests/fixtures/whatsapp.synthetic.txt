@@ -1,0 +1,4 @@
+TEST-ONLY-WHATSAPP-001
+Customer: Synthetic Customer
+Message: Please keep 2 test items ready for tomorrow. Payment status is not stated.
+Expected: order candidate; payment status unknown; requires review.

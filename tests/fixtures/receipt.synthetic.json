@@ -1,0 +1,8 @@
+{
+  "fixture": "TEST-ONLY-RECEIPT-001",
+  "merchant": "Synthetic Store",
+  "occurredOn": "2099-01-02",
+  "currency": "INR",
+  "totalMinor": 1250,
+  "expectedReviewState": "needs-review-synthetic"
+}

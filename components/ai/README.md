@@ -1,0 +1,1 @@
+# components/ai\n\nAI chat message bubbles, thought streams, tool execution badges\n

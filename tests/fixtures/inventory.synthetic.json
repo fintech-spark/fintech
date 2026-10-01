@@ -1,0 +1,3 @@
+[
+  { "fixture": "TEST-ONLY-STOCK-001", "sku": "synthetic-sku-a", "quantity": 4, "reorderPoint": 2 }
+]

@@ -1,0 +1,6 @@
+{
+  "fixture": "TEST-ONLY-MALFORMED-001",
+  "amountMinor": "not-a-number",
+  "occurredOn": "not-a-date",
+  "missingRequiredEvidence": true
+}

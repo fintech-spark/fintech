@@ -1,0 +1,7 @@
+# Local-only placeholder. Provider-backed evals remain disabled until a model,
+# provider, budget, and secret policy are approved. CI expects this file only when
+# the manual AI-eval workflow is explicitly run.
+description: Merchant Brain local evaluation placeholder
+prompts: []
+providers: []
+tests: []

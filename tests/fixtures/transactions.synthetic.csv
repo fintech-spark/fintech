@@ -1,0 +1,3 @@
+fixture,tenant,occurredOn,kind,amountMinor,currency,status
+TEST-ONLY-TXN-001,synthetic-tenant-a,2099-01-02,sale,1500,INR,verified-synthetic
+TEST-ONLY-TXN-002,synthetic-tenant-a,2099-01-03,expense,300,INR,verified-synthetic
