@@ -28,7 +28,25 @@
     "discountMinor": 0,
     "totalMinor": 1180,
     "currency": "INR",
-    "needsReview": false
+    "needsReview": false,
+    "evidence": [
+      {
+        "sourceType": "invoice",
+        "sourceId": "doc-conflict-008",
+        "field": "totalMinor",
+        "excerpt": "Stated total line reads 1180",
+        "support": "DIRECTLY_SUPPORTED",
+        "observedAt": "2026-10-01"
+      },
+      {
+        "sourceType": "invoice",
+        "sourceId": "doc-conflict-008",
+        "field": "totalMinor",
+        "excerpt": "Footer summary reads 1200",
+        "support": "CONFLICTING",
+        "observedAt": "2026-10-01"
+      }
+    ]
   },
-  "validationNotes": "Contradiction between source fragments. Must not silently choose 1180."
+  "validationNotes": "Two source fragments disagree on totalMinor (line 1180 vs footer 1200). Must not silently choose 1180. The CONFLICTING evidence entry is the machine-detectable signal; without it a deterministic validator cannot see the conflict."
 }
