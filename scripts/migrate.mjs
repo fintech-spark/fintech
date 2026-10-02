@@ -21,13 +21,22 @@ import pg from 'pg';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const MIGRATIONS_DIR = join(__dirname, '..', 'supabase', 'migrations');
 
+for (const envFile of ['.env.local', '.env']) {
+  try {
+    process.loadEnvFile(join(__dirname, '..', envFile));
+    break;
+  } catch {
+    // proceed if file not present
+  }
+}
+
 async function main() {
   const command = process.argv[2] ?? 'up';
   const connectionString = process.env.DATABASE_URL;
 
   if (!connectionString) {
     console.error('Error: DATABASE_URL environment variable is required.');
-    console.error('Set it in .env or export DATABASE_URL=postgresql://...');
+    console.error('Set it in .env.local or export DATABASE_URL=postgresql://...');
     process.exit(1);
   }
 
