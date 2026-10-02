@@ -86,6 +86,20 @@ export class ExtractionError extends AppError {
   }
 }
 
+/**
+ * A registered AI tool failed to produce a usable result.
+ *
+ * Raised for the two resource conditions the registry controls — the
+ * per-invocation wall clock and the serialized payload ceiling. It is
+ * deliberately NOT an `AIProviderError`: no model was involved, so attributing
+ * the failure to the provider would misdirect triage.
+ */
+export class ToolExecutionError extends AppError {
+  readonly code = 'TOOL_EXECUTION_ERROR';
+  readonly statusCode = 500;
+  constructor(message: string, details?: Record<string, unknown>) { super(message, details); }
+}
+
 export class StorageError extends AppError {
   readonly code = 'STORAGE_ERROR';
   readonly statusCode = 500;
