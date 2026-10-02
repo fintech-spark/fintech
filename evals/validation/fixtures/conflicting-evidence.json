@@ -1,0 +1,34 @@
+{
+  "fixtureName": "conflicting-evidence",
+  "expectedStatus": "REJECTED",
+  "description": "Source fragments contradict: page 1 total = 1180; page 2 total = 1050.",
+  "sourceType": "invoice",
+  "documentId": "doc-conflict-008",
+  "businessId": "biz-test-008",
+  "extraction": {
+    "invoiceNumber": "INV-008",
+    "issueDate": "2026-10-01",
+    "supplierName": "Synthetic Vendor G",
+    "lineItems": [
+      {
+        "description": "Item",
+        "quantity": 1,
+        "unitPrice": {
+          "amountMinor": 1000,
+          "currency": "INR"
+        },
+        "total": {
+          "amountMinor": 1000,
+          "currency": "INR"
+        }
+      }
+    ],
+    "subtotalMinor": 1000,
+    "taxMinor": 180,
+    "discountMinor": 0,
+    "totalMinor": 1180,
+    "currency": "INR",
+    "needsReview": false
+  },
+  "validationNotes": "Contradiction between source fragments. Must not silently choose 1180."
+}
