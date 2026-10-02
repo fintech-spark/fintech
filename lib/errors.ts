@@ -131,9 +131,11 @@ export function wrapDatabaseError(error: unknown): DatabaseError {
         constraint: pgError.constraint,
       });
     }
+    // The driver message can contain SQL text, column names, constraint
+    // definitions or connection strings. It is deliberately NOT forwarded —
+    // only the SQLSTATE is safe to expose for support and debugging.
     return new DatabaseError('A database error occurred.', {
-      pgCode: pgError.code,
-      message: error.message,
+      pgCode: pgError.code ?? 'unknown',
     });
   }
   return new DatabaseError('An unknown database error occurred.');
