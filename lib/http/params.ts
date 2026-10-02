@@ -14,6 +14,19 @@ import { ValidationError } from '@/lib/errors';
 export const MAX_PAGE_SIZE = 100;
 export const DEFAULT_PAGE_SIZE = 20;
 
+/**
+ * Deepest page a caller may request.
+ *
+ * `limit` was clamped but `page` was not, so `?page=1000000000` produced a
+ * billion-row OFFSET that Postgres must walk before returning anything. Capping
+ * the page number bounds the offset scan. It does not make deep pagination
+ * cheap — OFFSET is inherently O(offset) — so cursor pagination remains the
+ * correct long-term answer for large ledgers; this is the DoS guard.
+ *
+ * At the maximum page size this caps the scan at ~1M rows.
+ */
+export const MAX_PAGE_NUMBER = 10_000;
+
 const uuidSchema = z.string().uuid('Must be a valid UUID.');
 
 const dateSchema = z
@@ -31,7 +44,8 @@ export interface PageArgs {
  * ask the database for an unbounded result set.
  */
 export function parsePagination(searchParams: URLSearchParams): PageArgs {
-  const page = coerceInt(searchParams.get('page'), 1, 'page', 1);
+  const requestedPage = coerceInt(searchParams.get('page'), 1, 'page', 1);
+  const page = Math.min(requestedPage, MAX_PAGE_NUMBER);
   const limit = Math.min(
     coerceInt(searchParams.get('limit'), DEFAULT_PAGE_SIZE, 'limit', 1),
     MAX_PAGE_SIZE,
@@ -141,7 +155,52 @@ export function parseSearch(raw: string | null | undefined, maxLength = 120): st
     ]);
   }
 
+  return escapeLikePattern(trimmed);
+}
+
+/**
+ * A plain equality filter value: trimmed and length-capped, NOT LIKE-escaped.
+ *
+ * `parseSearch` escapes `%` and `_` because its output is interpolated into a
+ * `%term%` pattern. Using it for an `.eq()` comparison would corrupt legitimate
+ * values — a category literally named `5_kg_bags` would arrive as
+ * `5\_kg\_bags` and match nothing, returning an empty 200 that looks like a
+ * correct "no results".
+ */
+export function parseFilterValue(
+  raw: string | null | undefined,
+  field: string,
+  maxLength = 120,
+): string | undefined {
+  if (raw === null || raw === undefined) return undefined;
+
+  const trimmed = raw.trim();
+  if (trimmed === '') return undefined;
+
+  if (trimmed.length > maxLength) {
+    throw new ValidationError(`"${field}" must be ${maxLength} characters or fewer.`, [
+      { field, message: `Must be ${maxLength} characters or fewer.` },
+    ]);
+  }
+
   return trimmed;
+}
+
+/**
+ * Escapes LIKE metacharacters so a search term is matched literally.
+ *
+ * Repositories wrap this value as `%${search}%` and pass it to PostgREST's
+ * `ilike`. Without escaping, `%` and `_` are wildcards: `?search=%25` matches
+ * every row and `_______` matches any seven-character name. That is not SQL
+ * injection — PostgREST binds the value — but it turns a bounded search into a
+ * caller-controlled pattern with an unbounded cost profile and a membership
+ * inference surface.
+ *
+ * The backslash is Postgres's default LIKE escape character, so it is escaped
+ * first to avoid escaping its own replacement.
+ */
+export function escapeLikePattern(value: string): string {
+  return value.replace(/[\\%_]/g, (character) => `\\${character}`);
 }
 
 /** Builds the `from`/`to` pair, validating that `from <= to`. */

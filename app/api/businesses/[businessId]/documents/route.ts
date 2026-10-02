@@ -16,6 +16,7 @@ export const POST = withApi(async (request: Request, route) => {
   const services = wireClient(db);
   const body = await parseJsonBody(request, createDocumentSchema);
   return {
+    status: 201,
     data: await services.documents.upload(ctx, {
       fileName: body.fileName,
       mimeType: body.mimeType,

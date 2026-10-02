@@ -15,6 +15,8 @@
 // chainable stub that records the filters a repository applied.
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { MAX_PAGE_NUMBER, MAX_PAGE_SIZE } from '@/lib/http/params';
+import { POSTGREST_MAX_ROWS } from '@/lib/bounded-scan';
 
 // ---------------------------------------------------------------------------
 // Fixture ids
@@ -27,13 +29,34 @@ const TXN_ID = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
 const CUSTOMER_ID = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee';
 const PRODUCT_ID = 'ffffffff-ffff-4fff-8fff-ffffffffffff';
 
+/**
+ * A product owned by BIZ_A. POST /transactions rejects a line item whose
+ * productId resolves to nothing in this tenant, because `transaction_items` has
+ * no business_id column and its foreign key is global.
+ */
+const PRODUCT_ROW = {
+  id: PRODUCT_ID,
+  business_id: BIZ_A,
+  name: 'Basmati Rice 5kg',
+  sku: 'RICE-5',
+  category: 'grain',
+  unit: 'box',
+  cost_price_minor: 40000,
+  selling_price_minor: 50000,
+  currency: 'INR',
+  current_stock: 100,
+  reorder_point: 10,
+  reorder_quantity: 50,
+  status: 'active',
+};
+
 
 
 // ---------------------------------------------------------------------------
 // Fake PostgREST client
 // ---------------------------------------------------------------------------
 
-type Filter = { column: string; value: unknown };
+type Filter = { column: string; value: unknown; op?: 'eq' | 'in' };
 
 interface QueryLog {
   table: string;
@@ -63,26 +86,70 @@ function makeQuery(table: string) {
     builder[method] = vi.fn(() => builder);
   }
 
-  for (const method of ['eq', 'neq', 'gt', 'gte', 'lt', 'lte', 'in', 'is', 'ilike', 'or', 'not']) {
+  for (const method of ['eq', 'neq', 'gt', 'gte', 'lt', 'lte', 'is', 'ilike', 'or', 'not']) {
     builder[method] = vi.fn((column: string, value: unknown) => {
-      log.filters.push({ column, value });
+      log.filters.push({ column, value, op: 'eq' });
       return builder;
     });
   }
 
-  for (const method of ['order', 'range', 'limit', 'offset']) {
-    builder[method] = vi.fn(() => builder);
-  }
+  // `.in()` is a membership test. Comparing the array to the row value made
+  // every `in` query match nothing, which silently turned ownership checks
+  // into "not found" rejections.
+  builder.in = vi.fn((column: string, value: unknown) => {
+    log.filters.push({ column, value, op: 'in' });
+    return builder;
+  });
+
+  builder.order = vi.fn(() => builder);
+
+  // PostgREST maps `.range(from, to)` to `limit = to - from + 1`, then clamps
+  // that to the server's `max_rows`. Reproducing both is what makes a bounded
+  // scan observable: a test can ask for more rows than the server will serve
+  // and assert the repository notices.
+  let rangeFrom = 0;
+  let rangeTo = Number.MAX_SAFE_INTEGER;
+
+  const serverMaxRows = POSTGREST_MAX_ROWS;
+
+  builder.range = vi.fn((from: number, to: number) => {
+    rangeFrom = from;
+    rangeTo = to;
+    return builder;
+  });
+
+  builder.limit = vi.fn((count: number) => {
+    rangeFrom = 0;
+    rangeTo = count - 1;
+    return builder;
+  });
+
+  builder.offset = vi.fn((count: number) => {
+    rangeFrom = count;
+    return builder;
+  });
 
   const rows = () => {
     const all = rowsByTable[table] ?? [];
-    // Apply `eq` filters the way PostgREST would, so a test that sets a
-    // non-active membership row actually exercises the `.eq('status','active')`.
-    return all.filter((row) =>
-      log.filters
-        .filter((f) => f.column !== 'business_id')
-        .every((f) => (row as Record<string, unknown>)[f.column] === f.value),
+    // Apply every recorded `eq` filter the way PostgREST would.
+    //
+    // `business_id` used to be exempt here, which meant the fake returned rows
+    // from every tenant and the cross-tenant tests proved nothing: they
+    // manufactured a 404 by emptying the table instead of by scoping. Enforcing
+    // it is what makes "Business A cannot read Business B's transaction" an
+    // actual assertion about the repository's tenant predicate rather than a
+    // claim about the fixture.
+    const matched = all.filter((row) =>
+      log.filters.every((f) => {
+        const actual = (row as Record<string, unknown>)[f.column];
+        return f.op === 'in'
+          ? Array.isArray(f.value) && f.value.includes(actual as never)
+          : actual === f.value;
+      }),
     );
+
+    const requested = Math.min(rangeTo - rangeFrom + 1, serverMaxRows);
+    return matched.slice(rangeFrom, rangeFrom + Math.max(0, requested));
   };
 
   builder.single = vi.fn(async () => ({ data: rows()[0] ?? null, error: null }));
@@ -210,6 +277,9 @@ beforeEach(() => {
     business_members: [membership('owner')],
     transactions: [TXN_ROW],
     transaction_items: [],
+    // POST /transactions verifies each line item references a product owned by
+    // this tenant, so the fixture must contain one.
+    products: [PRODUCT_ROW],
   };
 });
 
@@ -309,7 +379,7 @@ describe('tenant resolution', () => {
       params(BIZ_A),
     );
 
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(201);
     expect(businessIdFilters()).not.toContain(BIZ_B);
     expect(businessIdFilters()).toContain(BIZ_A);
   });
@@ -320,8 +390,23 @@ describe('tenant resolution', () => {
 // ---------------------------------------------------------------------------
 
 describe('cross-tenant record access', () => {
-  it('returns 404, not 403, for a record the caller cannot see', async () => {
-    rowsByTable.transactions = [];
+  it('returns the caller their own record', async () => {
+    const { GET } = await import('@/app/api/businesses/[businessId]/transactions/[id]/route');
+    const res = await GET(
+      request(`https://api.test/api/businesses/${BIZ_A}/transactions/${TXN_ID}`),
+      params(BIZ_A, { id: TXN_ID }),
+    );
+
+    // Positive control: without it, the negative case below could pass simply
+    // because the fixture was empty.
+    expect(res.status).toBe(200);
+  });
+
+  it('returns 404, not 403, when the record belongs to another tenant', async () => {
+    // The row EXISTS — it is owned by BIZ_B. The only reason it must be
+    // invisible is the repository's tenant predicate.
+    rowsByTable.transactions = [{ ...TXN_ROW, business_id: BIZ_B }];
+
     const { GET } = await import('@/app/api/businesses/[businessId]/transactions/[id]/route');
     const res = await GET(
       request(`https://api.test/api/businesses/${BIZ_A}/transactions/${TXN_ID}`),
@@ -331,6 +416,8 @@ describe('cross-tenant record access', () => {
     expect(res.status).toBe(404);
     const body = await res.json();
     expect(body.error.statusCode).toBe(404);
+    // 404 rather than 403 so existence is not disclosed.
+    expect(body.error.code).toBe('NOT_FOUND');
   });
 
   it('returns 400 for a malformed record id', async () => {
@@ -351,8 +438,8 @@ describe('cross-tenant record access', () => {
 
     expect(res.status).toBe(200);
     const txnQuery = queries.find((q) => q.table === 'transactions');
-    expect(txnQuery?.filters).toContainEqual({ column: 'business_id', value: BIZ_A });
-    expect(txnQuery?.filters).toContainEqual({ column: 'id', value: TXN_ID });
+    expect(txnQuery?.filters).toContainEqual({ column: 'business_id', value: BIZ_A, op: 'eq' });
+    expect(txnQuery?.filters).toContainEqual({ column: 'id', value: TXN_ID, op: 'eq' });
   });
 });
 
@@ -436,14 +523,151 @@ describe('error contract', () => {
 // Pagination hardening at the route boundary
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// Business record and roster are administrative, not member-wide
+// ---------------------------------------------------------------------------
+
+describe('administrative reads', () => {
+  it('refuses the business record — which carries PAN and GSTIN — from staff', async () => {
+    setMembership('staff');
+    const { GET } = await import('@/app/api/businesses/[businessId]/route');
+    const res = await GET(
+      request(`https://api.test/api/businesses/${BIZ_A}`),
+      params(BIZ_A),
+    );
+
+    expect(res.status).toBe(403);
+    const body = await res.json();
+    expect(body.error.code).toBe('FORBIDDEN');
+    // The tax identifiers must not appear anywhere in the refusal.
+    expect(JSON.stringify(body)).not.toContain('gstin');
+    expect(JSON.stringify(body)).not.toContain('pan');
+  });
+
+  it('refuses the membership roster from staff', async () => {
+    setMembership('staff');
+    const { GET } = await import('@/app/api/businesses/[businessId]/members/route');
+    const res = await GET(
+      request(`https://api.test/api/businesses/${BIZ_A}/members`),
+      params(BIZ_A),
+    );
+
+    expect(res.status).toBe(403);
+  });
+
+  it('refuses both from a manager, who holds no settings permission', async () => {
+    setMembership('manager');
+
+    const business = await import('@/app/api/businesses/[businessId]/route');
+    const members = await import('@/app/api/businesses/[businessId]/members/route');
+
+    const a = await business.GET(request(`https://api.test/api/businesses/${BIZ_A}`), params(BIZ_A));
+    const b = await members.GET(
+      request(`https://api.test/api/businesses/${BIZ_A}/members`),
+      params(BIZ_A),
+    );
+
+    expect(a.status).toBe(403);
+    expect(b.status).toBe(403);
+  });
+
+  it('allows an owner to read both', async () => {
+    setMembership('owner');
+
+    const business = await import('@/app/api/businesses/[businessId]/route');
+    const members = await import('@/app/api/businesses/[businessId]/members/route');
+
+    const a = await business.GET(request(`https://api.test/api/businesses/${BIZ_A}`), params(BIZ_A));
+    const b = await members.GET(
+      request(`https://api.test/api/businesses/${BIZ_A}/members`),
+      params(BIZ_A),
+    );
+
+    expect(a.status).toBe(200);
+    expect(b.status).toBe(200);
+  });
+
+  it('lists the caller their own businesses without exposing tax identifiers', async () => {
+    const { GET } = await import('@/app/api/businesses/route');
+    const res = await GET(request('https://api.test/api/businesses'), params(undefined));
+
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(Array.isArray(body.data)).toBe(true);
+    // This list runs BEFORE a tenant is chosen, so it must be projected down.
+    for (const entry of body.data) {
+      expect(Object.keys(entry).sort()).toEqual(['id', 'name', 'status', 'type']);
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Bounded scans
+// ---------------------------------------------------------------------------
+
+describe('bounded scan overflow', () => {
+  it('refuses to value an inventory catalogue larger than the scan limit', async () => {
+    // `max_rows` is 1000. Overflow must be reported rather than producing a
+    // total computed from whatever the server happened to return.
+    rowsByTable.products = Array.from({ length: POSTGREST_MAX_ROWS + 50 }, (_, i) => ({
+      ...PRODUCT_ROW,
+      id: `ffffffff-ffff-4fff-8fff-${String(i).padStart(12, '0')}`,
+    }));
+
+    const { GET } = await import('@/app/api/businesses/[businessId]/inventory/value/route');
+    const res = await GET(
+      request(`https://api.test/api/businesses/${BIZ_A}/inventory/value`),
+      params(BIZ_A),
+    );
+
+    expect(res.status).toBe(422);
+    const body = await res.json();
+    expect(body.error.code).toBe('BUSINESS_RULE_VIOLATION');
+    expect(body.error.details.truncated).toBe(true);
+  });
+
+  it('still returns a valuation when the catalogue fits', async () => {
+    rowsByTable.products = [PRODUCT_ROW];
+
+    const { GET } = await import('@/app/api/businesses/[businessId]/inventory/value/route');
+    const res = await GET(
+      request(`https://api.test/api/businesses/${BIZ_A}/inventory/value`),
+      params(BIZ_A),
+    );
+
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    // Positive control: without it the 422 above could pass on a broken route.
+    expect(body.data.productCount).toBe(1);
+  });
+});
+
 describe('pagination hardening', () => {
-  it('clamps an oversized limit', async () => {
+  it('clamps an oversized limit to the maximum page size', async () => {
     const { GET } = await import('@/app/api/businesses/[businessId]/transactions/route');
     const res = await GET(
       request(`https://api.test/api/businesses/${BIZ_A}/transactions?limit=9999`),
       params(BIZ_A),
     );
+
     expect(res.status).toBe(200);
+    // The old assertion was `status === 200`, which the clamp being deleted
+    // entirely would still satisfy.
+    const body = await res.json();
+    expect(body.meta.limit).toBe(MAX_PAGE_SIZE);
+  });
+
+  it('clamps an absurd page number so the offset scan stays bounded', async () => {
+    const { GET } = await import('@/app/api/businesses/[businessId]/transactions/route');
+    const res = await GET(
+      request(`https://api.test/api/businesses/${BIZ_A}/transactions?page=999999999&limit=100`),
+      params(BIZ_A),
+    );
+
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.meta.page).toBe(MAX_PAGE_NUMBER);
+    expect(body.meta.page).toBeLessThan(999999999);
   });
 
   it('rejects a non-integer page', async () => {

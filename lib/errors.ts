@@ -115,21 +115,35 @@ export function isForeignKeyViolationError(error: unknown): boolean {
   return false;
 }
 
-export function wrapDatabaseError(error: unknown): DatabaseError {
-  if (error instanceof DatabaseError) return error;
+/**
+ * Normalises a driver error into the closest `AppError`.
+ *
+ * Returns `AppError` rather than `DatabaseError` because the mapping is not
+ * one-to-one: a unique violation is a 409 Conflict, a foreign-key violation is
+ * a 400 Validation, and only an unrecognised failure is a 500 DatabaseError.
+ * The declared type must admit all three.
+ */
+export function wrapDatabaseError(error: unknown): AppError {
+  if (error instanceof AppError) return error;
   if (error instanceof Error) {
     const pgError = error as { code?: string; constraint?: string; detail?: string };
+
+    // A unique violation is a client-visible conflict, not a server fault: the
+    // caller sent something that already exists. Mapping it to DatabaseError
+    // reported 500 for what is a 409, and left `ConflictError` — which exists
+    // for exactly this — unused across the whole codebase. The constraint name
+    // is not forwarded: it leaks schema detail.
     if (isUniqueViolationError(error)) {
-      return new DatabaseError('A record with this value already exists.', {
+      return new ConflictError('A record with this value already exists.', {
         pgCode: pgError.code,
-        constraint: pgError.constraint,
       });
     }
+
+    // Likewise a foreign-key violation means the referenced record is absent or
+    // belongs to another tenant. `ValidationError` (400) tells the client its
+    // reference is wrong without implying the database is broken.
     if (isForeignKeyViolationError(error)) {
-      return new DatabaseError('Referenced record does not exist.', {
-        pgCode: pgError.code,
-        constraint: pgError.constraint,
-      });
+      return new ValidationError('A referenced record does not exist.');
     }
     // The driver message can contain SQL text, column names, constraint
     // definitions or connection strings. It is deliberately NOT forwarded —

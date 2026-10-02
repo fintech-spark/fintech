@@ -11,6 +11,14 @@ import { asBusinessId, type BusinessId } from '@/lib/types';
 export interface ApiSuccess<T> {
   readonly data: T;
   readonly meta?: Record<string, unknown>;
+  /**
+   * HTTP status for this response. Defaults to 200.
+   *
+   * Create routes return 201 so a client can distinguish "resource created"
+   * from "request processed". Hardcoding 200 everywhere made the two
+   * indistinguishable.
+   */
+  readonly status?: number;
 }
 
 export interface RouteContext {
@@ -36,7 +44,7 @@ export function withApi<T>(handler: ApiHandler<T>) {
       const result = await handler(request, { params });
       return NextResponse.json(
         { data: result.data, ...(result.meta ? { meta: result.meta } : {}) },
-        { status: 200 },
+        { status: result.status ?? 200 },
       );
     } catch (error) {
       return toErrorResponse(error);

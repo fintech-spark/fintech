@@ -1,5 +1,5 @@
 import { withApi } from '@/lib/http/handler';
-import { parsePagination, parseEnum, parseSearch } from '@/lib/http/params';
+import { parsePagination, parseEnum, parseSearch, parseFilterValue } from '@/lib/http/params';
 import { resolveTenantContext } from '@/lib/http/auth-context';
 import { wireClient } from '@/lib/http/wiring';
 
@@ -16,7 +16,7 @@ export const GET = withApi(async (request: Request, route) => {
     page: pagination.page,
     limit: pagination.limit,
     status: parseEnum(sp.get('status'), ['active','discontinued','out_of_stock'] as const, 'status'),
-    category: parseSearch(sp.get('category'), 80),
+    category: parseFilterValue(sp.get('category'), 'category', 80),
     search: parseSearch(sp.get('search')),
   });
 

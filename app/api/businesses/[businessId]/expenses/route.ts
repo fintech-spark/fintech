@@ -28,6 +28,7 @@ export const POST = withApi(async (request: Request, route) => {
   const { expenses } = wireClient(db);
   const body = await parseJsonBody(request, createExpenseSchema);
   return {
+    status: 201,
     data: await expenses.create(ctx, {
       category: body.category,
       amount: body.amount,

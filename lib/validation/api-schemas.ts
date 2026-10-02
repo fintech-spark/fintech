@@ -51,7 +51,11 @@ export const createTransactionSchema = z.object({
         tax: minorAmount.default(0),
       }),
     )
-    .min(1, 'A transaction requires at least one line item.'),
+    .min(1, 'A transaction requires at least one line item.')
+    // Without an upper bound a single authenticated request could carry a
+    // body of a million line items: the body is buffered, every item is summed,
+    // and the whole array is then inserted in one statement.
+    .max(200, 'A transaction cannot exceed 200 line items.'),
   paymentMethod: paymentMethodSchema.optional(),
   reference: z.string().max(200).optional(),
   notes: z.string().max(2000).optional(),
@@ -122,11 +126,31 @@ export const createDocumentSchema = z.object({
   tags: z.array(z.string().min(1).max(50)).max(20).optional(),
 });
 
-/** PATCH /api/documents/[id]/status */
-export const updateDocumentStatusSchema = z.object({
-  status: documentStatusSchema,
-  reason: z.string().max(500).optional(),
-});
+/**
+ * PATCH /api/documents/[id]/status
+ *
+ * `rejected` requires a reason. Without this refinement the generic status
+ * route could reject a document with a null reason, bypassing the rule that
+ * `POST /documents/[id]/reject` exists to enforce — and leaving an irreversible
+ * rejection with no explanation for whoever reviews it.
+ */
+export const updateDocumentStatusSchema = z
+  .object({
+    status: documentStatusSchema,
+    reason: z.string().trim().min(1).max(500).optional(),
+  })
+  .refine((value) => value.status !== 'rejected' || value.reason !== undefined, {
+    message: 'A rejection reason is required when rejecting a document.',
+    path: ['reason'],
+  })
+  // The service writes `rejection_reason` unconditionally, so a reason supplied
+  // with any other status would be persisted onto an approved document and
+  // returned as `metadata.rejectionReason`. Approved and rejected are both
+  // terminal, so the mistake could never be corrected afterwards.
+  .refine((value) => value.status === 'rejected' || value.reason === undefined, {
+    message: 'A reason may only be supplied when rejecting a document.',
+    path: ['reason'],
+  });
 
 /** POST /api/documents/[id]/reject */
 export const rejectDocumentSchema = z.object({

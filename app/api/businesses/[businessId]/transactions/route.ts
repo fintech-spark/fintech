@@ -22,7 +22,7 @@ export const POST = withApi(async (request: Request, route) => {
       tax: i.tax,
     })),
   });
-  return { data: created };
+  return { data: created, status: 201 };
 });
 
 /**

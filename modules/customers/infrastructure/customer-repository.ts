@@ -14,6 +14,7 @@ import type {
 } from '@/lib/types';
 import { asCustomerId, createMoney } from '@/lib/types';
 import { AuthorizationError, NotFoundError } from '@/lib/errors';
+import { MAX_LEDGER_SCAN, assertScanWithinLimit } from '@/lib/bounded-scan';
 import {
   type Db,
   firstOrNull,
@@ -162,13 +163,43 @@ export class PostgrestCustomerRepository {
     return paginate(items, count ?? items.length, page, limit);
   }
 
+  /**
+   * Outstanding amount past its due date for one customer.
+   *
+   * `customers.outstanding_balance_minor` is a lifetime total with no notion of
+   * due date, so the overdue portion can only come from the receivables ledger.
+   * Reporting a hardcoded zero here would be indistinguishable from a computed
+   * zero in the response, which is the failure mode this exists to prevent.
+   */
+  async overdueForCustomer(businessId: BusinessId, customerId: CustomerId): Promise<number> {
+    const { data, error } = await this.db
+      .from('receivables')
+      .select('amount_minor, paid_amount_minor')
+      .eq('business_id', businessId)
+      .eq('customer_id', customerId)
+      .eq('status', 'overdue');
+
+    if (error) throw error;
+
+    return ((data ?? []) as Array<{ amount_minor: number; paid_amount_minor: number }>)
+      .reduce((sum, row) => sum + Math.max(0, row.amount_minor - row.paid_amount_minor), 0);
+  }
+
   async receivableTotals(businessId: BusinessId): Promise<{ total: number; overdue: number }> {
     const { data, error } = await this.db
       .from('receivables')
       .select('amount_minor, paid_amount_minor, status')
-      .eq('business_id', businessId);
+      .eq('business_id', businessId)
+      .range(0, MAX_LEDGER_SCAN);
 
     if (error) throw error;
+
+    // A total built from a truncated scan would be silently wrong.
+    assertScanWithinLimit(
+      (data ?? []).length,
+      MAX_LEDGER_SCAN,
+      'The receivables ledger',
+    );
 
     let total = 0;
     let overdue = 0;
@@ -199,7 +230,8 @@ export class DefaultCustomerService implements CustomerService {
     this.require(ctx, 'customers:read');
     const customer = await this.repository.findById(ctx.businessId, id);
     if (!customer) throw new NotFoundError('Customer', id);
-    return { outstanding: customer.outstandingBalance.amount, overdue: 0 };
+    const overdue = await this.repository.overdueForCustomer(ctx.businessId, id);
+    return { outstanding: customer.outstandingBalance.amount, overdue };
   }
 
   async getReceivables(ctx: TenantContext, filters: ReceivableFilters) {

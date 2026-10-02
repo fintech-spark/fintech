@@ -16,6 +16,7 @@ import { randomUUID } from 'node:crypto';
 import type { BusinessId, Money, PaginatedResult, ProductId, TenantContext, UserId } from '@/lib/types';
 import { asProductId, createMoney } from '@/lib/types';
 import { AuthorizationError, BusinessRuleError, NotFoundError } from '@/lib/errors';
+import { MAX_LOW_STOCK_SCAN, MAX_PRODUCT_SCAN, assertScanWithinLimit } from '@/lib/bounded-scan';
 import {
   type Db,
   firstOrNull,
@@ -128,23 +129,43 @@ export class PostgrestInventoryRepository {
   }
 
   async findLowStockProducts(businessId: BusinessId): Promise<readonly Product[]> {
+    // One extra row is requested so overflow is detectable; see lib/bounded-scan.
     const rows = unwrap(
       await this.db
         .from('products')
         .select(PRODUCT_COLUMNS)
         .eq('business_id', businessId)
         .eq('status', 'active')
-        .order('current_stock', { ascending: true }),
+        .order('current_stock', { ascending: true })
+        .range(0, MAX_LOW_STOCK_SCAN),
+    );
+
+    assertScanWithinLimit(
+      (rows ?? []).length,
+      MAX_LOW_STOCK_SCAN,
+      'The active product catalogue',
     );
 
     // needsReorder() is the Phase 1 rule; reuse it rather than re-deriving.
     return ((rows ?? []) as ProductRow[]).map(toProduct).filter(needsReorder);
   }
 
+  /**
+   * The whole catalogue, for the valuation endpoint.
+   *
+   * Bounded, and it THROWS on overflow rather than valuing a prefix. Returning
+   * a partial valuation would be indistinguishable from a correct one.
+   */
   async allProducts(businessId: BusinessId): Promise<readonly Product[]> {
     const rows = unwrap(
-      await this.db.from('products').select(PRODUCT_COLUMNS).eq('business_id', businessId),
+      await this.db
+        .from('products')
+        .select(PRODUCT_COLUMNS)
+        .eq('business_id', businessId)
+        .range(0, MAX_PRODUCT_SCAN),
     );
+
+    assertScanWithinLimit((rows ?? []).length, MAX_PRODUCT_SCAN, 'The product catalogue');
     return ((rows ?? []) as ProductRow[]).map(toProduct);
   }
 
@@ -294,7 +315,10 @@ export class DefaultInventoryService {
    * Idempotent when `referenceType` + `referenceId` are supplied: a replay
    * returns the original movement instead of double-counting stock.
    */
-  async recordMovement(ctx: TenantContext, input: RecordMovementInput): Promise<InventoryMovement> {
+  async recordMovement(
+    ctx: TenantContext,
+    input: RecordMovementInput,
+  ): Promise<{ movement: InventoryMovement; replayed: boolean }> {
     if (!hasPermission(ctx.role, 'inventory:write')) {
       throw new AuthorizationError('Missing required permission: inventory:write.');
     }
@@ -305,7 +329,8 @@ export class DefaultInventoryService {
         input.referenceType,
         input.referenceId,
       );
-      if (existing) return existing;
+      // A replay created nothing, so it must not be reported as 201 Created.
+      if (existing) return { movement: existing, replayed: true };
     }
 
     let lastError: unknown;
@@ -338,7 +363,7 @@ export class DefaultInventoryService {
         continue;
       }
 
-      return this.repository.saveMovement({
+      const saved = await this.repository.saveMovement({
         id: randomUUID(),
         businessId: ctx.businessId,
         productId: input.productId,
@@ -352,6 +377,8 @@ export class DefaultInventoryService {
         createdAt: new Date(),
         createdBy: ctx.userId,
       });
+
+      return { movement: saved, replayed: false };
     }
 
     throw lastError instanceof BusinessRuleError

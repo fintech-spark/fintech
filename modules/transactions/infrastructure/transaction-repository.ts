@@ -9,7 +9,13 @@ import 'server-only';
 import { randomUUID } from 'node:crypto';
 import type { BusinessId, PaginatedResult, TenantContext, TransactionId, UserId, Money } from '@/lib/types';
 import { asTransactionId, createMoney } from '@/lib/types';
-import { AuthorizationError, BusinessRuleError, ConflictError, NotFoundError } from '@/lib/errors';
+import {
+  AuthorizationError,
+  BusinessRuleError,
+  ConflictError,
+  NotFoundError,
+  ValidationError,
+} from '@/lib/errors';
 import {
   type Db,
   firstOrNull,
@@ -119,6 +125,19 @@ function toTransaction(row: TransactionRow, items: readonly ItemRow[]): Transact
 
 export class PostgrestTransactionRepository {
   constructor(private readonly db: Db) {}
+
+  /** Product ids owned by this tenant, used to validate line-item references. */
+  async findOwnedProductIds(
+    businessId: BusinessId,
+    productIds: readonly string[],
+  ): Promise<{ data: Array<{ id: string }> | null; error: unknown }> {
+    return this.db
+      .from('products')
+      .select('id')
+      .eq('business_id', businessId)
+      .in('id', productIds as string[])
+      .limit(productIds.length);
+  }
 
   async findById(businessId: BusinessId, id: TransactionId): Promise<Transaction | null> {
     const row = firstOrNull<TransactionRow>(
@@ -300,10 +319,46 @@ export class DefaultTransactionService implements TransactionService {
   // Phase 1 contract file.
   constructor(private readonly repository: PostgrestTransactionRepository) {}
 
+  /**
+   * Confirms every referenced product belongs to this tenant.
+   *
+   * `transaction_items` has no `business_id` column and its `product_id` foreign
+   * key is global, so the FK constraint and the RLS policy (which only inspects
+   * the PARENT transaction) both accept a product owned by a different
+   * business. Without this check a caller could write a durable cross-tenant
+   * pointer into their own ledger. `products` does carry `business_id`, so the
+   * ownership question is answerable here.
+   */
+  private async assertProductsOwnedByTenant(
+    ctx: TenantContext,
+    productIds: readonly string[],
+  ): Promise<void> {
+    const unique = Array.from(new Set(productIds));
+    if (unique.length === 0) return;
+
+    const { data, error } = await this.repository.findOwnedProductIds(ctx.businessId, unique);
+
+    if (error) throw error;
+
+    const owned = new Set(((data ?? []) as Array<{ id: string }>).map((row) => row.id));
+    const foreign = unique.filter((id) => !owned.has(id));
+
+    if (foreign.length > 0) {
+      throw new ValidationError('One or more referenced products do not exist.', [
+        { field: 'items[].productId', message: 'Unknown or inaccessible product reference.' },
+      ]);
+    }
+  }
+
   async create(ctx: TenantContext, input: CreateTransactionInput): Promise<Transaction> {
     if (!hasPermission(ctx.role, 'transactions:write' satisfies Permission)) {
       throw new AuthorizationError('Missing required permission: transactions:write.');
     }
+
+    await this.assertProductsOwnedByTenant(
+      ctx,
+      input.items.map((item) => item.productId),
+    );
 
     const currency = 'INR' as Money['currency'];
 

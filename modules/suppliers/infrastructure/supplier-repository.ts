@@ -15,6 +15,7 @@ import type {
 } from '@/lib/types';
 import { asSupplierId, createMoney } from '@/lib/types';
 import { AuthorizationError } from '@/lib/errors';
+import { MAX_LEDGER_SCAN, MAX_PRICING_SCAN, assertScanWithinLimit } from '@/lib/bounded-scan';
 import {
   type Db,
   firstOrNull,
@@ -163,9 +164,12 @@ export class PostgrestSupplierRepository {
     const { data, error } = await this.db
       .from('payables')
       .select('amount_minor, paid_amount_minor, status')
-      .eq('business_id', businessId);
+      .eq('business_id', businessId)
+      .range(0, MAX_LEDGER_SCAN);
 
     if (error) throw error;
+
+    assertScanWithinLimit((data ?? []).length, MAX_LEDGER_SCAN, 'The payables ledger');
 
     let total = 0;
     let overdue = 0;
@@ -184,7 +188,14 @@ export class PostgrestSupplierRepository {
         .from('supplier_pricing')
         .select(PRICING_COLUMNS)
         .eq('business_id', businessId)
-        .eq('supplier_id', supplierId),
+        .eq('supplier_id', supplierId)
+        .range(0, MAX_PRICING_SCAN),
+    );
+
+    assertScanWithinLimit(
+      (rows ?? []).length,
+      MAX_PRICING_SCAN,
+      'This supplier\'s price list',
     );
 
     return ((rows ?? []) as Array<{

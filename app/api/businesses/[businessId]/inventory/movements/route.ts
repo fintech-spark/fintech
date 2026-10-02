@@ -15,14 +15,21 @@ export const POST = withApi(async (request: Request, route) => {
   const { ctx, db } = await resolveTenantContext(request, route.params.businessId);
   const services = wireClient(db);
   const body = await parseJsonBody(request, recordMovementSchema);
+
+  const result = await services.inventory.recordMovement(ctx, {
+    productId: body.productId as never,
+    type: body.type,
+    quantity: body.quantity,
+    reference: body.reference,
+    referenceType: body.referenceType,
+    referenceId: body.referenceId,
+  });
+
   return {
-    data: await services.inventory.recordMovement(ctx, {
-      productId: body.productId as never,
-      type: body.type,
-      quantity: body.quantity,
-      reference: body.reference,
-      referenceType: body.referenceType,
-      referenceId: body.referenceId,
-    }),
+    // A replay of an already-recorded reference created nothing, so it is not
+    // a 201. Reporting it as one would tell the caller a movement exists when
+    // the response is the ORIGINAL movement, not a new one.
+    status: result.replayed ? 200 : 201,
+    data: result.movement,
   };
 });

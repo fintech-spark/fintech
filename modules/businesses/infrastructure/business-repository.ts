@@ -13,6 +13,7 @@ import type {
 } from '@/lib/types';
 import { asBusinessId } from '@/lib/types';
 import { AuthorizationError, NotFoundError } from '@/lib/errors';
+import { MAX_MEMBERSHIP_SCAN, assertScanWithinLimit } from '@/lib/bounded-scan';
 import {
   type Db,
   firstOrNull,
@@ -120,7 +121,14 @@ export class PostgrestBusinessRepository {
         .from('business_members')
         .select('business_id, user_id, role, status, joined_at')
         .eq('business_id', businessId)
-        .order('joined_at', { ascending: true }),
+        .order('joined_at', { ascending: true })
+        .range(0, MAX_MEMBERSHIP_SCAN),
+    );
+
+    assertScanWithinLimit(
+      (rows ?? []).length,
+      MAX_MEMBERSHIP_SCAN,
+      'The membership roster',
     );
 
     return ((rows ?? []) as Array<{
@@ -166,32 +174,61 @@ export class PostgrestBusinessRepository {
 export class DefaultBusinessService implements BusinessService {
   constructor(private readonly repository: PostgrestBusinessRepository) {}
 
+  /**
+   * The full business record, including PAN and GSTIN.
+   *
+   * Gated on `settings:read`, which the role matrix grants to owner and admin
+   * only. This is not over-restriction: the record carries tax identifiers, and
+   * the matrix already defined `settings:read` for exactly this — it was simply
+   * never checked, so any active member including `staff` could read them.
+   */
   async getById(ctx: TenantContext): Promise<Business> {
+    this.require(ctx, 'settings:read');
     const business = await this.repository.findById(ctx.businessId);
     if (!business) throw new NotFoundError('Business', ctx.businessId);
     return business;
   }
 
+  /**
+   * The membership roster: every member's user id and role.
+   *
+   * Gated on `settings:read` for the same reason as `getById`. Enumerating who
+   * holds which role in a business is administrative information, and the
+   * matrix reserves `settings:*` to owner and admin.
+   */
   async getMembers(ctx: TenantContext) {
+    this.require(ctx, 'settings:read');
     return this.repository.memberships(ctx.businessId);
   }
 
+  /**
+   * The caller's own businesses.
+   *
+   * Takes no TenantContext because it runs before one exists: it is the list a
+   * caller picks a tenant FROM. It is therefore bounded by the caller's own
+   * membership count, resolved by the database via `auth_user_businesses()`,
+   * and cannot be pointed at another tenant. The route projects each row down
+   * to id/name/type/status, so no tax identifier is returned here.
+   */
   async listForUser(userId: UserId): Promise<readonly Business[]> {
     return this.repository.listForUser(userId);
   }
 
   /** Settings writes require owner/admin — Phase 1 rule `canManageSettings`. */
   async updateProfile(ctx: TenantContext, profile: Partial<BusinessProfile>) {
-    if (!hasPermission(ctx.role, 'settings:write')) {
-      throw new AuthorizationError('Missing required permission: settings:write.');
-    }
+    this.require(ctx, 'settings:write');
     return this.repository.updateProfileColumns(ctx.businessId, profile);
   }
 
   async updateSettings(ctx: TenantContext, settings: Partial<BusinessSettings>) {
-    if (!hasPermission(ctx.role, 'settings:write')) {
-      throw new AuthorizationError('Missing required permission: settings:write.');
-    }
+    this.require(ctx, 'settings:write');
     return this.repository.updateSettingColumns(ctx.businessId, settings);
+  }
+
+  /** Single choke point so a new method cannot forget the check. */
+  private require(ctx: TenantContext, permission: Parameters<typeof hasPermission>[1]) {
+    if (!hasPermission(ctx.role, permission)) {
+      throw new AuthorizationError(`Missing required permission: ${permission}.`);
+    }
   }
 }
