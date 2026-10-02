@@ -1,0 +1,14 @@
+{
+  "recommendations": [
+    "dbaeumer.vscode-eslint",
+    "esbenp.prettier-vscode",
+    "bradlc.vscode-tailwindcss",
+    "ms-vscode.vscode-typescript-next",
+    "vitest.explorer",
+    "ms-playwright.playwright",
+    "supabase.vscode-supabase-cli",
+    "github.vscode-github-actions",
+    "eamodio.gitlens",
+    "usernamehw.errorlens"
+  ]
+}

@@ -1,13 +1,23 @@
 * text=auto eol=lf
 
-# GitHub Linguist overrides to reflect actual application codebase
-# Vendor AI agent skills, IDE tools, and prompts
-.agents/** linguist-vendored
-.claude/** linguist-vendored
+# ──────────────────────────────────────────────────────────────────────────────
+# GitHub Linguist: ensure the language bar reflects the real application code
+# ──────────────────────────────────────────────────────────────────────────────
 
-# Scaffolding and internal utility scripts
-scripts/** linguist-documentation
+# Agent skills and IDE adapter directories are third-party / vendor material
+.agents/**                  linguist-vendored
+.claude/**                  linguist-vendored
+.commandcode/**             linguist-vendored
 
-# Root build and bundler config files
-*.config.mjs linguist-generated
-*.config.ts linguist-generated
+# Markdown documentation is not application code
+docs/**                     linguist-documentation
+prompts/**                  linguist-documentation
+evals/**                    linguist-documentation
+*.md                        linguist-documentation
+
+# Internal utility and scaffolding scripts
+scripts/**                  linguist-documentation
+
+# Generated files — not hand-authored
+next-env.d.ts               linguist-generated
+package-lock.json           linguist-generated
