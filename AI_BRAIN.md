@@ -1,10 +1,14 @@
 # Merchant Brain project memory
 
+> **This file is a memory aid, not the source of truth.** Read
+> [`AI_CONTEXT.md`](./AI_CONTEXT.md) first — it is the authoritative statement of scope,
+> architecture, and agent conduct. Where this file disagrees with it, `AI_CONTEXT.md` wins.
+
 ## Project identity
 
 - **Name:** Merchant Brain
-- **Purpose:** Prepare a trustworthy, AI-ready foundation for a future business brain for small merchants.
-- **Current status:** Setup only. Product routes, backend, database, auth, uploads, AI calls, and production data are intentionally not implemented.
+- **Purpose:** An AI-powered business operating system for small merchants in India — turning the messy data they already have into understanding, diagnosis, simulation, and human-approved action.
+- **Current status:** Architecture foundation in place; **Phase 1 (Database Foundation) has begun**. Product routes, auth, uploads, AI calls, and production data are still not implemented.
 
 ## Current stack
 
@@ -35,8 +39,10 @@
 - Source code/package metadata wins over memory.
 - Inspect before editing, reuse existing code, avoid dependency bloat, verify official APIs, and report actual checks only.
 - Application data and deterministic calculations are the source of truth; AI outputs require schema validation and evidence.
-- No architecture document or unapproved backend decisions yet.
+- The architecture **is decided**: Modular Monolith / Microlith — one repository, one deployable Next.js unit, one PostgreSQL database, 19 isolated domain modules, in-process typed event bus. See `AI_CONTEXT.md` §4. Do not relitigate it and do not introduce microservices or a message broker.
 
 ## Last setup summary
 
-The previously empty directory was audited and prepared with a minimal Next.js foundation, package lockfile, shadcn/Radix setup, agent skills, MCP configuration, docs, prompts/evals/fixtures scaffolding, CI/security workflows, and synthetic verification checks. The next approved step is requirements and UI-flow review, not product implementation.
+The previously empty directory was audited and prepared with a minimal Next.js foundation, package lockfile, shadcn/Radix setup, agent skills, MCP configuration, docs, prompts/evals/fixtures scaffolding, CI/security workflows, and synthetic verification checks.
+
+**Superseded:** the earlier "next approved step is requirements and UI-flow review, not product implementation" note no longer reflects the project. The modular-monolith architecture mandate is approved and Phase 1 (Database Foundation) is underway — see `AI_CONTEXT.md` §9 and §11.
