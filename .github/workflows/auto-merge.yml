@@ -1,0 +1,82 @@
+name: auto-merge
+
+# Squash-merges a PR once every check on its head SHA has succeeded.
+#
+# Triggered by check_suite (fires when a CI run finishes) rather than
+# pull_request, so the decision is made on the commit that was actually
+# tested — not on whatever the PR head happened to be when it was opened.
+
+on:
+  check_suite:
+    types: [completed]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+# One merge at a time. Without this, two finishing CI runs can race and
+# both attempt to merge the same PR.
+concurrency:
+  group: auto-merge
+  cancel-in-progress: false
+
+jobs:
+  auto-merge:
+    runs-on: ubuntu-latest
+    if: github.event.check_suite.conclusion == 'success'
+
+    steps:
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const { head_sha: sha, head_branch: branch } = context.payload.check_suite;
+
+            if (!branch || branch === 'main') {
+              console.log('nothing to merge');
+              return;
+            }
+
+            const { data: prs } = await github.rest.pulls.list({
+              owner, repo, state: 'open', head: `${owner}:${branch}`,
+            });
+            if (prs.length === 0) {
+              console.log(`no open PR for ${branch}`);
+              return;
+            }
+
+            for (const pr of prs) {
+              if (pr.draft) {
+                console.log(`skip #${pr.number}: draft`);
+                continue;
+              }
+
+              // mergeable === null means GitHub is still computing it.
+              if (pr.mergeable === false) {
+                console.log(`skip #${pr.number}: conflicts`);
+                continue;
+              }
+
+              const { data: combined } = await github.rest.repos.getCombinedStatusForRef({
+                owner, repo, ref: pr.head.sha,
+              });
+              if (combined.state === 'failure' || combined.state === 'error') {
+                console.log(`skip #${pr.number}: checks ${combined.state}`);
+                continue;
+              }
+
+              // mergeable_state === 'blocked' means branch protection is
+              // holding it (required review / missing context). Leave it.
+              const { data: full } = await github.rest.pulls.get({
+                owner, repo, pull_number: pr.number,
+              });
+              if (full.mergeable_state === 'blocked') {
+                console.log(`skip #${pr.number}: blocked by branch protection`);
+                continue;
+              }
+
+              await github.rest.pulls.merge({
+                owner, repo, pull_number: pr.number, merge_method: 'squash',
+              });
+              console.log(`merged #${pr.number} (${pr.title})`);
+            }
