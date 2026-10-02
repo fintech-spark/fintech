@@ -9,7 +9,7 @@ import { updateBusinessProfileSchema } from '@/lib/validation/api-schemas';
  */
 export const PATCH = withApi(async (request: Request, route) => {
   const { ctx, db } = await resolveTenantContext(request, route.params.businessId);
-  const { businesses } = wireClient(db as never);
+  const { businesses } = wireClient(db);
   const body = await parseJsonBody(request, updateBusinessProfileSchema);
   return { data: await businesses.updateProfile(ctx, body) };
 });

@@ -175,7 +175,7 @@ export class PostgrestInventoryRepository {
   }
 
   async saveMovement(movement: InventoryMovement): Promise<InventoryMovement> {
-    const row = unwrap(
+    unwrap(
       await this.db
         .from('inventory_movements')
         .insert({
@@ -193,7 +193,7 @@ export class PostgrestInventoryRepository {
         })
         .select('*')
         .single(),
-    ) as Record<string, unknown>;
+    );
 
     return {
       id: movement.id,

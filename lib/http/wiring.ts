@@ -11,9 +11,9 @@ import { PostgrestTransactionRepository, DefaultTransactionService } from '@/mod
 import { PostgrestExpenseRepository, DefaultExpenseService } from '@/modules/expenses/infrastructure/expense-repository';
 import { PostgrestInventoryRepository, DefaultInventoryService } from '@/modules/inventory/infrastructure/inventory-repository';
 import { PostgrestCustomerRepository, DefaultCustomerService } from '@/modules/customers/infrastructure/customer-repository';
-import { PostgrestSupplierRepository, DefaultSupplierService } from '@/modules/customers/infrastructure/customer-repository';
-import { PostgrestDocumentRepository, DefaultDocumentService } from '@/modules/customers/infrastructure/customer-repository';
-import { PostgrestBusinessRepository, DefaultBusinessService } from '@/modules/customers/infrastructure/customer-repository';
+import { PostgrestSupplierRepository, DefaultSupplierService } from '@/modules/suppliers/infrastructure/supplier-repository';
+import { PostgrestDocumentRepository, DefaultDocumentService } from '@/modules/documents/infrastructure/document-repository';
+import { PostgrestBusinessRepository, DefaultBusinessService } from '@/modules/businesses/infrastructure/business-repository';
 
 export interface Wired {
   readonly db: Db;
@@ -43,9 +43,7 @@ export function wire(accessToken: string): Wired {
  * Route handlers use this with the client from `resolveTenantContext`, so the
  * tenant is resolved and authorised before any repository is constructed.
  */
-export function wireClient(client: unknown): Wired {
-  const db = client as Db;
-
+export function wireClient(db: Db): Wired {
   return {
     db,
     transactions: new DefaultTransactionService(new PostgrestTransactionRepository(db)),

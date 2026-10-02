@@ -12,7 +12,7 @@ import { wire, wireClient } from '@/lib/http/wiring';
 export const GET = withApi(async (request: Request) => {
   const context = await requireRequestContext(request);
   const { db } = wire(context.accessToken);
-  const { businesses } = wireClient(db as never);
+  const { businesses } = wireClient(db);
   const list = await businesses.listForUser(context.user.userId);
 
   return {

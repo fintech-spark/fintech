@@ -19,6 +19,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { createServerClient } from '../../lib/supabase/server-client';
 import { asBusinessId, asUserId, type BusinessId, type TenantContext, type UserId, type UserRole } from '@/lib/types';
 import { AuthenticationError, AuthorizationError } from '@/lib/errors';
+import { parseUuid } from './params';
 import type { Permission } from '@/modules/auth';
 
 export interface SessionUser {
@@ -83,7 +84,7 @@ export async function requireRequestContext(request: Request): Promise<RequestCo
 
   // Membership is resolved by the database, which is the same source of truth
   // the RLS policies use. We never derive it from anything the client sent.
-  const businessIds = await resolveAuthorizedBusinesses(client, userId);
+  const businessIds = await resolveAuthorizedBusinesses(client);
 
   const email = typeof data.user.email === 'string' ? data.user.email : '';
 
@@ -102,7 +103,6 @@ export async function requireRequestContext(request: Request): Promise<RequestCo
  */
 async function resolveAuthorizedBusinesses(
   client: SupabaseClient,
-  _userId: UserId,
 ): Promise<readonly BusinessId[]> {
   const { data, error } = await client.rpc('auth_user_businesses');
 
@@ -141,7 +141,7 @@ export async function resolveTenantContext(
 ): Promise<ResolvedTenant> {
   const context = await requireRequestContext(request);
 
-  const businessId = asBusinessId(requestedBusinessId);
+  const businessId = asBusinessId(parseUuid(requestedBusinessId, 'businessId'));
 
   if (!context.user.businessIds.includes(businessId)) {
     throw new AuthorizationError('You do not have access to this business.');

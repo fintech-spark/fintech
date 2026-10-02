@@ -4,6 +4,13 @@
 **Authority:** This plan implements the service interfaces already shipped in
 `modules/*/application/service.ts`. It introduces **no new business operations**.
 
+> **Amendment D10 (owner-approved, 2026-10-03).** §1 rule 2 and §3.2 are
+> superseded on the question of *where the tenant id sits in the URL*. All
+> tenant-scoped routes are nested under `/api/businesses/[businessId]/…`.
+> See §10. The security intent of rule 2 is unchanged: the path segment is
+> **client-supplied and therefore untrusted**, and is re-verified against
+> `auth_user_businesses()` on every request before any query runs.
+
 ---
 
 ## 1. Core rules
@@ -231,3 +238,69 @@ Must not modify: `modules/*/domain/**`, `lib/boundaries.ts`, `lib/events.ts`,
 
 **26 endpoints** across 8 resources, backed by the existing service interfaces,
 served through RLS-enforced PostgREST, with tenant context derived server-side.
+
+---
+
+## 10. Amendment D10 — tenant id in the path
+
+**Approved by the owner, 2026-10-03.**
+
+### 10.1 The problem D10 solves
+
+§1 rule 2 requires `businessId` to be server-derived, but §3.3–§3.8 specify flat
+paths (`POST /api/transactions`) that carry **no tenant identifier at all**.
+A merchant may belong to more than one business — that is exactly what
+`GET /api/auth/session` returns a *list* for. The original §3 therefore had no
+way to name the tenant, and the first implementation read
+`route.params.businessId` from a route segment that did not exist, so every
+flat endpoint returned 403 for every caller.
+
+A single implicit "current business" cannot be assumed: it is not modelled, it
+is not in the database, and inventing it would be a product decision.
+
+### 10.2 The resolution
+
+Every tenant-scoped route is nested one level under the tenant:
+
+| Original §3 path | D10 path |
+|---|---|
+| `POST /api/transactions` | `POST /api/businesses/[businessId]/transactions` |
+| `GET /api/transactions` | `GET /api/businesses/[businessId]/transactions` |
+| `GET /api/transactions/[id]` | `GET /api/businesses/[businessId]/transactions/[id]` |
+| `PATCH /api/transactions/[id]/status` | `PATCH /api/businesses/[businessId]/transactions/[id]/status` |
+| `GET /api/transactions/duplicate-check` | `GET /api/businesses/[businessId]/transactions/duplicate-check` |
+| `GET /api/expenses…` (4) | `GET /api/businesses/[businessId]/expenses…` |
+| `GET /api/inventory…` (5) | `GET /api/businesses/[businessId]/inventory…` |
+| `GET /api/customers…` (5) | `GET /api/businesses/[businessId]/customers…` |
+| `GET /api/suppliers…` (5) | `GET /api/businesses/[businessId]/suppliers…` |
+| `/api/documents…` (6) | `/api/businesses/[businessId]/documents…` |
+
+Unchanged, because they take no tenant:
+
+| Path | Reason |
+|---|---|
+| `GET /api/auth/session` | Returns the authorized business ids; precedes tenant selection |
+| `GET /api/businesses` | Lists every business the caller may select |
+| `GET /api/health` | Unauthenticated liveness probe |
+
+### 10.3 Why this is not the security hole rule 2 warns about
+
+The path segment is untrusted input and is treated as such:
+
+1. It is validated as a UUID at the boundary — malformed → **400**.
+2. It is checked against the session's membership list — non-member → **403**.
+3. Membership is re-read from `business_members` for the active role — absent → **403**.
+4. Every query then runs as the caller under RLS, so even a logic bug cannot
+   read another tenant's rows.
+5. A cross-tenant **record** id still yields **404**, never 403.
+
+Rule 2's real requirement — *never trust a client-supplied tenant identifier* —
+is enforced at step 2. Moving it from a body field to a path field changes
+nothing about that, and it removes the flat-route dead end.
+
+### 10.4 Still forbidden
+
+- A `businessId` in a **request body** or **query string** is never read. Only
+  the path segment selects the tenant.
+- `createAdminClient` is still forbidden in a request path.
+- The route count is unchanged: nesting adds no operations.

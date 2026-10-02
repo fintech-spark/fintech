@@ -5,7 +5,8 @@
 
 import { NextResponse } from 'next/server';
 import { toErrorResponse } from './errors';
-import { asBusinessId } from '@/lib/types';
+import { ValidationError } from '@/lib/errors';
+import { asBusinessId, type BusinessId } from '@/lib/types';
 
 export interface ApiSuccess<T> {
   readonly data: T;
@@ -52,19 +53,23 @@ export function withApi<T>(handler: ApiHandler<T>) {
  * handler must pass it to `resolveTenantContext`, which re-checks membership.
  * A caller-supplied `businessId` in a JSON body is never read.
  */
-export function businessIdFromParams(params: Record<string, string>): string {
+export function businessIdFromParams(params: Record<string, string>): BusinessId {
   const value = params.businessId;
   if (!value) {
-    throw new Error('businessId path parameter is missing.');
+    throw new ValidationError('businessId path parameter is missing.', [
+      { field: 'businessId', message: 'Must be present in the path.' },
+    ]);
   }
-  return asBusinessId(value) as unknown as string;
+  return asBusinessId(value);
 }
 
 /** Reads a required path parameter, e.g. `[id]`. */
 export function param(params: Record<string, string>, name: string): string {
   const value = params[name];
   if (!value) {
-    throw new Error(`Missing required path parameter: ${name}.`);
+    throw new ValidationError(`Missing required path parameter: ${name}.`, [
+      { field: name, message: 'Must be present in the path.' },
+    ]);
   }
   return value;
 }

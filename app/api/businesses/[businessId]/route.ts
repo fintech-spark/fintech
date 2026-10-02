@@ -7,6 +7,6 @@ import { wireClient } from '@/lib/http/wiring';
  */
 export const GET = withApi(async (request: Request, route) => {
   const { ctx, db } = await resolveTenantContext(request, route.params.businessId);
-  const { businesses } = wireClient(db as never);
+  const { businesses } = wireClient(db);
   return { data: await businesses.getById(ctx) };
 });

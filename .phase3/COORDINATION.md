@@ -106,3 +106,72 @@ any UI.
 - `2026-10-02` **model-1** — audit complete. 9 gaps found, 3 blocking. 9 decisions recorded.
 - `2026-10-02` **model-1** — `.phase3/API_CONTRACT_PLAN.md` approved. 26 endpoints.
 - `2026-10-02` **model-2** — implementation started.
+- `2026-10-03` **model-1** — implementation review of model-2's in-flight work. Three
+  findings, recorded below. No model-2 file was modified; model-1 held only `.phase3`.
+- `2026-10-03` **model-1** — **D10 approved by owner.** Tenant-scoped routes nest under
+  `/api/businesses/[businessId]/…`. See `API_CONTRACT_PLAN.md` §10.
+- `2026-10-03` **model-1** — **D12 approved by owner.** Analytics endpoints stay out of
+  Phase 3, per contract §6. Adding them now would invent a contract for services whose
+  upstream data is produced in later phases.
+- `2026-10-03` **model-3** — **lease takeover, owner-authorised.** model-2's three leases
+  (`app/api`, `modules`, `tests/api`, held as `…-61870`, `…-61924`, `…-61990`) were idle:
+  zero file writes and zero lint/typecheck/test/build processes across a 16-minute
+  observation window ending 01:40. The Phase 7/8 agent reported by the owner works in
+  `fintech-ai/`, so these leases belonged to a separate, stopped session. Reaped and
+  re-acquired by model-3 rather than left to expire at 02:35. The reaped session's work
+  was **kept, not reverted** — it is the basis for the fixes below.
+
+## Model 3 verification — 2026-10-03
+
+Starting state: 33 routes, 4 repository files, HTTP kernel, 537-line security suite,
+`git status` clean of commits — none of it committed.
+
+| Check | Result |
+|---|---|
+| `npm run lint` | not yet run at takeover |
+| `npm run typecheck` | not yet run at takeover |
+| `npm test` | not yet run at takeover |
+| **Routes exercisable** | **13 of 33.** R1 confirmed on re-read at 01:40 |
+
+R1 re-confirmed at takeover: `app/api/transactions/` holds only `[id]` and
+`duplicate-check`, so `route.params.businessId` is `undefined` in
+`app/api/transactions/route.ts:11`, `app/api/expenses/route.ts:11` and
+`app/api/inventory/products/route.ts:10`, and `auth-context.ts:146` turns that into
+a 403. This is why a green suite did not catch it: `route.params` is typed
+`Record<string, string>`, so the compiler cannot see it, and **no test imports a route
+handler** — `grep -rn "app/api" tests/` is empty. `tests/api/security.test.ts` imports
+only `lib/errors`, `lib/http/params` and `lib/http/errors`.
+
+**A passing suite is not evidence that an endpoint works.** Phase 3 is not complete
+until a test calls a route handler with a mocked session and asserts the status code.
+
+## Model 1 implementation review — 2026-10-03
+
+Reviewed while model-2 was still writing. Read-only; nothing was edited.
+
+| # | Finding | Severity | Disposition |
+|---|---|---|---|
+| R1 | 31 routes call `resolveTenantContext(request, route.params.businessId)`, but only `app/api/businesses/[businessId]/*` has that segment. Every flat route (`/transactions`, `/expenses`, `/customers`, `/suppliers`, `/inventory/*`, `/documents`) reads `undefined`, fails the membership check, and returns **403 for every caller**. ~20 of 33 endpoints are dead. | **CRITICAL** | Fixed under D10 — routes nested so the segment exists |
+| R2 | `lib/http/wiring.ts:14-16` imports the suppliers, documents and businesses repositories from `modules/customers/infrastructure/customer-repository.ts`. Four modules' persistence in one file, 849 lines, over the 800-line ceiling in `.agents/rules/code-review.md`, and it collapses module isolation that `lib/boundaries.ts` exists to protect. | HIGH | Split into per-module `*-repository.ts` |
+| R3 | `lib/http/handler.ts:50` returns `asBusinessId(value) as unknown as string`, discarding the branded type so a bad value cannot be caught by the compiler. `param()` at line 58 throws a bare `Error`, which `toErrorResponse` maps to **500** rather than 400. | MEDIUM | Drop the double cast; make a missing param a `ValidationError` |
+
+Not defects, noted for the record:
+
+- `lib/http/auth-context.ts` uses `client.auth.getUser()` rather than
+  `getSession()`, and re-resolves membership through `auth_user_businesses()`.
+  Correct, and the reason R1 fails closed rather than open.
+- `lib/http/params.ts` clamps `limit` to 100 and resolves sort through an
+  allowlist. Correct — satisfies contract §7 items 8 and 9.
+- `hasPermission()` in `auth-context.ts:213` is a **role→permission matrix that
+  does not exist anywhere else in the repository.** It is invented policy, and
+  `assertPermission` is the application-authorization layer, so getting it wrong
+  is a security bug, not a style issue. It needs owner sign-off as **D11**; it
+  is not verified by any test beyond "staff cannot write".
+
+## Model 1 → Model 3 handoff
+
+Verification must assert, per contract §7, that a member of business A receives
+**404** (not 403) for business B's transaction, expense, product, customer,
+supplier and document; that a forged `businessId` in body or query is ignored;
+and that a `staff` member cannot write settings. A test that only checks the
+happy path has not verified R1 is fixed.
