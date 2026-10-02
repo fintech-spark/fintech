@@ -43,6 +43,7 @@ task needs — this page is the map, not a reading list.
 | [`engineering/EVALS.md`](engineering/EVALS.md) | AI evaluation protocol (Promptfoo, graders, review) |
 | [`engineering/OBSERVABILITY.md`](engineering/OBSERVABILITY.md) | Logging, telemetry, tracing |
 | [`engineering/SETUP_AUDIT.md`](engineering/SETUP_AUDIT.md) | Baseline audit record. **Historical — its scope claims are superseded by `AI_CONTEXT.md`** |
+| [`engineering/REPO_STRUCTURE.md`](engineering/REPO_STRUCTURE.md) | Canonical directory map, branch model, and file-layout invariants |
 
 ## Security
 
@@ -66,7 +67,7 @@ These stay at the repository root because a tool or GitHub itself looks for them
 
 | File | Required at root because |
 |---|---|
-| `readme.md` | GitHub renders it on the repository home page |
+| `README.md` | GitHub renders it on the repository home page |
 | `CONTRIBUTING.md`, `SECURITY.md` | GitHub links these from the repo UI |
 | `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, `AI_CONTEXT.md` | Each coding agent looks for its own file at the project root |
 | `SKILLS.md` | Referenced by every entry point above as the first thing an agent reads |
