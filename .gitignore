@@ -35,3 +35,7 @@ npm-debug.log*
 # Local agent/runtime state
 .omnirush/
 __agent__/
+.commandcode/
+
+# Agent claim leases (per-machine runtime state)
+.agents/claims/
