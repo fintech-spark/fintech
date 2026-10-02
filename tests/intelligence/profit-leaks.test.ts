@@ -27,7 +27,6 @@ import {
 } from '@/modules/profit-leaks';
 import {
   InMemoryAnalyticsRepository,
-  InMemoryProfitLeakRepository,
   TENANT_A,
   TENANT_B,
   fixedClockAt,
@@ -35,6 +34,9 @@ import {
   tenantFor,
   type LedgerSale,
 } from './support/doubles';
+import {
+  InMemoryProfitLeakRepository,
+} from './support/action-doubles';
 import { createEventBus } from '@/lib/events';
 import { NotFoundError } from '@/lib/errors';
 import { PostgresAnalyticsService } from '@/modules/analytics';

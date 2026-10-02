@@ -1,17 +1,14 @@
 import {
   ratioBps,
   roundHalfAwayFromZero,
-  weightedAverageMinorUnits,
   type HalfOpenPeriod,
 } from '@/modules/analytics';
 import type { FinancialSnapshot } from '@/modules/analytics';
 import type {
   LeakCategory,
-  LeakCalculation,
   LeakEvidence,
   ProfitLeak,
   SuppressedDetector,
-  SuppressionReason,
   UnavailableDetector,
 } from './types';
 import {
@@ -23,25 +20,20 @@ import {
   DISCOUNT_RATE_RISE_BPS,
   LOW_MARGIN_FLOOR_BPS,
   MARGIN_COMPRESSION_BPS,
-  MIN_SAMPLE_SIZE,
-  PRODUCT_MIN_AGE_DAYS,
-  SUPPLIER_COST_INCREASE_BPS,
   abnormalExpenseImpact,
   clampImpact,
-  classifySeverity,
   deadInventoryValueMinor,
   evidence,
   excessiveDiscountImpact,
   floorMarginMinor,
   hasMinimumEvidence,
-  impactPeriodLabel,
   isProductMature,
   lowMarginImpact,
   marginCompressionImpact,
-  referencedRecordIds,
-  supplierCostIncreaseImpact,
   suppressionReason,
 } from './rules';
+import { notFired, sumInputs, sumOf, suppress, toResult } from './assembly';
+import { buildMarginEvidence, createdAtOf, findCostIncreases } from './evidence';
 
 /**
  * Leak detectors.
@@ -719,288 +711,5 @@ export const DETECTORS: readonly Detector[] = [
 export const UNAVAILABLE_DETECTORS: readonly UnavailableDetector[] = [highPaymentFeesUnavailable];
 
 // ---------------------------------------------------------------------------
-// Shared assembly
+// Detector-specific evidence
 // ---------------------------------------------------------------------------
-
-interface LeakDraft {
-  readonly rule: LeakCategory;
-  readonly inputs: Readonly<Record<string, number>>;
-  readonly observedValue: number;
-  readonly baselineValue: number;
-  readonly deviation: number;
-  readonly deviationUnit: 'minor_units' | 'ratio_bps' | 'quantity';
-  readonly impactMinor: number;
-  readonly title: string;
-  readonly description: string;
-  readonly suggestedInvestigation: string;
-}
-
-function toResult(
-  detector: Detector,
-  context: DetectorContext,
-  entries: readonly LeakEvidence[],
-  draft: LeakDraft,
-): DetectorResult {
-  if (!hasMinimumEvidence(entries.length, detector.category)) {
-    return suppress(
-      detector.category,
-      {
-        reason: 'insufficient_sample_size',
-        explanation: `Only ${entries.length} evidence item(s) are available; this rule needs more.`,
-      },
-      context,
-    );
-  }
-
-  const calculation: LeakCalculation = {
-    rule: draft.rule,
-    ruleDescription: detector.rule,
-    formula: FORMULAS[draft.rule],
-    inputs: draft.inputs,
-    observedValue: draft.observedValue,
-    baselineValue: draft.baselineValue,
-    deviation: draft.deviation,
-    deviationUnit: draft.deviationUnit,
-    periodStart: context.period.from,
-    periodEnd: context.period.to,
-    comparisonPeriodStart: context.previousPeriod.from,
-    comparisonPeriodEnd: context.previousPeriod.to,
-    currency: context.currency,
-  };
-
-  const leak: ProfitLeak = {
-    id: leakId(context, detector.category, draft.impactMinor),
-    businessId: context.businessId,
-    category: detector.category,
-    severity: classifySeverity(draft.impactMinor),
-    title: draft.title,
-    description: draft.description,
-    impact: { amount: draft.impactMinor, currency: context.currency as ProfitLeak['impact']['currency'] },
-    impactPeriod: impactPeriodLabel(context.period.from, context.period.to),
-    evidence: entries,
-    status: 'active',
-    detectedAt: context.detectedAt,
-    currency: context.currency,
-    calculation,
-    suggestedInvestigation: draft.suggestedInvestigation,
-    relatedRecordIds: referencedRecordIds(entries),
-  };
-
-  return { fired: true, leak };
-}
-
-/**
- * Human-readable formula per rule, surfaced in the "why am I seeing this?" panel
- * so the arithmetic is inspectable without reading the code.
- */
-/**
- * The arithmetic behind each rule, keyed by the rule's stable category id.
- *
- * Keyed by category rather than by prose so a reworded rule string cannot silently
- * orphan its formula; `tests/intelligence/profit-leaks.test.ts` asserts every
- * detector has an entry here.
- */
-export const FORMULAS: Readonly<Record<LeakCategory, string>> = {
-  margin_compression:
-    'impact = round(currentRevenue * baselineGrossMarginBps / 10000) - currentGrossProfit',
-  supplier_cost_increase:
-    'impact = sum over affected products of round((currentWeightedUnitPrice - baselineWeightedUnitPrice) * quantitySold)',
-  excessive_discounting:
-    'impact = currentDiscount - round(currentGrossRevenue * baselineDiscountRateBps / 10000)',
-  abnormal_expenses:
-    'impact = sum over affected categories of max(0, currentCategoryTotal - baselineCategoryTotal)',
-  low_margin_products:
-    'impact = sum over products of round((floorMarginPerUnit - unitMargin) * quantitySold)',
-  dead_inventory: 'impact = sum over idle products of round(costPrice * currentStock)',
-  overdue_receivables:
-    'impact = sum of open balances (amount - paid) for receivables past the business overdue threshold',
-  high_payment_fees: 'not computable with the current schema',
-};
-
-function suppress(
-  category: LeakCategory,
-  gate: { reason: SuppressionReason; explanation: string },
-  context: DetectorContext,
-): DetectorResult {
-  return {
-    fired: false,
-    suppressed: {
-      category,
-      reason: gate.reason,
-      explanation: gate.explanation,
-      observed: context.current.revenue.amount,
-      baseline: context.previous.revenue.amount,
-      threshold: MIN_SAMPLE_SIZE,
-      sampleSize: context.current.revenueRecognition.saleCount,
-    },
-  };
-}
-
-function notFired(
-  category: LeakCategory,
-  reason: SuppressionReason,
-  explanation: string,
-  numbers?: { observed?: number; baseline?: number; threshold?: number },
-): DetectorResult {
-  return {
-    fired: false,
-    suppressed: {
-      category,
-      reason,
-      explanation,
-      ...(numbers?.observed === undefined ? {} : { observed: numbers.observed }),
-      ...(numbers?.baseline === undefined ? {} : { baseline: numbers.baseline }),
-      ...(numbers?.threshold === undefined ? {} : { threshold: numbers.threshold }),
-    },
-  };
-}
-
-interface CostIncreaseCandidate {
-  readonly productId: string;
-  readonly productName: string;
-  readonly currentPrice: number;
-  readonly baselinePrice: number;
-  readonly quantitySold: number;
-  readonly impactMinor: number;
-  readonly evidence: LeakEvidence[];
-  readonly inputs: Readonly<Record<string, number>>;
-}
-
-/**
- * Products whose weighted purchase price rose while still being sold.
- *
- * Requires the product to appear in both periods' purchase records, so the
- * comparison is like-for-like rather than comparing different products.
- */
-function findCostIncreases(context: DetectorContext): CostIncreaseCandidate[] {
-  const candidates: CostIncreaseCandidate[] = [];
-  for (const sale of context.productSales) {
-    const current = context.purchasePrices.get(sale.productId);
-    const previous = context.previousPurchasePrices.get(sale.productId);
-    if (!current || !previous) continue;
-    if (previous.weightedUnitPriceMinor <= 0) continue;
-    const rise = ratioBps(
-      current.weightedUnitPriceMinor - previous.weightedUnitPriceMinor,
-      previous.weightedUnitPriceMinor,
-    );
-    if (rise === undefined || rise < SUPPLIER_COST_INCREASE_BPS) continue;
-
-    const impactMinor = supplierCostIncreaseImpact({
-      currentWeightedUnitPriceMinor: current.weightedUnitPriceMinor,
-      baselineWeightedUnitPriceMinor: previous.weightedUnitPriceMinor,
-      quantitySold: sale.quantity,
-    });
-    if (impactMinor <= 0) continue;
-
-    candidates.push({
-      productId: sale.productId,
-      productName: sale.name,
-      currentPrice: current.weightedUnitPriceMinor,
-      baselinePrice: previous.weightedUnitPriceMinor,
-      quantitySold: sale.quantity,
-      impactMinor,
-      evidence: [
-        evidence({
-          type: 'product',
-          resourceId: sale.productId,
-          description: `${sale.name}: purchase price rose from ${previous.weightedUnitPriceMinor} to ${current.weightedUnitPriceMinor} minor units per unit.`,
-          value: current.weightedUnitPriceMinor,
-        }),
-        evidence({
-          type: 'calculation',
-          resourceId: `purchase-price-baseline:${sale.productId}`,
-          description: `Baseline weighted purchase price was ${previous.weightedUnitPriceMinor} minor units per unit.`,
-          value: previous.weightedUnitPriceMinor,
-        }),
-        evidence({
-          type: 'calculation',
-          resourceId: `purchase-price-impact:${sale.productId}`,
-          description: `${sale.quantity} unit(s) sold at the higher cost, costing ${impactMinor} minor units.`,
-          value: impactMinor,
-        }),
-      ],
-      inputs: {
-        currentWeightedUnitPrice: current.weightedUnitPriceMinor,
-        baselineWeightedUnitPrice: previous.weightedUnitPriceMinor,
-        quantitySold: sale.quantity,
-      },
-    });
-  }
-  return candidates.sort((a, b) => b.impactMinor - a.impactMinor);
-}
-
-function buildMarginEvidence(context: DetectorContext): LeakEvidence[] {
-  return [
-    evidence({
-      type: 'calculation',
-      resourceId: 'gross-margin-current',
-      description:
-        `Gross profit of ${context.current.grossProfit.amount} on revenue of ` +
-        `${context.current.revenue.amount} gives ${context.current.grossMarginBps} bps.`,
-      value: context.current.grossMarginBps,
-    }),
-    evidence({
-      type: 'calculation',
-      resourceId: 'gross-margin-baseline',
-      description:
-        `Gross profit of ${context.previous.grossProfit.amount} on revenue of ` +
-        `${context.previous.revenue.amount} gave ${context.previous.grossMarginBps} bps.`,
-      value: context.previous.grossMarginBps,
-    }),
-    evidence({
-      type: 'calculation',
-      resourceId: 'cogs-comparison',
-      description:
-        `Cost of goods moved from ${context.previous.cogs.amount} to ${context.current.cogs.amount} minor units.`,
-      value: context.current.cogs.amount,
-    }),
-  ];
-}
-
-function createdAtOf(context: DetectorContext, productId: string): Date {
-  return (
-    context.products.find((product) => product.id === productId)?.createdAt ??
-    new Date(context.detectedAt.getTime() - PRODUCT_MIN_AGE_DAYS_MS)
-  );
-}
-
-const PRODUCT_MIN_AGE_DAYS_MS = PRODUCT_MIN_AGE_DAYS * 86_400_000;
-
-/**
- * Stable id for a leak.
- *
- * Derived from tenant, category, period and impact so re-running detection over
- * the same period produces the same id, which keeps persisted leaks
- * de-duplicable instead of accumulating a new row on every run.
- */
-export function leakId(
-  context: DetectorContext,
-  category: LeakCategory,
-  impactMinor: number,
-): string {
-  return [
-    context.businessId,
-    category,
-    context.period.from.toISOString(),
-    context.period.to.toISOString(),
-    String(impactMinor),
-  ].join(':');
-}
-
-function sumOf(values: readonly number[]): number {
-  let total = 0;
-  for (const value of values) total += value;
-  return total;
-}
-
-function sumInputs(entries: readonly Readonly<Record<string, number>>[]): Record<string, number> {
-  const merged: Record<string, number> = {};
-  for (const entry of entries) {
-    for (const [key, value] of Object.entries(entry)) {
-      merged[key] = (merged[key] ?? 0) + value;
-    }
-  }
-  return merged;
-}
-
-export { weightedAverageMinorUnits, MIN_SAMPLE_SIZE };

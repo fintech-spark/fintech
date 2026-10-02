@@ -139,12 +139,12 @@ describe('SQL safety in owned modules', () => {
   it('clamps the caller-supplied page size inside the application service', async () => {
     const { PostgresProfitLeakService } = await import('@/modules/profit-leaks');
     const {
-      InMemoryProfitLeakRepository,
       InMemoryAnalyticsRepository,
       TENANT_A,
       fixedClockAt,
       tenantFor,
     } = await import('./support/doubles');
+    const { InMemoryProfitLeakRepository } = await import('./support/action-doubles');
     const { PostgresAnalyticsService } = await import('@/modules/analytics');
     const analytics = new PostgresAnalyticsService(
       new InMemoryAnalyticsRepository({ sales: [], expenses: [], products: [] }),

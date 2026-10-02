@@ -72,10 +72,8 @@ export {
   deadInventoryDetector,
   DETECTORS,
   excessiveDiscountingDetector,
-  FORMULAS,
   highPaymentFeesDetector,
   highPaymentFeesUnavailable,
-  leakId,
   lowMarginProductsDetector,
   marginCompressionDetector,
   overdueReceivablesDetector,
@@ -89,6 +87,17 @@ export {
   type ProductSaleAggregate,
   type PurchasePriceAggregate,
 } from './domain/detectors';
+
+export {
+  FORMULAS,
+  leakId,
+  notFired,
+  sumInputs,
+  sumOf,
+  suppress,
+  toResult,
+  type LeakDraft,
+} from './domain/assembly';
 
 export type { LeakFilters, ProfitLeakService } from './application/service';
 

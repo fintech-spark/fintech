@@ -1,10 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
-  InMemoryActionRepository,
   InMemoryAnalyticsRepository,
   InMemoryCashFlowForecastStore,
   InMemoryCashFlowRepository,
-  InMemoryProfitLeakRepository,
   InMemoryScenarioRepository,
   TENANT_A,
   TENANT_B,
@@ -17,6 +15,10 @@ import {
   type PayableFixture,
   type ReceivableFixture,
 } from './support/doubles';
+import {
+  InMemoryActionRepository,
+  InMemoryProfitLeakRepository,
+} from './support/action-doubles';
 import { PostgresAnalyticsService } from '@/modules/analytics';
 import { PostgresCashFlowService, totalForCategory } from '@/modules/cash-flow';
 import { PostgresProfitLeakService } from '@/modules/profit-leaks';
