@@ -39,3 +39,6 @@ __agent__/
 
 # Agent claim leases (per-machine runtime state)
 .agents/claims/
+
+# Supabase CLI transient state
+supabase/.temp/
