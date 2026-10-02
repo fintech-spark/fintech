@@ -65,3 +65,52 @@ what changed, timestamps you observed, and any overlapping claim — then let th
 arbitrate. Never guess another agent's intent.
 
 Full protocol: the `multi-agent-concurrency` skill in `.agents/skills/`.
+
+## Handoff — Agent 5 (frontend), `feature/frontend`
+
+Recorded per the append-only rule above. Nothing here rewrites another agent's row.
+
+### Claims taken and released
+
+| scope | note | state |
+|---|---|---|
+| `app` | merchant app shell, routes, page compositions | released |
+| `components` | design system + business components | released |
+| `lib/api` | typed API client for approved backend contracts | released |
+| `lib/format` | money / date / status presentation | released |
+| `tests/frontend` | frontend unit + security tests | released |
+| `tests/e2e` | E2E merchant journeys and the synthetic backend | released |
+| `docs/engineering`, `docs/product`, `docs/agents` | documentation | released |
+| `playwright.config.ts` | point the server-side fetcher at the E2E stub backend | released |
+| `tsconfig.json`, `eslint.config.mjs` | exclude nested agent worktrees | released |
+
+### Shared files changed — read before merging
+
+Three files outside the frontend's own scope were changed. Each was claimed
+first and each is the smallest change that unblocks the frontend:
+
+| File | Change | Why |
+|---|---|---|
+| `tsconfig.json` | `exclude` now lists `fintech-ai`, `fintech-backend`, `fintech-intelligence`, `fintech-security` | Those are **nested git worktrees for other agents**, untracked here. `include: ["**/*.ts"]` was typechecking their in-progress code and reporting *their* errors as ours, which broke `npm run typecheck` and `npm run build` |
+| `eslint.config.mjs` | the same directories plus `.obsidian/**` added to `globalIgnores` | ESLint was reporting 22,000+ problems from other agents' worktrees |
+| `playwright.config.ts` | `webServer` now runs `npm run build && npm run start`, and passes `API_INTERNAL_BASE_URL` | E2E runs against real production output, and the server-side fetcher needs a reachable backend |
+
+**If the nested worktrees are moved out of the repository root, these three
+exclusions can be deleted.** They are a workaround for the current layout, not
+a permanent architecture decision.
+
+### Safe to take next
+
+- `modules/*/application/service.ts` — unchanged by this agent.
+- `app/api/**` — untouched. Agent 1 owns it.
+- `lib/api/**` is server-only by construction. A Client Component must import
+  from `@/lib/api/errors` or `@/lib/api/pending` directly, never the barrel.
+
+### What the frontend is waiting on
+
+`lib/api/pending.ts` is the authoritative list of capabilities with no approved
+backend route: analytics roll-ups, profit leaks, cash flow, simulator, Business
+Brain, actions, notifications, audit, evidence, document upload, the expense
+ledger and the sales ledger. Each entry names the owning workstream. When a
+route lands, delete the entry and build the screen against the real contract —
+do not fill the gap with a placeholder.
