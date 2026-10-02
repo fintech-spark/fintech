@@ -271,7 +271,7 @@ The user must never have to ask for the skills to be used.
 
 - **Multiple agents work in this repository at once.** Before writing, take a claim:
   `./.agents/tools/claim.sh acquire "<path-prefix>" --note "<intent>"`. Never write to a
-  path you have not claimed. Read `COORDINATION.md` first.
+  path you have not claimed. Read `docs/agents/COORDINATION.md` first.
 - **Never revert another agent's work** — no `git checkout -- .`, `git reset --hard`,
   `git clean`, or `rm -rf` on shared paths. There is no git remote; history is unrecoverable.
 - Never force-push, never bypass CI, never disable a security check, never commit secrets.
@@ -316,21 +316,21 @@ Read only the file your task needs. This is the map, not a reading list.
 
 | Topic | File |
 |---|---|
-| Agent rules (must-read before writing) | `AGENTS.md`, `AI_RULES.md` |
-| Evidence and claim rules | `AI_EVIDENCE_RULES.md` |
-| Action authority limits | `AI_ACTION_POLICY.md` |
-| Definition of done | `DEFINITION_OF_DONE.md` |
-| Product requirements | `PRODUCT_SPEC.md` |
-| Roadmap | `ROADMAP.md` |
-| Design system | `DESIGN_SYSTEM.md` |
-| API rules | `API_RULES.md` |
-| Security | `SECURITY.md`, `FILE_SECURITY.md`, `GITHUB_SECURITY.md` |
-| Model strategy and cost | `MODEL_STRATEGY.md`, `AI_COSTS.md` |
-| Testing and evaluation | `TESTING.md`, `EVALS.md` |
-| Error handling | `ERROR_HANDLING.md` |
-| Agent coordination | `COORDINATION.md` |
+| Agent rules (must-read before writing) | `AGENTS.md`, `docs/ai/AI_RULES.md` |
+| Evidence and claim rules | `docs/ai/AI_EVIDENCE_RULES.md` |
+| Action authority limits | `docs/ai/AI_ACTION_POLICY.md` |
+| Definition of done | `docs/agents/DEFINITION_OF_DONE.md` |
+| Product requirements | `docs/product/PRODUCT_SPEC.md` |
+| Roadmap | `docs/product/ROADMAP.md` |
+| Design system | `docs/product/DESIGN_SYSTEM.md` |
+| API rules | `docs/engineering/API_RULES.md` |
+| Security | `SECURITY.md`, `docs/security/FILE_SECURITY.md`, `docs/security/GITHUB_SECURITY.md` |
+| Model strategy and cost | `docs/ai/MODEL_STRATEGY.md`, `docs/ai/AI_COSTS.md` |
+| Testing and evaluation | `docs/engineering/TESTING.md`, `docs/engineering/EVALS.md` |
+| Error handling | `docs/engineering/ERROR_HANDLING.md` |
+| Agent coordination | `docs/agents/COORDINATION.md` |
 | Environment template | `.env.example` |
-| MCP configuration | `MCP_SETUP.md`, `.mcp.json` |
+| MCP configuration | `docs/agents/MCP_SETUP.md`, `.mcp.json` |
 
 ---
 

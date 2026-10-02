@@ -4,7 +4,7 @@
 single authoritative statement of what we are building and how. On any conflict,
 `AI_CONTEXT.md` wins over this file and over every other document in the repository.
 
-Also read [`AGENTS.md`](./AGENTS.md), `COORDINATION.md`, and the project rules under
+Also read [`AGENTS.md`](./AGENTS.md), `docs/agents/COORDINATION.md`, and the project rules under
 `.agents/rules/` before writing.
 
 ## Summary

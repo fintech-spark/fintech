@@ -12,7 +12,7 @@ tie-breaker: if any other document contradicts it, `AI_CONTEXT.md` wins and the 
 document should be reported, not followed. It also carries the hard rules against invented
 APIs, invented data, and unverified claims.
 
-Then read this file, and the smallest relevant source files before editing. `AI_RULES.md` governs AI reliability; `DESIGN_SYSTEM.md` governs UI; `SECURITY.md` governs security; `TESTING.md` governs checks. Treat source code and `package.json` as ground truth over any document, including `AI_CONTEXT.md`.
+Then read this file, and the smallest relevant source files before editing. `docs/ai/AI_RULES.md` governs AI reliability; `docs/product/DESIGN_SYSTEM.md` governs UI; `SECURITY.md` governs security; `docs/engineering/TESTING.md` governs checks. Treat source code and `package.json` as ground truth over any document, including `AI_CONTEXT.md`.
 
 ### Step 0 — mandatory skill and tool triage
 
@@ -138,4 +138,4 @@ This executes `npm run lint`, `npm run typecheck`, `npm test` (all unit and arch
 
 ## Definition of Done
 
-A change is done only when its implementation, types, lint, tests, security review, UI/accessibility review, loading/error/empty states, documentation, and AI evaluations (when applicable) are complete. See `DEFINITION_OF_DONE.md` for the full checklist.
+A change is done only when its implementation, types, lint, tests, security review, UI/accessibility review, loading/error/empty states, documentation, and AI evaluations (when applicable) are complete. See `docs/agents/DEFINITION_OF_DONE.md` for the full checklist.

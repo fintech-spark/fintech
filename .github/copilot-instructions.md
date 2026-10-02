@@ -35,7 +35,7 @@ every task. Use available MCP tools (`context7` for current docs) rather than gu
 4. **No fake completeness.** No mock data, fake dashboards, or placeholder AI answers. Use
    synthetic fixtures only; never real merchant or financial data.
 5. **Never revert another agent's work.** Multiple agents share this repository. Claim paths
-   with `.agents/tools/claim.sh` before writing, and read `COORDINATION.md`.
+   with `.agents/tools/claim.sh` before writing, and read `docs/agents/COORDINATION.md`.
 
 ## Before you write code
 

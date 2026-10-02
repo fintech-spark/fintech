@@ -78,7 +78,7 @@ Before the first write:
 ```
 
 Never write to a path you have not claimed. `./.agents/tools/claim.sh status` shows who is
-active. Release when done, even on failure. See `COORDINATION.md`.
+active. Release when done, even on failure. See `docs/agents/COORDINATION.md`.
 
 ---
 

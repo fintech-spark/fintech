@@ -22,13 +22,13 @@
 
 | Topic | Files |
 |---|---|
-| Agent instructions | `AGENTS.md`, `AI_RULES.md`, `AI_EVIDENCE_RULES.md` |
-| Design | `DESIGN_SYSTEM.md`, `components.json`, `components/ui/` |
-| AI prep | `MODEL_STRATEGY.md`, `lib/ai/`, `prompts/`, `evals/` |
-| Security | `SECURITY.md`, `FILE_SECURITY.md`, `AI_ACTION_POLICY.md`, `API_RULES.md` |
+| Agent instructions | `AGENTS.md`, `docs/ai/AI_RULES.md`, `docs/ai/AI_EVIDENCE_RULES.md` |
+| Design | `docs/product/DESIGN_SYSTEM.md`, `components.json`, `components/ui/` |
+| AI prep | `docs/ai/MODEL_STRATEGY.md`, `lib/ai/`, `prompts/`, `evals/` |
+| Security | `SECURITY.md`, `docs/security/FILE_SECURITY.md`, `docs/ai/AI_ACTION_POLICY.md`, `docs/engineering/API_RULES.md` |
 | Checks | `eslint.config.mjs`, `vitest.config.ts`, `playwright.config.ts`, `tests/` |
 | CI/security | `.github/workflows/`, `.github/dependabot.yml`, `.mcp.json` |
-| Product direction | `PRODUCT_SPEC.md`, `ROADMAP.md` |
+| Product direction | `docs/product/PRODUCT_SPEC.md`, `docs/product/ROADMAP.md` |
 
 ## Current route
 

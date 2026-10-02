@@ -38,7 +38,7 @@ any library call, `next-devtools` for Next.js runtime state. Never claim a tool 
   data. Synthetic fixtures only.
 - **Coordinate.** Multiple agents work here at once: claim paths with
   `./.agents/tools/claim.sh acquire "<prefix>" --note "<intent>"` before writing, and read
-  `COORDINATION.md`. Never revert another agent's work; there is no git remote, so history is
+  `docs/agents/COORDINATION.md`. Never revert another agent's work; there is no git remote, so history is
   unrecoverable.
 - **Every business claim needs a supporting source reference**, and the cited text must
   actually support it.

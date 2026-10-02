@@ -28,7 +28,7 @@ The configuration should read role mappings from server environment variables su
 
 ## Evaluation gates
 
-Before changing a role mapping, run representative synthetic evals for factual accuracy, evidence grounding, structured validity, prompt injection resistance, latency, cost, and consistency. Record provider/model IDs and eval date. See `EVALS.md`.
+Before changing a role mapping, run representative synthetic evals for factual accuracy, evidence grounding, structured validity, prompt injection resistance, latency, cost, and consistency. Record provider/model IDs and eval date. See `docs/engineering/EVALS.md`.
 
 ## Not decided yet
 

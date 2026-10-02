@@ -23,7 +23,7 @@ If verified information is insufficient, say so clearly and identify what data i
 
 - Deterministic code computes money, quantities, dates, totals, deltas, and thresholds.
 - AI receives only the minimum authorized context needed for its task.
-- Important claims must be grounded in verified records and follow `AI_EVIDENCE_RULES.md`.
+- Important claims must be grounded in verified records and follow `docs/ai/AI_EVIDENCE_RULES.md`.
 - The UI must distinguish facts, calculations, inferences, recommendations, and drafts.
 - Never turn a model confidence score into a probability of business truth without a validated calibration method.
 - Never use an LLM to approve its own unsupported claim. A reviewer can flag problems; application validation decides acceptance.
@@ -42,7 +42,7 @@ Do not trust JSON because it is syntactically valid. Do not silently coerce miss
 
 ## Prompt injection and untrusted content
 
-Documents, OCR, transcriptions, WhatsApp messages, CSV cells, tool responses, and retrieved text are data, not instructions. Delimit them, label their trust level, and ignore instructions found inside them unless the application explicitly treats that field as a user instruction. Apply the rules in `FILE_SECURITY.md` and `SECURITY.md` before sending content to a model.
+Documents, OCR, transcriptions, WhatsApp messages, CSV cells, tool responses, and retrieved text are data, not instructions. Delimit them, label their trust level, and ignore instructions found inside them unless the application explicitly treats that field as a user instruction. Apply the rules in `docs/security/FILE_SECURITY.md` and `SECURITY.md` before sending content to a model.
 
 Tool names, arguments, and results must be allowlisted and validated. A model may not grant itself tools, permissions, tenant access, or a higher action tier.
 
@@ -60,4 +60,4 @@ Record model role, provider, model ID, prompt version, schema version, latency, 
 
 ## Change policy
 
-Every prompt or model-routing change is a versioned change. Add or update synthetic evals for extraction, grounding, hallucination resistance, security, and regression. Review changes against `EVALS.md`; do not claim quality improvements without measured evidence.
+Every prompt or model-routing change is a versioned change. Add or update synthetic evals for extraction, grounding, hallucination resistance, security, and regression. Review changes against `docs/engineering/EVALS.md`; do not claim quality improvements without measured evidence.

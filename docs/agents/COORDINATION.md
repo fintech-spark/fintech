@@ -29,7 +29,7 @@ The following directories and files are **explicitly required by the user's arch
 ## Concurrent-write protocol (path claims)
 
 Several agents have already written to this repository at the same time, and one deleted a
-tracked file (`COORDINATION.md` history). Before writing **anything**, take an atomic lease
+tracked file (`docs/agents/COORDINATION.md` history). Before writing **anything**, take an atomic lease
 on the paths you will touch. This is not optional.
 
 ```bash
