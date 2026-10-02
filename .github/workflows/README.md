@@ -7,4 +7,4 @@
 - `ai-evals.yml` is manual and requires an explicit provider-backed `evals/promptfooconfig.yaml`; it is intentionally not run on every PR.
 - `semgrep.yml` is a manual documentation marker; the actual scan is in `security.yml` to avoid the deprecated Semgrep wrapper action.
 
-Enable branch protection and required checks in GitHub as described in `GITHUB_SECURITY.md`.
+Enable branch protection and required checks in GitHub as described in `docs/security/GITHUB_SECURITY.md`.

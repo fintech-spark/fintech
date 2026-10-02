@@ -14,8 +14,8 @@ Treat browsers, uploaded files, OCR/transcripts, CSV cells, model output, retrie
 - **RLS:** when a database with row-level security is approved, enable and test RLS policies in addition to application checks. RLS is not a substitute for auth.
 - **API security:** validate inputs with Zod, use bounded payloads, rate limits, timeouts, idempotency for mutations, safe errors, and audit events for sensitive actions.
 - **Secrets:** use environment/secret managers; never log or expose provider keys, auth secrets, upload URLs, or private data. Rotate and scope keys.
-- **Uploads:** follow `FILE_SECURITY.md`; validate magic bytes and MIME, isolate storage, scan/process asynchronously, and never execute uploads.
-- **AI safety:** defend against prompt injection, tool abuse, data leakage, excessive agency, insecure output handling, and unbounded cost. Follow `AI_RULES.md` and `AI_ACTION_POLICY.md`.
+- **Uploads:** follow `docs/security/FILE_SECURITY.md`; validate magic bytes and MIME, isolate storage, scan/process asynchronously, and never execute uploads.
+- **AI safety:** defend against prompt injection, tool abuse, data leakage, excessive agency, insecure output handling, and unbounded cost. Follow `docs/ai/AI_RULES.md` and `docs/ai/AI_ACTION_POLICY.md`.
 - **XSS/CSRF:** use framework escaping and safe rendering; sanitize any intentional HTML; configure CSRF protection for cookie-authenticated state changes where relevant.
 - **Injection:** parameterize database queries; do not interpolate SQL, shell, template, or provider requests with unvalidated input.
 - **SSRF:** allowlist outbound hosts/protocols, block private/link-local metadata ranges, limit redirects, and use network egress controls.
@@ -29,7 +29,7 @@ Treat browsers, uploaded files, OCR/transcripts, CSV cells, model output, retrie
 - `.github/dependabot.yml` for npm and GitHub Action updates.
 - `.gitignore`, `.env.example`, and `.npmrc` for local secret/dependency hygiene.
 
-The workflows need repository permissions, GitHub Advanced Security availability, and branch protection to become effective controls. See `GITHUB_SECURITY.md`.
+The workflows need repository permissions, GitHub Advanced Security availability, and branch protection to become effective controls. See `docs/security/GITHUB_SECURITY.md`.
 
 ## Security review gate
 

@@ -38,4 +38,4 @@ Use explicit states such as `unverified`, `needs_review`, `verified`, `rejected`
 
 ## Evaluation
 
-Evals must test missing evidence, irrelevant evidence, contradictory records, fabricated citations, tenant boundary violations, and stale source handling. See `EVALS.md` and `evals/rag/`.
+Evals must test missing evidence, irrelevant evidence, contradictory records, fabricated citations, tenant boundary violations, and stale source handling. See `docs/engineering/EVALS.md` and `evals/rag/`.
