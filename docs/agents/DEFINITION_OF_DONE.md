@@ -13,14 +13,14 @@ A future feature is complete only when the applicable items below are true. Setu
 
 ## UI and accessibility
 
-- [ ] The change follows `DESIGN_SYSTEM.md`, shadcn conventions, and current Vercel Web Interface Guidelines.
+- [ ] The change follows `docs/product/DESIGN_SYSTEM.md`, shadcn conventions, and current Vercel Web Interface Guidelines.
 - [ ] Responsive layout, keyboard behavior, focus, labels, semantics, and contrast were reviewed.
 - [ ] Loading, error, empty, success, disabled, and destructive states exist where applicable.
 - [ ] Generated UI was reviewed by a human/agent against the design system, not accepted from a screenshot alone.
 
 ## AI and data
 
-- [ ] AI behavior follows `AI_RULES.md`, `AI_EVIDENCE_RULES.md`, and `AI_ACTION_POLICY.md`.
+- [ ] AI behavior follows `docs/ai/AI_RULES.md`, `docs/ai/AI_EVIDENCE_RULES.md`, and `docs/ai/AI_ACTION_POLICY.md`.
 - [ ] Important outputs are schema-validated and deterministic arithmetic is tested outside the model.
 - [ ] Evidence, conflicts, freshness, and insufficient-data behavior are visible.
 - [ ] Relevant Promptfoo/synthetic evals pass, with model/prompt versions recorded.

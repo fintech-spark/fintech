@@ -91,3 +91,50 @@ export class StorageError extends AppError {
   readonly statusCode = 500;
   constructor(message: string, details?: Record<string, unknown>) { super(message, details); }
 }
+
+export class DatabaseError extends AppError {
+  readonly code = 'DATABASE_ERROR';
+  readonly statusCode = 500;
+
+  constructor(message: string, details?: Record<string, unknown>) {
+    super(message, details);
+  }
+}
+
+export function isUniqueViolationError(error: unknown): boolean {
+  if (error instanceof Error && 'code' in error) {
+    return (error as { code: string }).code === '23505';
+  }
+  return false;
+}
+
+export function isForeignKeyViolationError(error: unknown): boolean {
+  if (error instanceof Error && 'code' in error) {
+    return (error as { code: string }).code === '23503';
+  }
+  return false;
+}
+
+export function wrapDatabaseError(error: unknown): DatabaseError {
+  if (error instanceof DatabaseError) return error;
+  if (error instanceof Error) {
+    const pgError = error as { code?: string; constraint?: string; detail?: string };
+    if (isUniqueViolationError(error)) {
+      return new DatabaseError('A record with this value already exists.', {
+        pgCode: pgError.code,
+        constraint: pgError.constraint,
+      });
+    }
+    if (isForeignKeyViolationError(error)) {
+      return new DatabaseError('Referenced record does not exist.', {
+        pgCode: pgError.code,
+        constraint: pgError.constraint,
+      });
+    }
+    return new DatabaseError('A database error occurred.', {
+      pgCode: pgError.code,
+      message: error.message,
+    });
+  }
+  return new DatabaseError('An unknown database error occurred.');
+}

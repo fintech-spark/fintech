@@ -5,7 +5,7 @@
 
 ## Executive summary
 
-The inspected directory was not an application repository. Before this task it contained project-memory files (`AI_BRAIN.md`, `AI_RULES.md`, `SESSION_MEMORY.md`), an empty README, and no source, manifest, lockfile, Git metadata, tests, CI, or deployment configuration. There was no working product code to preserve or rewrite.
+The inspected directory was not an application repository. Before this task it contained project-memory files (`docs/ai/AI_BRAIN.md`, `docs/ai/AI_RULES.md`, `SESSION_MEMORY.md`), an empty README, and no source, manifest, lockfile, Git metadata, tests, CI, or deployment configuration. There was no working product code to preserve or rewrite.
 
 This task establishes a small, neutral Next.js foundation so the requested checks can run. The root route is explicitly a setup verification page, not a Merchant Brain feature.
 
@@ -88,19 +88,19 @@ During re-verification, a prior session had added a modular-monolith skeleton th
 
 What was kept, because the task explicitly prepares it: `lib/ai/schemas.ts` (Zod schemas for extraction/insight/leak/risk/scenario/action/answer outputs), `lib/ai/model-config.ts` + `lib/ai/router/` (centralized role-based model configuration), `lib/ai/providers/types.ts` (provider abstraction), `lib/ai/guards/` (malformed-output rejection), `lib/ai/telemetry/` (AI operation records), and `lib/utils.ts`.
 
-Domain models, financial calculation rules, and service interfaces from the removed code are not approved requirements; they must be re-derived from `PRODUCT_SPEC.md`, `ROADMAP.md`, and the approved UI flows, not restored from history.
+Domain models, financial calculation rules, and service interfaces from the removed code are not approved requirements; they must be re-derived from `docs/product/PRODUCT_SPEC.md`, `docs/product/ROADMAP.md`, and the approved UI flows, not restored from history.
 
 ## Multi-agent coordination (2026-10-02)
 
 Several agent sessions were active in this repository at once: this opencode session, a second opencode session (read-only "give me summary" request, completed), and an omnirush agent (gpt-6-astra, terminal s007) that started the original setup at 00:25 and continued writing after this session began reconciling scope. It kept re-creating variants of the removed architecture (`modules/`, `lib/types.ts`, event bus, a new `tests/architecture.test.ts`, and later a root-level `database/` with its own schema).
 
-Coordination is disk-based: `COORDINATION.md` is a shared board every agent in this repository must read before writing (a rule now also lives in `AGENTS.md` → "Inspect before modifying"). It records the intentionally-removed files, the allowed scope, active sessions, and a pending-intent log. If another agent continues writing against the approved scope, the churn will be visible in `git status` after the initial commit.
+Coordination is disk-based: `docs/agents/COORDINATION.md` is a shared board every agent in this repository must read before writing (a rule now also lives in `AGENTS.md` → "Inspect before modifying"). It records the intentionally-removed files, the allowed scope, active sessions, and a pending-intent log. If another agent continues writing against the approved scope, the churn will be visible in `git status` after the initial commit.
 
 ## Explorer and repository hygiene (2026-10-02)
 
 - Removed build/agent-state clutter: `tsconfig.tsbuildinfo`, `__agent__/` session state, `SESSION_MEMORY.md` (superseded by this audit), and the out-of-scope `tests/architecture.test.ts`.
 - `.gitignore` now covers `*.tsbuildinfo` and `__agent__/`.
-- Git metadata was missing entirely, so the repository was initialized locally on branch `main` with one initial commit of the verified foundation. No remote exists yet; push and branch protection are owner actions (`GITHUB_SECURITY.md`).
+- Git metadata was missing entirely, so the repository was initialized locally on branch `main` with one initial commit of the verified foundation. No remote exists yet; push and branch protection are owner actions (`docs/security/GITHUB_SECURITY.md`).
 
 ## Skills verification (2026-10-02)
 
@@ -114,4 +114,4 @@ Verified against the official repositories via the `skills` CLI (`npx skills@lat
 
 ## Recommended next step
 
-Approve the product requirements and first UI flows in `PRODUCT_SPEC.md` and `DESIGN_SYSTEM.md` before adding product routes or choosing persistence/auth architecture.
+Approve the product requirements and first UI flows in `docs/product/PRODUCT_SPEC.md` and `docs/product/DESIGN_SYSTEM.md` before adding product routes or choosing persistence/auth architecture.

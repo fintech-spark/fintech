@@ -9,7 +9,7 @@ Every future endpoint must:
 3. Authorize the verified user against the requested tenant, resource, and action.
 4. Enforce request size, pagination, upload, timeout, concurrency, and rate limits.
 5. Use idempotency keys for retried mutations and action execution.
-6. Validate uploads using `FILE_SECURITY.md` and never trust client MIME/filenames.
+6. Validate uploads using `docs/security/FILE_SECURITY.md` and never trust client MIME/filenames.
 7. Sanitize inputs where they enter HTML, logs, templates, SQL, shell, URLs, or provider requests.
 8. Return a consistent safe error shape with a public code, human message, and correlation ID. Never expose stack traces, SQL, provider payloads, secrets, or tenant data.
 9. Set appropriate cache, content type, CORS, CSRF, and security headers for the route.

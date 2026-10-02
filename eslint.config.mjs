@@ -17,7 +17,7 @@ export default defineConfig([
     settings: {
       shadcn: {
         ui: "@/components/ui",
-        note: "Follow DESIGN_SYSTEM.md and prefer semantic design tokens.",
+        note: "Follow docs/product/DESIGN_SYSTEM.md and prefer semantic design tokens.",
       },
     },
     rules: {
