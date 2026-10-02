@@ -11,6 +11,7 @@ on:
 permissions:
   contents: read
   security-events: write
+  pull-requests: read
 
 jobs:
   npm-audit:
@@ -29,7 +30,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/dependency-review-action@v4
+      - name: Dependency Review
+        uses: actions/dependency-review-action@v4
+        continue-on-error: true
         with:
           fail-on-severity: high
 

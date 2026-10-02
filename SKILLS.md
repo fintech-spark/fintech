@@ -6,7 +6,7 @@ Every skill available to an agent in this repository. Read **this file**, not th
 skills themselves, to decide what to load — it is a few hundred tokens; loading all
 skill bodies is tens of thousands.
 
-Generated: 2026-10-02 19:05  ·  29 skills
+Generated: 2026-10-02 20:28  ·  30 skills
 
 | Skill | Use when | Path |
 |---|---|---|
@@ -31,7 +31,8 @@ Generated: 2026-10-02 19:05  ·  29 skills
 | `security-review` | Use this skill when adding authentication, handling user input, working with secrets, creating API endpoints, or implementing payment/sensitive features. Provides comprehensive security checklist and  | `.agents/skills/security-review/SKILL.md` |
 | `security-scan` | Scan your Claude Code configuration (.claude/ directory) for security vulnerabilities, misconfigurations, and injection risks using AgentShield. Checks CLAUDE.md, settings.json, MCP servers, hooks, an | `.agents/skills/security-scan/SKILL.md` |
 | `shadcn` | Manages shadcn components and projects — adding, searching, fixing, debugging, styling, and composing UI, including chat interfaces. Provides project context, component docs, and usage examples. Appli | `.agents/skills/shadcn/SKILL.md` |
-| `supabase-postgres-best-practices` | Postgres performance optimization and best practices from Supabase. Use this skill when writing, reviewing, or optimizing Postgres queries, schema designs, or database configurations. | `.agents/skills/supabase-postgres-best-practices/SKILL.md` |
+| `supabase-postgres-best-practices` | Postgres best practices maintained by Supabase, for Postgres running anywhere. Load this skill BEFORE writing or changing anything that lives in a Postgres database: creating or altering tables and co | `.agents/skills/supabase-postgres-best-practices/SKILL.md` |
+| `supabase` | Use when doing ANY task involving Supabase. Triggers: Supabase products (Database, Auth, Edge Functions, Realtime, Storage, Vectors, Cron, Queues); client libraries and SSR integrations (supabase-js,  | `.agents/skills/supabase/SKILL.md` |
 | `threat-modeling` | Systematic threat modeling using the STRIDE methodology. Use when designing new architecture, adding third-party integrations, designing database schemas, or evaluating tenant isolation boundaries. | `.agents/skills/threat-modeling/SKILL.md` |
 | `token-efficient-agent` | Keeps an agent equally capable at a fraction of the token cost. Use at the start of any task, whenever context feels large, before reading files or dumping command output, when exploring an unfamiliar | `.agents/skills/token-efficient-agent/SKILL.md` |
 | `vercel-composition-patterns` | (no description) | `.agents/skills/vercel-composition-patterns/SKILL.md` |

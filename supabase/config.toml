@@ -37,3 +37,9 @@ enable_confirmations = false
 [storage]
 enabled = true
 file_size_limit = "50MiB"
+
+# Local dev only: the analytics/vector sidecars get OOM-killed inside the
+# default colima VM and take the whole stack down with them. Merchant Brain
+# does not use them — DB, Studio, Auth, Storage and the API are all we need.
+[analytics]
+enabled = false

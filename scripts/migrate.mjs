@@ -36,7 +36,13 @@ async function main() {
 
   if (!connectionString) {
     console.error('Error: DATABASE_URL environment variable is required.');
-    console.error('Set it in .env.local or export DATABASE_URL=postgresql://...');
+    console.error('Set it in .env or export DATABASE_URL=postgresql://...');
+    process.exit(1);
+  }
+
+  if (connectionString.includes('[YOUR_PASSWORD]')) {
+    console.error('Error: DATABASE_URL contains placeholder "[YOUR_PASSWORD]".');
+    console.error('Please open .env and replace [YOUR_PASSWORD] with your actual Supabase database password.');
     process.exit(1);
   }
 
