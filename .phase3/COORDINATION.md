@@ -145,6 +145,47 @@ only `lib/errors`, `lib/http/params` and `lib/http/errors`.
 **A passing suite is not evidence that an endpoint works.** Phase 3 is not complete
 until a test calls a route handler with a mocked session and asserts the status code.
 
+### Verification at `2c92127`
+
+| Check | Result |
+|---|---|
+| `npm run lint` | pass — 0 errors, 0 warnings |
+| `npm run typecheck` | pass — 0 errors |
+| `npm test` (non-DB) | pass — 7 files, 150 tests |
+| `npm test` (`tests/database-security.test.ts`) | **could not run** — hangs connecting to `127.0.0.1:54322`; 29 tests skipped |
+| `npm run build` | pass — 34 routes registered |
+
+The DB-backed file passed earlier in the session and began hanging later with no
+code change to it. The cause is not established; the most likely explanation is
+contention with another agent running against the same local Supabase instance.
+Raising `hookTimeout` to 60s did not help, so the config was left untouched.
+**This must be re-run green before Phase 3 is signed off.**
+
+## Final handoff
+
+| Area | Status |
+|---|---|
+| HTTP kernel | complete |
+| Repositories (7 modules) | complete, split per module |
+| Routes | 34 registered; contract's 26 endpoints all present |
+| Route-level tests | 17, all passing |
+| Analytics routes | **out of scope** per D12 |
+
+Open items carried forward:
+
+1. **D7 — customer / supplier / product writes.** Still a product decision. The
+   Phase 1 service interfaces declare no such methods, so they remain unimplemented.
+2. **`hasPermission()` role→permission matrix** in `lib/http/auth-context.ts` is
+   invented policy with no source elsewhere in the repository. It is the
+   application-authorization layer and needs owner sign-off (**D11**).
+3. **`duplicate-check` is `POST`,** contract §3.3 says `GET`. Kept as POST because
+   the check takes a body. Recorded, not changed.
+4. **`StorageAdapter` is unimplemented,** so document metadata requires an explicit
+   `storagePath`. Binary upload stays out of scope.
+5. **`parseUuid(...) as never`** at ~30 call sites discards the branded ID type.
+   Zero runtime risk, but the compiler cannot catch a wrong brand.
+6. Re-run `tests/database-security.test.ts` once the local DB is responsive.
+
 ## Model 1 implementation review — 2026-10-03
 
 Reviewed while model-2 was still writing. Read-only; nothing was edited.
