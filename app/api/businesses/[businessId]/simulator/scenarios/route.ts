@@ -27,7 +27,14 @@ export const POST = withApi(async (request: Request, route) => {
   const scenario = await simulator.runScenario(ctx, period, {
     name: body.name,
     description: body.description,
-    parameters: body.parameters as never,
+    parameters: body.parameters.map((p) => ({
+      type: p.type as never,
+      targetId: p.targetProductId ?? p.targetId,
+      targetName: p.targetCategory ?? p.targetName ?? p.name,
+      currentValue: p.currentValue ?? 0,
+      newValue: p.newValue ?? p.value ?? 0,
+      unit: (p.unit === 'minor_units' ? 'amount' : p.unit === 'basis_points' ? 'percentage' : p.unit) as never,
+    })),
   });
   return { status: 201, data: scenario };
 });

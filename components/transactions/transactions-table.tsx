@@ -72,13 +72,13 @@ export function TransactionsTable({
           transactionDate: new Date().toISOString(),
           type: txnType,
           counterpartyType: txnType === "sale" ? "customer" : "supplier",
-          counterpartyId: counterpartyId || "00000000-0000-0000-0000-000000000000",
+          counterpartyId: counterpartyId || "e1000000-0000-4000-8000-000000000001",
           paymentMethod,
           items: [
             {
-              productId: productId || "00000000-0000-0000-0000-000000000001",
+              productId: productId || "f1000000-0000-4000-8000-000000000001",
               quantity: Math.max(1, parseInt(quantity, 10) || 1),
-              unitPrice: parseInt(unitPrice, 10) || 0,
+              unitPrice: parseInt(unitPrice, 10) || 45000,
               discount: 0,
               tax: 0,
             },
@@ -88,7 +88,12 @@ export function TransactionsTable({
 
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        throw new Error(data.message || data.error || `Failed to record transaction (${res.status})`);
+        const message =
+          (typeof data.error === "object" && data.error?.message) ||
+          (typeof data.error === "string" && data.error) ||
+          data.message ||
+          `Failed to record transaction (${res.status})`;
+        throw new Error(message);
       }
 
       setDialogOpen(false);

@@ -267,10 +267,17 @@ export const runScenarioSchema = z.object({
   name: z.string().min(1).max(200),
   description: z.string().max(1000).optional(),
   parameters: z.array(z.object({
-    name: z.string().min(1),
-    type: z.enum(['revenue_change', 'expense_change', 'cost_change', 'price_change', 'volume_change', 'working_capital_delay']),
-    unit: z.enum(['percentage', 'basis_points', 'minor_units', 'days']),
-    value: z.number().int(),
+    name: z.string().min(1).optional(),
+    type: z.enum([
+      'revenue_change', 'expense_change', 'cost_change', 'price_change', 'volume_change', 'working_capital_delay',
+      'quantity_change', 'discount_change', 'payment_timing', 'inventory_order'
+    ]),
+    unit: z.enum(['percentage', 'basis_points', 'minor_units', 'days', 'amount', 'quantity']),
+    value: z.number().int().optional(),
+    currentValue: z.number().int().optional(),
+    newValue: z.number().int().optional(),
+    targetId: z.string().optional(),
+    targetName: z.string().optional(),
     targetCategory: z.string().optional(),
     targetProductId: z.string().uuid().optional(),
   })).min(1),
