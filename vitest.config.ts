@@ -5,6 +5,13 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": path.resolve(import.meta.dirname, "./"),
+      // Let server-only modules be imported by unit tests. Next.js
+      // still enforces the real boundary at build time; see
+      // tests/stubs/server-only.ts.
+      "server-only": path.resolve(
+        import.meta.dirname,
+        "./tests/stubs/server-only.ts",
+      ),
     },
   },
   test: {
