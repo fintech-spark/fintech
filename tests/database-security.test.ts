@@ -84,9 +84,9 @@ beforeAll(async () => {
      ON CONFLICT (id) DO NOTHING`,
   );
   await client.query(
-    `INSERT INTO action_logs (action_id, status, message) VALUES
-       ('${ACTION_A}', 'proposed', 'fixture A'),
-       ('${ACTION_B}', 'proposed', 'fixture B')`,
+    `INSERT INTO action_logs (action_id, business_id, to_status, outcome, actor_role, parameters_hash, correlation_id, message) VALUES
+       ('${ACTION_A}', '${BIZ_A}', 'proposed', 'allowed', 'owner', 'hash-a', 'corr-a', 'fixture A'),
+       ('${ACTION_B}', '${BIZ_B}', 'proposed', 'allowed', 'owner', 'hash-b', 'corr-b', 'fixture B')`,
   );
   await client.query(
     `INSERT INTO chat_sessions (id, business_id, user_id) VALUES
@@ -210,7 +210,9 @@ describe('RLS - indirect/child tables', () => {
   it('denies cross-tenant INSERT on action_logs', async () => {
     await expect(
       asUser(USER_A, () =>
-        client.query(`INSERT INTO action_logs (action_id, status) VALUES ('${ACTION_B}', 'x')`),
+        client.query(
+          `INSERT INTO action_logs (action_id, business_id, to_status, outcome, actor_role, parameters_hash, correlation_id) VALUES ('${ACTION_B}', '${BIZ_B}', 'proposed', 'allowed', 'owner', 'hash-b', 'corr-b')`,
+        ),
       ),
     ).rejects.toThrow(/row-level security/i);
   });
