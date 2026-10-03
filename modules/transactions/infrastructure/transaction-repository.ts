@@ -27,7 +27,6 @@ import {
   toOptionalString,
   unwrap,
 } from '@/lib/database/query-helpers';
-import type { Permission } from '@/modules/auth/domain/types';
 import { POSTGREST_MAX_ROWS } from '@/lib/bounded-scan';
 import { hasPermission } from '@/lib/http/auth-context';
 import type {
@@ -471,7 +470,7 @@ export class DefaultTransactionService implements TransactionService {
   }
 
   async create(ctx: TenantContext, input: CreateTransactionInput): Promise<Transaction> {
-    if (!hasPermission(ctx.role, 'transactions:write' satisfies Permission)) {
+    if (!hasPermission(ctx.role, 'transactions:write')) {
       throw new AuthorizationError('Missing required permission: transactions:write.');
     }
 

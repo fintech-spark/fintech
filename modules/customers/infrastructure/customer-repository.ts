@@ -31,8 +31,8 @@ import type {
   Customer,
   Receivable,
   ReceivableStatus,
-} from '@/modules/customers/domain/types';
-import type { CustomerService, ReceivableFilters } from '@/modules/customers/application/service';
+} from '../domain/types';
+import type { CustomerService, ReceivableFilters } from '../application/service';
 
 // ===========================================================================
 // Customers

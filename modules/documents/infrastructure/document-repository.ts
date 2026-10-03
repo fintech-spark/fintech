@@ -32,9 +32,9 @@ import type {
   DocumentMetadata,
   DocumentSourceType,
   DocumentStatus,
-} from '@/modules/documents/domain/types';
-import { DOCUMENT_STATUS_TRANSITIONS } from '@/modules/documents/domain/types';
-import { isOwnTenantStoragePath } from '@/modules/documents/domain/rules';
+} from '../domain/types';
+import { DOCUMENT_STATUS_TRANSITIONS } from '../domain/types';
+import { isOwnTenantStoragePath } from '../domain/rules';
 
 // ===========================================================================
 // Documents

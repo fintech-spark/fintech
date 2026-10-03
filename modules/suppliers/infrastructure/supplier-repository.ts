@@ -27,8 +27,8 @@ import {
 } from '@/lib/database/query-helpers';
 import { hasPermission } from '@/lib/http/auth-context';
 
-import type { Payable, PayableStatus, Supplier, SupplierPricing } from '@/modules/suppliers/domain/types';
-import type { SupplierService } from '@/modules/suppliers/application/service';
+import type { Payable, PayableStatus, Supplier, SupplierPricing } from '../domain/types';
+import type { SupplierService } from '../application/service';
 
 // ===========================================================================
 // Suppliers

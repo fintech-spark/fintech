@@ -24,8 +24,8 @@ import {
 } from '@/lib/database/query-helpers';
 import { hasPermission } from '@/lib/http/auth-context';
 
-import type { Business, BusinessMembership, BusinessProfile, BusinessSettings } from '@/modules/businesses/domain/types';
-import type { BusinessService } from '@/modules/businesses/application/service';
+import type { Business, BusinessMembership, BusinessProfile, BusinessSettings } from '../domain/types';
+import type { BusinessService } from '../application/service';
 
 // ===========================================================================
 // Businesses
