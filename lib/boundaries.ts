@@ -22,6 +22,7 @@ export const MODULE_DEPENDENCIES: Record<string, readonly string[]> = {
 
 export function isAllowedImport(fromModule: string, toModule: string): boolean {
   if (toModule === 'lib') return true;
+  if (fromModule === toModule) return true;
   const allowedDeps = MODULE_DEPENDENCIES[fromModule];
   if (!allowedDeps) return false;
   return allowedDeps.includes(toModule);

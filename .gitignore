@@ -43,3 +43,5 @@ __agent__/
 # Supabase CLI transient state
 supabase/.temp/
 supabase/.branches/
+.agents/claims/
+.vitest
