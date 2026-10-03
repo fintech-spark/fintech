@@ -17,6 +17,23 @@ import type { PoolConfig, QueryResult, QueryResultRow } from 'pg';
 import type { BusinessId } from '../types';
 import type { DatabaseClient, TenantDatabaseClient, DatabaseTransaction } from './client';
 import { wrapDatabaseError } from '../errors';
+import type { TenantContext } from '../types';
+
+/**
+ * Security guard: asserts that a privileged database client (e.g. one connected
+ * as `postgres` with `rolbypassrls = true`) is not being used for unscoped tenant
+ * data access. This is the runtime enforcement of the security architecture.
+ *
+ * @throws Error when called without a verified tenant context on a privileged client.
+ */
+export function assertTenantSafe(ctx?: TenantContext): void {
+  if (!ctx || !ctx.businessId) {
+    throw new Error(
+      'assertTenantSafe failed: privileged database client used without a verified TenantContext. ' +
+        'Use createServerClient() (RLS-enforced) or provide an explicit tenant context.',
+    );
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Type parser configuration
@@ -88,6 +105,7 @@ export class PostgresDatabaseClient implements DatabaseClient {
   }
 
   async query<T = unknown>(sql: string, params?: readonly unknown[]): Promise<readonly T[]> {
+    assertTenantSafe(); // privileged root client must never serve tenant queries without context
     try {
       const result = await this.pool.query<QueryResultRow>(sql, params ? [...params] : undefined);
       return result.rows as unknown as readonly T[];
@@ -97,6 +115,7 @@ export class PostgresDatabaseClient implements DatabaseClient {
   }
 
   async execute(sql: string, params?: readonly unknown[]): Promise<number> {
+    assertTenantSafe(); // privileged root client must never serve tenant queries without context
     try {
       const result = await this.pool.query(sql, params ? [...params] : undefined);
       return result.rowCount ?? 0;
