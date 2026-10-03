@@ -435,3 +435,76 @@ export const pageMetaSchema = z.object({
 });
 
 export type PageMeta = z.infer<typeof pageMetaSchema>;
+// ── Inventory Movement ─────────────────────────────────────────────────────
+
+export const inventoryMovementSchema = z.object({
+  id: z.string(),
+  businessId: z.string(),
+  productId: z.string(),
+  type: z.enum(["received", "sold", "adjusted", "returned"]),
+  quantity: z.number().int(),
+  reference: z.string().optional(),
+  referenceType: z.string().optional(),
+  referenceId: z.string().optional(),
+  createdAt: isoDateSchema,
+});
+
+export type WireInventoryMovement = z.infer<typeof inventoryMovementSchema>;
+
+// ── Intelligence Schemas ───────────────────────────────────────────────────
+
+export const analyticsSnapshotSchema = z.object({
+  businessId: z.string(),
+  period: z.object({
+    from: isoDateSchema,
+    to: isoDateSchema,
+  }),
+  currency: z.string(),
+  revenueMinor: z.number().int(),
+  grossProfitMinor: z.number().int(),
+  operatingExpensesMinor: z.number().int(),
+  netProfitMinor: z.number().int(),
+  grossMarginBasisPoints: z.number().int(),
+  netMarginBasisPoints: z.number().int(),
+  quality: z.enum(["complete", "partial", "insufficient_data"]),
+});
+
+export type WireAnalyticsSnapshot = z.infer<typeof analyticsSnapshotSchema>;
+
+export const cashFlowForecastSchema = z.object({
+  id: z.string(),
+  businessId: z.string(),
+  startingCash: z.object({ amount: z.number(), currency: z.string() }),
+  endingCash: z.object({ amount: z.number(), currency: z.string() }),
+  risks: z.array(z.any()),
+  calculatedAt: isoDateSchema,
+});
+
+export type WireCashFlowForecast = z.infer<typeof cashFlowForecastSchema>;
+
+export const actionWireSchema = z.object({
+  id: z.string(),
+  businessId: z.string(),
+  type: z.string(),
+  title: z.string(),
+  description: z.string(),
+  status: z.string(),
+  source: z.string(),
+});
+
+export type WireAction = z.infer<typeof actionWireSchema>;
+
+export const aiChatResponseSchema = z.object({
+  message: z.string(),
+  toolsUsed: z.array(z.any()),
+  evidence: z.array(z.any()),
+  confidence: z.enum(["high", "medium", "low"]),
+  metadata: z.object({
+    totalLatencyMs: z.number(),
+    modelUsed: z.string(),
+    tokensUsed: z.number(),
+    ragContextUsed: z.boolean(),
+  }),
+});
+
+export type WireAiChatResponse = z.infer<typeof aiChatResponseSchema>;

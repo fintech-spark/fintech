@@ -59,6 +59,16 @@ import {
   type WireSupplier,
   type WireSupplierPricing,
   type WireTransaction,
+  inventoryMovementSchema,
+  analyticsSnapshotSchema,
+  cashFlowForecastSchema,
+  actionWireSchema,
+  aiChatResponseSchema,
+  type WireInventoryMovement,
+  type WireAnalyticsSnapshot,
+  type WireCashFlowForecast,
+  type WireAction,
+  type WireAiChatResponse,
 } from "./contracts";
 
 // ── Session & business ─────────────────────────────────────────────────────
@@ -534,3 +544,121 @@ export function getTransaction(
 
 /** `GET /api/transactions/{id}` guard used to confirm a decode before render. */
 export const pageMeta = pageMetaSchema;
+// ── Real Integrated Capabilities ──────────────────────────────────────────
+
+/** POST /api/businesses/[businessId]/inventory/movements */
+export async function recordInventoryMovement(
+  businessId: string,
+  input: {
+    productId: string;
+    type: "received" | "sold" | "adjusted" | "returned";
+    quantity: number;
+    reference?: string;
+  },
+): Promise<WireInventoryMovement> {
+  const result = await apiFetch(
+    `/api/businesses/${businessId}/inventory/movements`,
+    inventoryMovementSchema,
+    {
+      method: "POST",
+      body: input,
+      capability: "Recording inventory movement",
+    },
+  );
+  return result.data;
+}
+
+/** GET /api/businesses/[businessId]/analytics/snapshot */
+export async function getAnalyticsSnapshot(
+  businessId: string,
+  params?: { from?: string; to?: string },
+): Promise<WireAnalyticsSnapshot> {
+  const result = await apiFetch(
+    `/api/businesses/${businessId}/analytics/snapshot`,
+    analyticsSnapshotSchema,
+    {
+      query: params,
+      capability: "Business analytics",
+    },
+  );
+  return result.data;
+}
+
+/** GET /api/businesses/[businessId]/cash-flow/forecast */
+export async function getCashFlowForecast(
+  businessId: string,
+): Promise<WireCashFlowForecast | null> {
+  const result = await apiFetch(
+    `/api/businesses/${businessId}/cash-flow/forecast`,
+    cashFlowForecastSchema.nullable(),
+    { capability: "Cash flow forecast" },
+  );
+  return result.data;
+}
+
+/** GET /api/businesses/[businessId]/actions */
+export async function getActions(
+  businessId: string,
+  params?: { status?: string; type?: string },
+): Promise<readonly WireAction[]> {
+  const result = await apiFetch(
+    `/api/businesses/${businessId}/actions`,
+    z.array(actionWireSchema),
+    {
+      query: params,
+      capability: "Action center",
+    },
+  );
+  return result.data;
+}
+
+/** POST /api/businesses/[businessId]/actions/[id]/approve */
+export async function approveAction(
+  businessId: string,
+  actionId: string,
+): Promise<WireAction> {
+  const result = await apiFetch(
+    `/api/businesses/${businessId}/actions/${actionId}/approve`,
+    actionWireSchema,
+    {
+      method: "POST",
+      capability: "Action approval",
+    },
+  );
+  return result.data;
+}
+
+/** POST /api/businesses/[businessId]/actions/[id]/execute */
+export async function executeAction(
+  businessId: string,
+  actionId: string,
+  idempotencyKey?: string,
+): Promise<{ action: WireAction; executed: boolean }> {
+  const result = await apiFetch(
+    `/api/businesses/${businessId}/actions/${actionId}/execute`,
+    z.object({ action: actionWireSchema, executed: z.boolean() }),
+    {
+      method: "POST",
+      idempotencyKey,
+      capability: "Action execution",
+    },
+  );
+  return result.data;
+}
+
+/** POST /api/businesses/[businessId]/ai/chat */
+export async function sendAiChatMessage(
+  businessId: string,
+  input: { message: string; sessionId?: string },
+): Promise<WireAiChatResponse> {
+  const result = await apiFetch(
+    `/api/businesses/${businessId}/ai/chat`,
+    aiChatResponseSchema,
+    {
+      method: "POST",
+      body: input,
+      capability: "Business Brain",
+    },
+  );
+  return result.data;
+}

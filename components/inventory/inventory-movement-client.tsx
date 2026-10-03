@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { ArrowLeft, Package } from "lucide-react";
 import Link from "next/link";
-import { getProductForMerchant } from "@/app/(dashboard)/inventory/actions";
+import { getProductForMerchant, recordInventoryMovementAction } from "@/app/(dashboard)/inventory/actions";
 import type { WireProduct } from "@/lib/api/contracts";
 import { PageHeader } from "@/components/common/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -45,16 +45,32 @@ export default function InventoryMovementClient({ businessId }: { readonly busin
     }
   }
 
-  function submit() {
+  async function submit() {
     if (!product || !businessId) return;
     setSubmitting(true);
-    // The inventory domain service exists (modules/inventory/application/service.ts)
-    // but no HTTP route reaches it from this screen (lib/api/endpoints.ts has only
-    // GET endpoints). We do NOT invent a route or fake a success.
-    setTimeout(() => {
+    try {
+      const parsedQty = parseInt(quantity, 10);
+      if (isNaN(parsedQty) || parsedQty <= 0) {
+        setProductError("Quantity must be a positive integer.");
+        setSubmitting(false);
+        return;
+      }
+      const res = await recordInventoryMovementAction(businessId, {
+        productId: product.id,
+        type: type as "received" | "sold" | "adjusted" | "returned",
+        quantity: parsedQty,
+        reference: reference.trim() || undefined,
+      });
+      if (res.ok) {
+        setSubmitted(true);
+      } else {
+        setProductError(res.error);
+      }
+    } catch {
+      setProductError("Failed to record inventory movement.");
+    } finally {
       setSubmitting(false);
-      setSubmitted(true);
-    }, 600);
+    }
   }
 
   return (
