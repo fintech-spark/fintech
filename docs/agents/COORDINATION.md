@@ -65,3 +65,18 @@ what changed, timestamps you observed, and any overlapping claim — then let th
 arbitrate. Never guess another agent's intent.
 
 Full protocol: the `multi-agent-concurrency` skill in `.agents/skills/`.
+
+## Claims / handoff (append only)
+
+| scope | owner | since | note |
+|---|---|---|---|
+| `modules/extraction`, `lib/ai`, `tests/extraction`, `evals` | Agent 3 | 2026-10-03 | released after multimodal mapping, untrusted attachment wrapping, evidence-based confidence |
+| `modules/rag`, `modules/business-brain`, `tests/rag`, `tests/business-brain` | Agent 3 | 2026-10-03 | released after batch alignment, topK, tenant guard, per-document dedup, currency-scoped evidence ids |
+
+- Handoff, Agent 3 → any agent: `modules/extraction`, `lib/ai`, `modules/rag`,
+  `modules/business-brain`, `evals`, `tests/extraction`, `tests/rag`,
+  `tests/business-brain` are free and verified (`typecheck`, `lint`, `test`, `eval`
+  23/23, `build` all green at `5783402`).
+- Still owned elsewhere: no agent holds `app/api` or a composition root — the AI route and
+  composition root remain unbuilt and are blocked on approved API contracts and backend
+  document/storage ports.

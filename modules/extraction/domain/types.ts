@@ -1,7 +1,11 @@
 import type { BusinessId, DocumentId } from '@/lib/types';
+import type { EvidenceRef } from '@/lib/ai/schemas';
 export interface ExtractionResult {
   readonly id: string; readonly businessId: BusinessId; readonly documentId: DocumentId; readonly status: ExtractionStatus;
-  readonly fields: readonly ExtractionField[]; readonly overallConfidence: ConfidenceLevel; readonly modelUsed: string;
+  readonly fields: readonly ExtractionField[];
+  /** Model-cited evidence, preserved verbatim for Phase 6 review. Never fabricated. */
+  readonly evidence: readonly EvidenceRef[];
+  readonly overallConfidence: ConfidenceLevel; readonly modelUsed: string;
   readonly rawOutput?: string; readonly extractedAt: Date; readonly validatedAt?: Date;
 }
 export type ExtractionStatus = 'pending' | 'processing' | 'completed' | 'validated' | 'rejected' | 'failed';

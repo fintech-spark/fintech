@@ -1,0 +1,24 @@
+{
+  "fixtureName": "missing-evidence",
+  "expectedStatus": "NEEDS_REVIEW",
+  "description": "Total present but line items and source fragment unavailable.",
+  "sourceType": "invoice",
+  "documentId": "doc-missing-ev-007",
+  "businessId": "biz-test-007",
+  "extraction": {
+    "invoiceNumber": "INV-007",
+    "issueDate": "2026-09-01",
+    "supplierName": "Synthetic Vendor F",
+    "lineItems": [],
+    "subtotalMinor": null,
+    "taxMinor": 50,
+    "discountMinor": 0,
+    "totalMinor": 1050,
+    "currency": "INR",
+    "needsReview": true,
+    "uncertaintyReasons": [
+      "Line items and subtotal missing; total unsupported by source"
+    ]
+  },
+  "validationNotes": "Critical fields (line items) absent; total cannot be verified."
+}
