@@ -1,0 +1,23 @@
+# Gitleaks ignore list
+# Each entry is a documented fingerprint for synthetic test fixtures or documentation false positives in git history.
+
+# Test Fixture: Mock Supabase Anon Key (RFC 7519 synthetic JWT {"alg":"HS256"}{"role":"anon"}.sig)
+ccb866e4b63be70e51ad2416f375d7a20aaab817:tests/auth/supabase-mapping.test.ts:generic-api-key:47
+ccb866e4b63be70e51ad2416f375d7a20aaab817:tests/auth/supabase-mapping.test.ts:generic-api-key:210
+
+# Test Fixture: Redaction unit test fixtures (synthetic Google API key pattern and RFC 7519 sample JWT)
+53969df4832171779ac208b9780ad6ac7f5113f7:tests/rag/pipeline.test.ts:gcp-api-key:167
+53969df4832171779ac208b9780ad6ac7f5113f7:tests/rag/pipeline.test.ts:gcp-api-key:168
+53969df4832171779ac208b9780ad6ac7f5113f7:tests/rag/pipeline.test.ts:jwt:177
+
+# Historical commit ba02fcb (subsequently reorganized into root tests):
+ba02fcb95cf4506f6b91df5d41fd45967529699e:fintech-ai/tests/rag/pipeline.test.ts:gcp-api-key:167
+ba02fcb95cf4506f6b91df5d41fd45967529699e:fintech-ai/tests/rag/pipeline.test.ts:gcp-api-key:168
+ba02fcb95cf4506f6b91df5d41fd45967529699e:fintech-ai/tests/rag/pipeline.test.ts:jwt:177
+
+# Documentation False Positives: Model names (llama-3.1-70b-versatile, llama-3.3-70b-versatile) and doc placeholders (your-secret-key)
+ba02fcb95cf4506f6b91df5d41fd45967529699e:.agents/skills/hindsight-docs/references/developer/development.md:generic-api-key:54
+ba02fcb95cf4506f6b91df5d41fd45967529699e:.agents/skills/hindsight-docs/references/developer/mcp-server.md:curl-auth-header:70
+ba02fcb95cf4506f6b91df5d41fd45967529699e:.agents/skills/hindsight-docs/references/sdks/embed.md:generic-api-key:142
+ba02fcb95cf4506f6b91df5d41fd45967529699e:.agents/skills/hindsight-docs/references/developer/configuration.md:curl-auth-header:1476
+ba02fcb95cf4506f6b91df5d41fd45967529699e:.agents/skills/hindsight-docs/references/developer/configuration.md:generic-api-key:793
