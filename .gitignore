@@ -44,3 +44,4 @@ __agent__/
 supabase/.temp/
 supabase/.branches/
 .agents/claims/
+.vitest

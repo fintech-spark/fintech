@@ -219,3 +219,47 @@ export const updateBusinessSettingsSchema = z
     overdueThresholdDays: z.number().int().nonnegative().optional(),
   })
   .refine((value) => Object.keys(value).length > 0, 'At least one field must be provided.');
+
+/** POST /api/businesses/[businessId]/simulator/scenarios */
+export const runScenarioSchema = z.object({
+  name: z.string().min(1).max(200),
+  description: z.string().max(1000).optional(),
+  parameters: z.array(z.object({
+    name: z.string().min(1),
+    type: z.enum(['revenue_change', 'expense_change', 'cost_change', 'price_change', 'volume_change', 'working_capital_delay']),
+    unit: z.enum(['percentage', 'basis_points', 'minor_units', 'days']),
+    value: z.number().int(),
+    targetCategory: z.string().optional(),
+    targetProductId: z.string().uuid().optional(),
+  })).min(1),
+});
+
+/** POST /api/businesses/[businessId]/actions/propose */
+export const proposeActionSchema = z.object({
+  type: z.enum([
+    'adjust_price',
+    'reorder_stock',
+    'send_reminder',
+    'change_supplier',
+    'reduce_expense',
+    'create_transaction',
+    'custom',
+  ]),
+  title: z.string().min(1).max(200),
+  description: z.string().max(2000),
+  source: z.enum(['ai_recommendation', 'profit_leak', 'cash_flow_risk', 'manual']).default('manual'),
+  parameters: z.record(z.string(), z.unknown()).default({}),
+  relatedLeakId: z.string().uuid().optional(),
+  relatedRiskId: z.string().uuid().optional(),
+});
+
+/** POST /api/businesses/[businessId]/cash-flow/forecast */
+export const generateForecastSchema = z.object({
+  horizonDays: z.number().int().min(7).max(365).optional().default(30),
+  assumptions: z.object({
+    receivableCollectionRateBasisPoints: z.number().int().min(0).max(10000).optional(),
+    payablePaymentRateBasisPoints: z.number().int().min(0).max(10000).optional(),
+    projectedDailyRevenueMinor: z.number().int().min(0).optional(),
+    projectedDailyExpenseMinor: z.number().int().min(0).optional(),
+  }).optional(),
+});

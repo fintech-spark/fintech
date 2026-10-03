@@ -1,3 +1,20 @@
+import type { BusinessId } from '@/lib/types';
+import { getDatabaseClient } from '@/lib/database';
+import { PostgresAnalyticsService } from '@/modules/analytics/application/postgres-analytics-service';
+import { PostgresAnalyticsRepository } from '@/modules/analytics/infrastructure/postgres-analytics-repository';
+import { PostgresCashFlowService } from '@/modules/cash-flow/application/postgres-cash-flow-service';
+import { PostgresCashFlowRepository } from '@/modules/cash-flow/infrastructure/postgres-cash-flow-repository';
+import { PostgresCashFlowForecastStore } from '@/modules/cash-flow/infrastructure/postgres-cash-flow-store';
+import { PostgresProfitLeakService } from '@/modules/profit-leaks/application/postgres-profit-leak-service';
+import { PostgresProfitLeakRepository } from '@/modules/profit-leaks/infrastructure/postgres-profit-leak-repository';
+import { PostgresSimulatorService } from '@/modules/simulator/application/postgres-simulator-service';
+import { PostgresScenarioRepository } from '@/modules/simulator/infrastructure/postgres-scenario-repository';
+import { PostgresActionService } from '@/modules/actions/application/postgres-action-service';
+import { PostgresActionRepository } from '@/modules/actions/infrastructure/postgres-action-repository';
+import { ActionExecutorRegistry } from '@/modules/actions/domain/executors';
+import { systemClock } from '@/lib/clock';
+import { eventBus } from '@/lib/events';
+
 // Merchant Brain: API route wiring
 //
 // One place that knows how to build the Supabase client and the module services.
@@ -57,3 +74,55 @@ export function wireClient(db: Db): Wired {
 }
 
 export type { Db };
+
+export interface WiredIntelligence {
+  readonly analytics: PostgresAnalyticsService;
+  readonly cashFlow: PostgresCashFlowService;
+  readonly profitLeaks: PostgresProfitLeakService;
+  readonly simulator: PostgresSimulatorService;
+  readonly actions: PostgresActionService;
+}
+
+/**
+ * Builds the intelligence services graph for a verified tenant.
+ *
+ * Scoped directly through the TenantDatabaseClient so no statement
+ * can escape business_id.
+ */
+export function wireIntelligence(businessId: BusinessId): WiredIntelligence {
+  const rootDb = getDatabaseClient();
+  const tenantDb = rootDb.forTenant(businessId);
+  const analyticsRepo = new PostgresAnalyticsRepository(tenantDb);
+  const analytics = new PostgresAnalyticsService(analyticsRepo, systemClock);
+  const cashFlow = new PostgresCashFlowService(
+    new PostgresCashFlowRepository(tenantDb),
+    new PostgresCashFlowForecastStore(tenantDb),
+    systemClock,
+  );
+  const profitLeaks = new PostgresProfitLeakService(
+    new PostgresProfitLeakRepository(tenantDb),
+    analytics,
+    systemClock,
+    eventBus,
+  );
+  const simulator = new PostgresSimulatorService(
+    new PostgresScenarioRepository(tenantDb),
+    analytics,
+    systemClock,
+  );
+  const registry = new ActionExecutorRegistry();
+  const actions = new PostgresActionService(
+    new PostgresActionRepository(tenantDb),
+    registry,
+    systemClock,
+    eventBus,
+  );
+
+  return {
+    analytics,
+    cashFlow,
+    profitLeaks,
+    simulator,
+    actions,
+  };
+}
