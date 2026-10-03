@@ -80,14 +80,14 @@ function isStateChanging(method: string): boolean {
 }
 
 /**
- * The origin this request should have come from: the configured app URL when
- * set, otherwise the request's own host (which is what a browser will report
- * for a same-origin fetch).
+ * The origin this request should have come from.
+ *
+ * It is derived from the request itself rather than a configured constant: a
+ * browser's `Origin` header always names the page that issued the fetch, and
+ * these endpoints are same-origin by construction. Comparing against the
+ * request's own URL cannot be misconfigured, and it keeps this module free of
+ * client-bundle environment variables (see tests/frontend/security.test.ts).
  */
 function expectedOrigin(request: Request): string {
-  const configured = (process.env.APP_URL ?? process.env.BASE_URL)?.trim().replace(/\/+$/, '');
-  if (configured) return configured;
-
-  const url = new URL(request.url);
-  return url.origin;
+  return new URL(request.url).origin;
 }

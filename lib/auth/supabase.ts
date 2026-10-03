@@ -13,7 +13,13 @@
 
 import { createServerClient } from '@/lib/supabase/server-client';
 import { requireEnv } from '@/lib/supabase/env';
-import { AuthorizationError, ConflictError, RateLimitError, ValidationError } from '@/lib/errors';
+import {
+  AuthenticationError,
+  AuthorizationError,
+  ConflictError,
+  RateLimitError,
+  ValidationError,
+} from '@/lib/errors';
 import { AuthProviderError } from './errors';
 import type { SessionTokens } from './session';
 
@@ -25,6 +31,7 @@ export interface SignUpResult {
 }
 
 export async function signInWithPassword(email: string, password: string): Promise<SessionTokens> {
+  assertUsableAnonKey();
   const client = createServerClient();
   const { data, error } = await client.auth.signInWithPassword({ email, password });
 
@@ -40,6 +47,7 @@ export async function signUpWithPassword(
   password: string,
   name: string,
 ): Promise<SignUpResult> {
+  assertUsableAnonKey();
   const client = createServerClient();
   const { data, error } = await client.auth.signUp({
     email,
@@ -74,6 +82,7 @@ export async function signUpWithPassword(
  * signal for the client to sign in again.
  */
 export async function refreshSession(refreshToken: string): Promise<SessionTokens> {
+  assertUsableAnonKey();
   const client = createServerClient();
   const { data, error } = await client.auth.refreshSession({ refresh_token: refreshToken });
 
@@ -115,6 +124,29 @@ export async function revokeSession(accessToken: string | undefined): Promise<vo
   }
 }
 
+/**
+ * Fails loudly, server-side, when the anon key cannot possibly work.
+ *
+ * A missing or placeholder `SUPABASE_ANON_KEY` would otherwise surface as a
+ * generic 502 on every sign-in — indistinguishable from an outage for the user
+ * and undiagnosable from the client. The client keeps the generic message (no
+ * configuration detail crosses the wire); the server log names the variable.
+ *
+ * Real keys are JWTs, so an empty string or a stub like `eyJ...` is caught here
+ * instead of being sent to the auth server to be rejected.
+ */
+function assertUsableAnonKey(): void {
+  const key = process.env.SUPABASE_ANON_KEY?.trim();
+  if (key && /^eyJ[A-Za-z0-9_-]+\./.test(key)) return;
+
+  console.error(
+    '[auth] SUPABASE_ANON_KEY is missing or is not a JWT (placeholder?). ' +
+      'Set the project anon key in .env.local — sign-in, sign-up and refresh ' +
+      'all fail until it is a real key.',
+  );
+  throw new AuthProviderError('Authentication is unavailable right now. Please try again.');
+}
+
 function toSessionTokens(session: {
   access_token: string;
   refresh_token: string;
@@ -132,10 +164,13 @@ function mapAuthError(error: unknown): Error {
   const code = extractCode(error);
 
   switch (code) {
+    // 401, not 403: the caller is not authenticated. `AuthorizationError`
+    // (403) would tell a client it is known but forbidden, which is not what
+    // happened — and the refresh route keys its cookie-clearing off 401.
     case 'invalid_credentials':
     case 'invalid_grant':
     case 'session_not_found':
-      return new AuthorizationError('Email or password is incorrect.');
+      return new AuthenticationError('Email or password is incorrect.');
 
     case 'email_not_confirmed':
       return new AuthorizationError('Confirm your email address before signing in.');
@@ -152,6 +187,16 @@ function mapAuthError(error: unknown): Error {
     case 'over_request_rate_limit':
     case 'rate_limit_exceeded':
       return new RateLimitError('Too many attempts. Please wait and try again.');
+
+    // The auth server rejected the project's own credentials: the anon key is
+    // wrong or revoked. Users must not see that; the log must, or nobody can
+    // tell a misconfigured key from a Supabase outage.
+    case 'invalid_api_key':
+      console.error(
+        '[auth] Supabase rejected SUPABASE_ANON_KEY (invalid_api_key). ' +
+          'Rotate or replace it in .env.local.',
+      );
+      return new AuthProviderError('Authentication is unavailable right now. Please try again.');
 
     default:
       return new AuthProviderError('Authentication is unavailable right now. Please try again.');
