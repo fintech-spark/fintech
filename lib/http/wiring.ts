@@ -12,6 +12,7 @@ import { PostgresScenarioRepository } from '@/modules/simulator/infrastructure/p
 import { PostgresActionService } from '@/modules/actions/application/postgres-action-service';
 import { PostgresActionRepository } from '@/modules/actions/infrastructure/postgres-action-repository';
 import { ActionExecutorRegistry } from '@/modules/actions/domain/executors';
+import { PostgresNotificationService, PostgresNotificationRepository } from '@/modules/notifications';
 import { systemClock } from '@/lib/clock';
 import { eventBus } from '@/lib/events';
 
@@ -81,6 +82,7 @@ export interface WiredIntelligence {
   readonly profitLeaks: PostgresProfitLeakService;
   readonly simulator: PostgresSimulatorService;
   readonly actions: PostgresActionService;
+  readonly notifications: PostgresNotificationService;
 }
 
 /**
@@ -117,6 +119,9 @@ export function wireIntelligence(businessId: BusinessId): WiredIntelligence {
     systemClock,
     eventBus,
   );
+  const notifications = new PostgresNotificationService(
+    new PostgresNotificationRepository(tenantDb),
+  );
 
   return {
     analytics,
@@ -124,5 +129,6 @@ export function wireIntelligence(businessId: BusinessId): WiredIntelligence {
     profitLeaks,
     simulator,
     actions,
+    notifications,
   };
 }

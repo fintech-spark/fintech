@@ -16,3 +16,6 @@ export {
   type IntelligenceAlert,
   type IntelligenceAlertKind,
 } from './application/intelligence-alerts';
+
+export { PostgresNotificationRepository } from './infrastructure/postgres-notification-repository';
+export { PostgresNotificationService } from './application/postgres-notification-service';

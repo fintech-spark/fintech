@@ -64,11 +64,17 @@ import {
   cashFlowForecastSchema,
   actionWireSchema,
   aiChatResponseSchema,
+  profitLeakWireSchema,
+  scenarioWireSchema,
+  notificationWireSchema,
   type WireInventoryMovement,
   type WireAnalyticsSnapshot,
   type WireCashFlowForecast,
   type WireAction,
   type WireAiChatResponse,
+  type WireProfitLeak,
+  type WireScenario,
+  type WireNotification,
 } from "./contracts";
 
 // ── Session & business ─────────────────────────────────────────────────────
@@ -681,3 +687,331 @@ export async function sendAiChatMessage(
   );
   return result.data;
 }
+
+// ── Transactions Ledger ───────────────────────────────────────────────────
+
+export interface TransactionFilters {
+  readonly page?: number;
+  readonly limit?: number;
+  readonly type?: "sale" | "purchase" | "payment" | "refund";
+  readonly status?: "draft" | "confirmed" | "completed" | "voided";
+  readonly counterpartyId?: string;
+  readonly from?: string;
+  readonly to?: string;
+}
+
+/** `GET /api/businesses/{businessId}/transactions` */
+export async function listTransactions(
+  businessId: string,
+  filters: TransactionFilters = {},
+): Promise<Page<WireTransaction>> {
+  const page = filters.page ?? 1;
+  const limit = filters.limit ?? 25;
+  const result = await apiFetch(
+    `/api/businesses/${encodeURIComponent(businessId)}/transactions`,
+    z.array(transactionSchema),
+    {
+      query: listQuery({
+        page,
+        limit,
+        filters: {
+          type: filters.type,
+          status: filters.status,
+          counterpartyId: filters.counterpartyId,
+          from: filters.from,
+          to: filters.to,
+        },
+      }),
+      capability: "Sales & transactions",
+    },
+  );
+  return pageFrom(result.data, result.meta, page, limit);
+}
+
+/** `POST /api/businesses/{businessId}/transactions` */
+export async function createTransaction(
+  businessId: string,
+  input: {
+    readonly transactionDate: string;
+    readonly type: "sale" | "purchase" | "payment" | "refund";
+    readonly counterpartyType: "customer" | "supplier";
+    readonly counterpartyId: string;
+    readonly paymentMethod: "cash" | "upi" | "card" | "bank_transfer" | "credit" | "other";
+    readonly paymentReference?: string;
+    readonly notes?: string;
+    readonly items: readonly {
+      readonly productId: string;
+      readonly quantity: number;
+      readonly unitPrice: number;
+      readonly discount?: number;
+      readonly tax?: number;
+    }[];
+  },
+): Promise<WireTransaction> {
+  const result = await apiFetch(
+    `/api/businesses/${encodeURIComponent(businessId)}/transactions`,
+    transactionSchema,
+    {
+      method: "POST",
+      body: input,
+      capability: "Recording transaction",
+    },
+  );
+  return result.data;
+}
+
+// ── Expenses Ledger ────────────────────────────────────────────────────────
+
+export interface ExpenseFilters {
+  readonly page?: number;
+  readonly limit?: number;
+  readonly category?: string;
+  readonly status?: "pending" | "approved" | "rejected" | "paid";
+  readonly from?: string;
+  readonly to?: string;
+}
+
+/** `GET /api/businesses/{businessId}/expenses` */
+export async function listExpenses(
+  businessId: string,
+  filters: ExpenseFilters = {},
+): Promise<Page<WireExpense>> {
+  const page = filters.page ?? 1;
+  const limit = filters.limit ?? 25;
+  const result = await apiFetch(
+    `/api/businesses/${encodeURIComponent(businessId)}/expenses`,
+    z.array(expenseSchema),
+    {
+      query: listQuery({
+        page,
+        limit,
+        filters: {
+          category: filters.category,
+          status: filters.status,
+          from: filters.from,
+          to: filters.to,
+        },
+      }),
+      capability: "Expenses",
+    },
+  );
+  return pageFrom(result.data, result.meta, page, limit);
+}
+
+/** `POST /api/businesses/{businessId}/expenses` */
+export async function createExpense(
+  businessId: string,
+  input: {
+    readonly category: string;
+    readonly amount: number;
+    readonly currency?: string;
+    readonly description: string;
+    readonly vendor?: string;
+    readonly reference?: string;
+    readonly expenseDate: string;
+    readonly isRecurring?: boolean;
+    readonly recurringFrequency?: string;
+    readonly recurringNextDueDate?: string;
+  },
+): Promise<WireExpense> {
+  const result = await apiFetch(
+    `/api/businesses/${encodeURIComponent(businessId)}/expenses`,
+    expenseSchema,
+    {
+      method: "POST",
+      body: input,
+      capability: "Recording expense",
+    },
+  );
+  return result.data;
+}
+
+// ── Profit Leaks ──────────────────────────────────────────────────────────
+
+export interface ProfitLeakFilters {
+  readonly status?: string;
+  readonly severity?: string;
+  readonly category?: string;
+}
+
+/** `GET /api/businesses/{businessId}/profit-leaks` */
+export async function listProfitLeaks(
+  businessId: string,
+  filters: ProfitLeakFilters = {},
+): Promise<readonly WireProfitLeak[]> {
+  const result = await apiFetch(
+    `/api/businesses/${encodeURIComponent(businessId)}/profit-leaks`,
+    z.array(profitLeakWireSchema),
+    {
+      query: {
+        ...(filters.status ? { status: filters.status } : {}),
+        ...(filters.severity ? { severity: filters.severity } : {}),
+        ...(filters.category ? { category: filters.category } : {}),
+      },
+      capability: "Profit leak detection",
+    },
+  );
+  return result.data;
+}
+
+/** `POST /api/businesses/{businessId}/profit-leaks/detect` */
+export async function detectProfitLeaks(
+  businessId: string,
+  params?: { readonly from?: string; readonly to?: string },
+): Promise<{ readonly detected: readonly WireProfitLeak[]; readonly suppressed: readonly unknown[] }> {
+  const result = await apiFetch(
+    `/api/businesses/${encodeURIComponent(businessId)}/profit-leaks/detect`,
+    z.object({
+      detected: z.array(profitLeakWireSchema),
+      suppressed: z.array(z.any()),
+    }),
+    {
+      method: "POST",
+      query: params,
+      capability: "Detecting profit leaks",
+    },
+  );
+  return result.data;
+}
+
+// ── What-If Simulator ─────────────────────────────────────────────────────
+
+/** `GET /api/businesses/{businessId}/simulator/scenarios` */
+export async function listScenarios(
+  businessId: string,
+): Promise<Page<WireScenario>> {
+  const result = await apiFetch(
+    `/api/businesses/${encodeURIComponent(businessId)}/simulator/scenarios`,
+    z.object({
+      items: z.array(scenarioWireSchema),
+      total: z.number(),
+      page: z.number(),
+      limit: z.number(),
+      hasMore: z.boolean(),
+    }),
+    {
+      capability: "Simulator scenarios",
+    },
+  );
+  return pageFrom(result.data.items, result.data, result.data.page, result.data.limit);
+}
+
+/** `POST /api/businesses/{businessId}/simulator/scenarios` */
+export async function runScenario(
+  businessId: string,
+  input: {
+    readonly name: string;
+    readonly description?: string;
+    readonly parameters: readonly {
+      readonly type: string;
+      readonly targetId?: string;
+      readonly targetName?: string;
+      readonly currentValue: number;
+      readonly newValue: number;
+      readonly unit: "amount" | "percentage" | "quantity" | "days";
+    }[];
+  },
+): Promise<WireScenario> {
+  const result = await apiFetch(
+    `/api/businesses/${encodeURIComponent(businessId)}/simulator/scenarios`,
+    scenarioWireSchema,
+    {
+      method: "POST",
+      body: input,
+      capability: "Running simulation",
+    },
+  );
+  return result.data;
+}
+
+// ── Notifications ─────────────────────────────────────────────────────────
+
+export interface NotificationFilters {
+  readonly page?: number;
+  readonly limit?: number;
+  readonly status?: "unread" | "read" | "dismissed";
+  readonly type?: string;
+}
+
+/** `GET /api/businesses/{businessId}/notifications` */
+export async function listNotifications(
+  businessId: string,
+  filters: NotificationFilters = {},
+): Promise<Page<WireNotification>> {
+  const page = filters.page ?? 1;
+  const limit = filters.limit ?? 25;
+  const result = await apiFetch(
+    `/api/businesses/${encodeURIComponent(businessId)}/notifications`,
+    z.array(notificationWireSchema),
+    {
+      query: listQuery({
+        page,
+        limit,
+        filters: {
+          status: filters.status,
+          type: filters.type,
+        },
+      }),
+      capability: "Alerts & notifications",
+    },
+  );
+  return pageFrom(result.data, result.meta, page, limit);
+}
+
+/** `PATCH /api/businesses/{businessId}/notifications/{id}` */
+export async function markNotificationRead(
+  businessId: string,
+  notificationId: string,
+): Promise<{ success: boolean }> {
+  const result = await apiFetch(
+    `/api/businesses/${encodeURIComponent(businessId)}/notifications/${encodeURIComponent(notificationId)}`,
+    z.object({ success: z.boolean() }),
+    {
+      method: "PATCH",
+      capability: "Updating notification",
+    },
+  );
+  return result.data;
+}
+
+/** `POST /api/businesses/{businessId}/notifications` (read-all) */
+export async function markAllNotificationsRead(
+  businessId: string,
+): Promise<{ success: boolean }> {
+  const result = await apiFetch(
+    `/api/businesses/${encodeURIComponent(businessId)}/notifications`,
+    z.object({ success: z.boolean() }),
+    {
+      method: "POST",
+      capability: "Marking notifications as read",
+    },
+  );
+  return result.data;
+}
+
+// ── Document Ingestion ────────────────────────────────────────────────────
+
+/** `POST /api/businesses/{businessId}/documents` */
+export async function createDocumentRecord(
+  businessId: string,
+  input: {
+    readonly fileName: string;
+    readonly mimeType: string;
+    readonly fileSize: number;
+    readonly sourceType: string;
+    readonly storagePath: string;
+    readonly tags?: readonly string[];
+  },
+): Promise<WireDocument> {
+  const result = await apiFetch(
+    `/api/businesses/${encodeURIComponent(businessId)}/documents`,
+    documentSchema,
+    {
+      method: "POST",
+      body: input,
+      capability: "Adding document",
+    },
+  );
+  return result.data;
+}
+

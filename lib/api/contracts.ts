@@ -508,3 +508,125 @@ export const aiChatResponseSchema = z.object({
 });
 
 export type WireAiChatResponse = z.infer<typeof aiChatResponseSchema>;
+
+// ── Profit Leak Schemas ───────────────────────────────────────────────────
+
+export const profitLeakWireSchema = z.object({
+  id: z.string(),
+  businessId: z.string(),
+  category: z.string(),
+  severity: z.enum(["critical", "high", "medium", "low"]),
+  title: z.string(),
+  description: z.string(),
+  impact: moneySchema,
+  impactPeriod: z.string(),
+  evidence: z.array(
+    z.object({
+      type: z.string(),
+      resourceId: z.string(),
+      description: z.string(),
+      value: z.number().optional(),
+    }),
+  ),
+  status: z.enum(["active", "acknowledged", "resolved", "dismissed"]),
+  detectedAt: isoDateSchema,
+  resolvedAt: isoDateSchema.optional(),
+  currency: z.string(),
+  calculation: z.any().optional(),
+  suggestedInvestigation: z.string().optional(),
+  relatedRecordIds: z.array(z.string()).optional(),
+});
+
+export type WireProfitLeak = z.infer<typeof profitLeakWireSchema>;
+
+// ── Simulator Schemas ─────────────────────────────────────────────────────
+
+export const scenarioWireSchema = z.object({
+  id: z.string(),
+  businessId: z.string(),
+  name: z.string(),
+  description: z.string().optional(),
+  status: z.enum(["draft", "calculated", "expired"]),
+  period: z.object({
+    from: isoDateSchema,
+    to: isoDateSchema,
+  }),
+  parameters: z.array(
+    z.object({
+      type: z.string(),
+      targetId: z.string().optional(),
+      targetName: z.string().optional(),
+      currentValue: z.number(),
+      newValue: z.number(),
+      unit: z.enum(["amount", "percentage", "quantity", "days"]),
+    }),
+  ),
+  baseline: z.object({
+    revenue: z.number(),
+    cogs: z.number(),
+    grossProfit: z.number(),
+    grossMarginBps: z.number(),
+    operatingExpenses: z.number(),
+    netProfit: z.number(),
+    netMarginBps: z.number(),
+    grossRevenue: z.number(),
+    discounts: z.number(),
+    quantitySold: z.number(),
+    saleCount: z.number(),
+  }),
+  projected: z.object({
+    revenue: z.number(),
+    cogs: z.number(),
+    grossProfit: z.number(),
+    grossMarginBps: z.number(),
+    operatingExpenses: z.number(),
+    netProfit: z.number(),
+    netMarginBps: z.number(),
+    grossRevenue: z.number(),
+    discounts: z.number(),
+    quantitySold: z.number(),
+    saleCount: z.number(),
+  }),
+  comparison: z.object({
+    revenueDelta: z.number(),
+    grossProfitDelta: z.number(),
+    profitDelta: z.number(),
+    marginDeltaBps: z.number(),
+    adverse: z.boolean(),
+    direction: z.enum(["increase", "decrease", "no_change", "unavailable"]),
+    summary: z.string(),
+  }),
+  assumptions: z.array(
+    z.object({
+      id: z.string(),
+      statement: z.string(),
+      limitation: z.string(),
+      material: z.boolean(),
+    }),
+  ),
+  rejections: z.array(z.any()).optional(),
+  currency: z.string(),
+  calculatedAt: isoDateSchema,
+});
+
+export type WireScenario = z.infer<typeof scenarioWireSchema>;
+
+// ── Notifications Schemas ─────────────────────────────────────────────────
+
+export const notificationWireSchema = z.object({
+  id: z.string(),
+  businessId: z.string(),
+  userId: z.string(),
+  type: z.string(),
+  title: z.string(),
+  message: z.string(),
+  severity: z.enum(["critical", "warning", "info", "success"]),
+  status: z.enum(["unread", "read", "dismissed"]),
+  actionUrl: z.string().optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
+  createdAt: isoDateSchema,
+  readAt: isoDateSchema.optional(),
+});
+
+export type WireNotification = z.infer<typeof notificationWireSchema>;
+

@@ -1,10 +1,10 @@
 import type { Metadata } from "next";
 
-import { CapabilityPanel } from "@/components/common/data-state";
 import { FreshnessLine } from "@/components/common/freshness";
 import { MetricCard } from "@/components/common/metric-card";
 import { PageHeader, SectionHeader } from "@/components/common/page-header";
 import { DocumentsTable } from "@/components/documents/documents-table";
+import { DocumentUploadZone } from "@/components/documents/document-upload-zone";
 import {
   PARAM,
   DOCUMENT_STATUS_VALUES,
@@ -16,7 +16,6 @@ import {
 } from "@/components/data/params";
 import { isAuthenticated, resolveMerchantContext } from "@/lib/api/context";
 import { listDocuments } from "@/lib/api/endpoints";
-import { pendingCapability } from "@/lib/api/pending";
 import { settle } from "@/lib/api/settle";
 import { formatCount } from "@/lib/format/money";
 
@@ -105,7 +104,9 @@ export default async function DocumentsPage({
         />
       </section>
 
-      <CapabilityPanel capability={pendingCapability("documentUpload")} />
+      <section aria-labelledby="document-upload" className="flex flex-col gap-3">
+        <DocumentUploadZone businessId={businessId} />
+      </section>
     </>
   );
 }

@@ -11,7 +11,6 @@ import {
   Wallet,
 } from "lucide-react";
 
-import { CapabilityPanel } from "@/components/common/data-state";
 import { FreshnessLine } from "@/components/common/freshness";
 import { MetricCard } from "@/components/common/metric-card";
 import { PageHeader, SectionHeader } from "@/components/common/page-header";
@@ -20,7 +19,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/card";
 import { getAnalyticsSnapshot, getInventoryValue, getPayableTotals, getReceivableTotals, listDocuments, listLowStockProducts } from "@/lib/api/endpoints";
 import { isAuthenticated, resolveMerchantContext } from "@/lib/api/context";
-import { pendingCapability } from "@/lib/api/pending";
 import { describeMissing, errorOr, settle, type Settled } from "@/lib/api/settle";
 import { formatCount, formatMoney, formatMinorUnits } from "@/lib/format/money";
 import { formatDateTime } from "@/lib/format/dates";
@@ -310,29 +308,80 @@ export default async function OverviewPage() {
         />
       </div>
 
-      <section aria-labelledby="not-yet-heading" className="flex flex-col gap-3">
+      <section aria-labelledby="intelligence-heading" className="flex flex-col gap-3">
         <SectionHeader
-          id="not-yet-heading"
-          title="What Merchant Brain has not worked out yet"
-          description="Named honestly so you know what you are not looking at, instead of wondering whether the screen is broken."
+          id="intelligence-heading"
+          title="Operational Intelligence & Actions"
+          description="Integrated modules computing metrics, simulating outcomes, and identifying risks across your business."
         />
-        <div className="grid gap-3 md:grid-cols-2">
-          <CapabilityPanel
-            capability={pendingCapability("analyticsOverview")}
-            action={
-              <Button variant="outline" size="sm" asChild>
-                <Link href="/sales">Open Sales</Link>
+        <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
+          <Card className="flex flex-col justify-between">
+            <CardHeader className="pb-2">
+              <div className="flex items-center gap-2">
+                <Wallet className="size-4 text-primary" />
+                <CardHeading className="text-sm font-semibold">Cash Flow</CardHeading>
+              </div>
+              <CardDescription className="text-xs">
+                Inflows, outflows, receivables, payables, and 30-day forecast.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="pt-0">
+              <Button variant="outline" size="sm" asChild className="w-full text-xs">
+                <Link href="/cash-flow">Open Cash Flow</Link>
               </Button>
-            }
-          />
-          <CapabilityPanel
-            capability={pendingCapability("cashFlow")}
-            action={
-              <Button variant="outline" size="sm" asChild>
-                <Link href="/cash-flow">Open Cash flow</Link>
+            </CardContent>
+          </Card>
+
+          <Card className="flex flex-col justify-between">
+            <CardHeader className="pb-2">
+              <div className="flex items-center gap-2">
+                <TrendingDown className="size-4 text-caution-foreground" />
+                <CardHeading className="text-sm font-semibold">Profit Leaks</CardHeading>
+              </div>
+              <CardDescription className="text-xs">
+                Automated detection of price hikes, margin compression, and dead stock.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="pt-0">
+              <Button variant="outline" size="sm" asChild className="w-full text-xs">
+                <Link href="/profit-leaks">View Profit Leaks</Link>
               </Button>
-            }
-          />
+            </CardContent>
+          </Card>
+
+          <Card className="flex flex-col justify-between">
+            <CardHeader className="pb-2">
+              <div className="flex items-center gap-2">
+                <Boxes className="size-4 text-primary" />
+                <CardHeading className="text-sm font-semibold">What-If Simulator</CardHeading>
+              </div>
+              <CardDescription className="text-xs">
+                Pure arithmetic modelling of price, cost, and volume changes.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="pt-0">
+              <Button variant="outline" size="sm" asChild className="w-full text-xs">
+                <Link href="/simulator">Open Simulator</Link>
+              </Button>
+            </CardContent>
+          </Card>
+
+          <Card className="flex flex-col justify-between">
+            <CardHeader className="pb-2">
+              <div className="flex items-center gap-2">
+                <BrainCircuit className="size-4 text-primary" />
+                <CardHeading className="text-sm font-semibold">Business Brain</CardHeading>
+              </div>
+              <CardDescription className="text-xs">
+                Conversational assistant with tool access to your real database facts.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="pt-0">
+              <Button variant="outline" size="sm" asChild className="w-full text-xs">
+                <Link href="/business-brain">Ask Business Brain</Link>
+              </Button>
+            </CardContent>
+          </Card>
         </div>
       </section>
     </>
