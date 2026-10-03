@@ -1,63 +1,77 @@
 import type { Metadata } from "next";
-import { Banknote } from "lucide-react";
-
-import { CapabilityPage } from "@/components/capability/capability-page";
+import { FreshnessLine } from "@/components/common/freshness";
+import { MetricCard } from "@/components/common/metric-card";
+import { PageHeader } from "@/components/common/page-header";
+import { ProfitLeaksView } from "@/components/insights/profit-leaks-view";
 import { isAuthenticated, resolveMerchantContext } from "@/lib/api/context";
-import { pendingCapability } from "@/lib/api/pending";
+import { listProfitLeaks } from "@/lib/api/endpoints";
+import { settle } from "@/lib/api/settle";
+import { formatMoney, formatCount } from "@/lib/format/money";
 
-export const metadata: Metadata = { title: "Profit leaks" };
+export const metadata: Metadata = { title: "Profit Leaks" };
 
-/**
- * The product's flagship screen. It is also the screen that must NOT be faked:
- * a profit leak is a deterministic finding supported by evidence, so inventing
- * one for a demo would be the single most damaging thing this app could do.
- */
 export default async function ProfitLeaksPage() {
   const context = await resolveMerchantContext();
   if (!isAuthenticated(context)) return null;
 
+  const businessId = context.activeBusinessId;
+  const loadedAt = new Date();
+
+  const leaksResult = await settle(listProfitLeaks(businessId));
+  const leaks = leaksResult.ok ? leaksResult.value : [];
+
+  let totalImpactMinor = 0;
+  let criticalCount = 0;
+
+  for (const leak of leaks) {
+    totalImpactMinor += leak.impact.amount;
+    if (leak.severity === "critical" || leak.severity === "high") {
+      criticalCount += 1;
+    }
+  }
+
   return (
-    <CapabilityPage
-      capability={pendingCapability("profitLeaks")}
-      icon={<Banknote aria-hidden={true} className="size-5 text-muted-foreground" />}
-      title="Profit leaks"
-      description="Money slipping away — found by rules, explained by evidence, and never guessed at."
-      promise={[
-        "Each leak answered as an investigation: what is happening, why, how much, since when, and what you can do.",
-        "Findings with the records behind them, so you can check the claim instead of trusting it.",
-        "Severity in words — critical, high, medium — never a bare colour or a score out of a hundred.",
-        "A path from a finding to a scenario, so you can test a response before you act on it.",
-      ]}
-      inputs={[
-        { href: "/suppliers", label: "Supplier prices and what you pay" },
-        { href: "/inventory", label: "Product costs and selling prices" },
-        { href: "/expenses", label: "Running costs" },
-        { href: "/customers/receivables", label: "Money owed to you, and how late" },
-      ]}
-      alternatives={[
-        {
-          href: "/inventory",
-          label: "Check your product prices",
-          description: "Compare cost price against selling price on any product you sell.",
-        },
-        {
-          href: "/suppliers",
-          label: "Check what your suppliers charge",
-          description: "Current prices per product, as last recorded.",
-        },
-        {
-          href: "/customers/receivables?status=overdue",
-          label: "Chase what is overdue",
-          description: "Late payments are money you earned and did not receive.",
-        },
-      ]}
-    >
-      <p className="rounded-lg border border-border bg-surface-sunken p-3 text-sm text-muted-foreground">
-        When this screen works, nothing here will ever be a plausible-looking
-        number with no source behind it. If Merchant Brain cannot point at the
-        records that prove a leak, it will say there is no evidence rather than
-        show you a finding.
-      </p>
-    </CapabilityPage>
+    <>
+      <PageHeader
+        context={context.activeBusiness.name}
+        title="Profit Leaks"
+        description="Measured discrepancies where money is slipping away — backed by evidence, never guessed."
+        toolbar={<FreshnessLine updatedAt={loadedAt} />}
+      />
+
+      <section aria-labelledby="leaks-summary" className="flex flex-col gap-3">
+        <h2 id="leaks-summary" className="sr-only">
+          Profit leaks summary
+        </h2>
+        <div className="grid gap-3 sm:grid-cols-3">
+          <MetricCard
+            label="Total Measured Leak Impact"
+            tone={totalImpactMinor > 0 ? "negative" : "positive"}
+            value={
+              leaksResult.ok
+                ? formatMoney({ amount: totalImpactMinor, currency: "INR" })
+                : "—"
+            }
+            hint="Estimated financial erosion across all active detector findings."
+          />
+          <MetricCard
+            label="Active Leaks"
+            tone={leaks.length > 0 ? "caution" : "positive"}
+            value={leaksResult.ok ? formatCount(leaks.length, "leak") : "—"}
+            hint="Areas requiring price adjustments, inventory clearance, or vendor renegotiation."
+          />
+          <MetricCard
+            label="Critical / High Severity"
+            tone={criticalCount > 0 ? "negative" : "positive"}
+            value={leaksResult.ok ? `${criticalCount}` : "—"}
+            hint="Immediate operational priorities."
+          />
+        </div>
+      </section>
+
+      <section aria-labelledby="leaks-diagnostics" className="flex flex-col gap-3">
+        <ProfitLeaksView businessId={businessId} initialLeaks={leaks} />
+      </section>
+    </>
   );
 }
