@@ -1,0 +1,34 @@
+{
+  "fixtureName": "incorrect-line-item-arithmetic",
+  "expectedStatus": "REJECTED",
+  "description": "Line item claims total = 2000 but qty=2 × price=500 = 1000.",
+  "sourceType": "invoice",
+  "documentId": "doc-bad-line-004",
+  "businessId": "biz-test-004",
+  "extraction": {
+    "invoiceNumber": "INV-004",
+    "issueDate": "2026-06-01",
+    "supplierName": "Synthetic Vendor D",
+    "lineItems": [
+      {
+        "description": "Wrong total",
+        "quantity": 2,
+        "unitPrice": {
+          "amountMinor": 500,
+          "currency": "INR"
+        },
+        "total": {
+          "amountMinor": 2000,
+          "currency": "INR"
+        }
+      }
+    ],
+    "subtotalMinor": 2000,
+    "taxMinor": 360,
+    "discountMinor": 0,
+    "totalMinor": 2360,
+    "currency": "INR",
+    "needsReview": false
+  },
+  "validationNotes": "Quantity × unit price = 1000, line total claims 2000. Contradiction."
+}

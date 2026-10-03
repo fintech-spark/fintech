@@ -1,0 +1,37 @@
+{
+  "fixtureName": "duplicate-invoice",
+  "expectedStatus": "NEEDS_REVIEW",
+  "description": "Invoice number INV-DUP-009 matches existing business record.",
+  "sourceType": "invoice",
+  "documentId": "doc-dup-009",
+  "businessId": "biz-test-009",
+  "extraction": {
+    "invoiceNumber": "INV-DUP-009",
+    "issueDate": "2026-11-01",
+    "supplierName": "Synthetic Vendor H",
+    "lineItems": [
+      {
+        "description": "Item",
+        "quantity": 1,
+        "unitPrice": {
+          "amountMinor": 500,
+          "currency": "INR"
+        },
+        "total": {
+          "amountMinor": 500,
+          "currency": "INR"
+        }
+      }
+    ],
+    "subtotalMinor": 500,
+    "taxMinor": 90,
+    "discountMinor": 0,
+    "totalMinor": 590,
+    "currency": "INR",
+    "needsReview": true,
+    "uncertaintyReasons": [
+      "Duplicate invoice number; confirm with existing records"
+    ]
+  },
+  "validationNotes": "Not rejected automatically — duplicate may be legitimate correction. Needs review."
+}

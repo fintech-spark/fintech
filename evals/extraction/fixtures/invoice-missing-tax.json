@@ -1,0 +1,16 @@
+{
+  "id": "invoice-missing-tax",
+  "documentType": "invoice",
+  "description": "Synthetic invoice with NO tax line. The extractor must return null, never infer GST.",
+  "content": "INVOICE\nInvoice No: INV-SYN-002\nDate: 2026-02-01\nSupplier: Synthetic Traders\n\n1. Notebook   qty 10   unit 45.00   total 450.00\n\nTotal: 450.00\nCurrency: INR",
+  "expected": {
+    "invoiceNumber": "INV-SYN-002",
+    "issueDate": "2026-02-01",
+    "supplierName": "Synthetic Traders",
+    "lineItemCount": 1,
+    "totalMinor": 45000,
+    "taxMinor": null,
+    "currency": "INR",
+    "mustNotInfer": ["taxMinor", "dueDate", "buyer"]
+  }
+}

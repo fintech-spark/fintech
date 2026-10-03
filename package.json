@@ -4,6 +4,8 @@
   "description": "Merchant Brain development foundation",
   "scripts": {
     "test": "vitest run",
+    "eval": "vitest run --config evals/vitest.eval.config.ts",
+    "eval:watch": "vitest --config evals/vitest.eval.config.ts",
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
