@@ -130,7 +130,7 @@ RETURNS TABLE (
 LANGUAGE sql
 STABLE
 SECURITY DEFINER
-SET search_path = ''
+SET search_path = public, extensions
 AS $$
   SELECT
     e.id,

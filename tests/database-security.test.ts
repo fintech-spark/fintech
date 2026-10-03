@@ -110,18 +110,18 @@ describeDb('Database Security & RLS boundaries', () => {
   afterAll(async () => {
     if (!client) return;
     try {
-      await client.query(`DELETE FROM notifications WHERE id = '${NOTIF_A_FOR_USER_B}'`);
-      await client.query(`DELETE FROM chat_messages WHERE session_id IN ('${SESSION_A}','${SESSION_B}')`);
-      await client.query(`DELETE FROM chat_sessions WHERE id IN ('${SESSION_A}','${SESSION_B}')`);
-      await client.query(`DELETE FROM action_logs WHERE action_id IN ('${ACTION_A}','${ACTION_B}')`);
-      await client.query(`DELETE FROM actions WHERE id IN ('${ACTION_A}','${ACTION_B}')`);
-      await client.query(`DELETE FROM transaction_items WHERE id IN ('${TX_ITEM_A}','${TX_ITEM_B}')`);
-      await client.query(`DELETE FROM transactions WHERE id IN ('${TX_A}','${TX_B}')`);
-      await client.query(`DELETE FROM business_members WHERE business_id IN ('${BIZ_A}','${BIZ_B}')`);
-      await client.query(`DELETE FROM users WHERE id IN ('${USER_A}','${USER_B}','${USER_AB}','${USER_ADM}')`);
-      await client.query(`DELETE FROM businesses WHERE id IN ('${BIZ_A}','${BIZ_B}')`);
+      await client.query(`DELETE FROM notifications WHERE id = '${NOTIF_A_FOR_USER_B}'`).catch(() => undefined);
+      await client.query(`DELETE FROM chat_messages WHERE session_id IN ('${SESSION_A}','${SESSION_B}')`).catch(() => undefined);
+      await client.query(`DELETE FROM chat_sessions WHERE id IN ('${SESSION_A}','${SESSION_B}')`).catch(() => undefined);
+      await client.query(`DELETE FROM action_logs WHERE action_id IN ('${ACTION_A}','${ACTION_B}')`).catch(() => undefined);
+      await client.query(`DELETE FROM actions WHERE id IN ('${ACTION_A}','${ACTION_B}')`).catch(() => undefined);
+      await client.query(`DELETE FROM transaction_items WHERE id IN ('${TX_ITEM_A}','${TX_ITEM_B}')`).catch(() => undefined);
+      await client.query(`DELETE FROM transactions WHERE id IN ('${TX_A}','${TX_B}')`).catch(() => undefined);
+      await client.query(`DELETE FROM business_members WHERE business_id IN ('${BIZ_A}','${BIZ_B}')`).catch(() => undefined);
+      await client.query(`DELETE FROM users WHERE id IN ('${USER_A}','${USER_B}','${USER_AB}','${USER_ADM}')`).catch(() => undefined);
+      await client.query(`DELETE FROM businesses WHERE id IN ('${BIZ_A}','${BIZ_B}')`).catch(() => undefined);
     } finally {
-      await client.end().catch(() => {});
+      await client.end().catch(() => undefined);
     }
   });
 
