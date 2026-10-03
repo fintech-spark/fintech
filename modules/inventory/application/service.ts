@@ -3,7 +3,17 @@ import type { Product, InventoryMovement, MovementType, ProductStatus } from '..
 export interface InventoryService {
   getProduct(ctx: TenantContext, id: ProductId): Promise<Product | null>;
   listProducts(ctx: TenantContext, filters: ProductFilters): Promise<PaginatedResult<Product>>;
-  recordMovement(ctx: TenantContext, input: RecordMovementInput): Promise<InventoryMovement>;
+  /**
+   * Records a stock movement.
+   *
+   * `replayed` distinguishes a fresh write from a replay of a reference that
+   * was already recorded. The caller needs it because an idempotent replay
+   * created nothing and must not be answered 201 Created.
+   */
+  recordMovement(
+    ctx: TenantContext,
+    input: RecordMovementInput,
+  ): Promise<{ movement: InventoryMovement; replayed: boolean }>;
   getLowStockProducts(ctx: TenantContext): Promise<readonly Product[]>;
   getInventoryValue(ctx: TenantContext): Promise<{ totalValue: number; productCount: number }>;
 }

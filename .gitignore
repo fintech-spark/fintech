@@ -43,10 +43,10 @@ __agent__/
 # Supabase CLI transient state
 supabase/.temp/
 supabase/.branches/
+.agents/claims/
+.vitest
 
 # Nested git worktrees belonging to other agents on this machine.
-# They are separate projects with their own tsconfig; committing them would
-# pull ~800MB of another agent's in-progress work into this branch.
 fintech-ai/
 fintech-backend/
 fintech-intelligence/

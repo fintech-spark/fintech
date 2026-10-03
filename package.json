@@ -19,6 +19,7 @@
     "db:migrate:status": "node scripts/migrate.mjs status",
     "db:seed": "node scripts/seed.mjs",
     "test:db": "vitest run tests/database-schema.test.ts tests/database-validation.test.ts",
+    "test:db:live": "vitest run --config vitest.live.config.ts",
     "verify:setup": "npm run lint && npm run typecheck && npm test && npm run build"
   },
   "type": "module",
@@ -32,6 +33,7 @@
     "@ai-sdk/google": "^4.0.87",
     "@ai-sdk/openai": "^4.0.83",
     "@hookform/resolvers": "^5.9.1",
+    "@supabase/supabase-js": "^2.117.2",
     "ai": "^7.0.126",
     "class-variance-authority": "^0.7.1",
     "cmdk": "^1.1.1",
