@@ -45,6 +45,7 @@ task needs — this page is the map, not a reading list.
 | [`engineering/SETUP_AUDIT.md`](engineering/SETUP_AUDIT.md) | Baseline audit record. **Historical — its scope claims are superseded by `AI_CONTEXT.md`** |
 | [`engineering/REPO_STRUCTURE.md`](engineering/REPO_STRUCTURE.md) | Canonical directory map, branch model, and file-layout invariants |
 | [`engineering/FRONTEND.md`](engineering/FRONTEND.md) | **Merchant-facing interface: layers, data states, the approval boundary, tenant safety, testing** |
+| [`engineering/PART1_PART2_EXECUTION_REPORT.md`](engineering/PART1_PART2_EXECUTION_REPORT.md) | **Execution and verification report for Part 1 & Part 2 core stabilization and capabilities** |
 
 ## Security
 

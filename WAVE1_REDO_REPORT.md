@@ -39,3 +39,29 @@ Verification (redo):
 - Security file integrity: VERIFIED (assertTenantSafe present, 3 calls intact)
 
 No skipped checks reported as passed.
+
+---
+
+## Final Reconciliation & Closure (Integrated Main)
+
+All unapplied findings from Wave 1 / Phase 7 have been reconciled and verified:
+
+1. **StoragePath Isolation (Agent 1 Issue)**:
+   - **RESOLVED**: `modules/documents/domain/rules.ts` (`isOwnTenantStoragePath`, `storageTenantPrefix`) and `modules/documents/infrastructure/document-repository.ts` (`assertTenantStoragePath`) enforce that every storage path is rooted at `${businessId}/` and reject directory traversal (`..`), absolute paths, and backslashes. Verified by 10 tests in `tests/api/hardening.test.ts`.
+
+2. **P7-001 (Vision-Path Prompt Injection)**:
+   - **RESOLVED**: `modules/extraction/application/extraction-service.ts` brackets multimodal image and PDF inputs inside `openUntrustedAttachment()` and `closeUntrustedAttachment()`, placing the `type: 'file'` element inside `<merchant_document>` delimiters. Regression verified by 19 tests in `tests/extraction/multimodal.test.ts`.
+
+3. **P7-002 (Provider Structured Output & Runtime Caller)**:
+   - **RESOLVED**: `lib/ai/providers/vercel-ai-adapter.ts` enforces `output: Output.json()` when `request.responseFormat === 'json'`, extracting valid string content or JSON serialization. Runtime callers connected in `lib/ai/composition.ts` (`wireBusinessBrain`) and `app/api/businesses/[businessId]/ai/chat/route.ts`. Verified by unit tests in `tests/ai/provider-structured-output.test.ts` and end-to-end merchant loop in `tests/business-brain/merchant-loop.test.ts`.
+
+4. **P7-003 (assertTenantSafe & Live DB)**:
+   - **RESOLVED**: `assertTenantSafe()` remains intact in `lib/database/postgres-client.ts`. Automated live DB migrations and `tests/database-security.test.ts` are wired in `.github/workflows/ci.yml`.
+
+5. **Integrated Verification Results**:
+   - `npm test`: **1,061 passed**, 29 skipped, 0 failed across 48 test files.
+   - `npm run eval`: **23 passed**, 0 failed.
+   - `npm run typecheck`: **0 errors**.
+   - `npm run lint`: **0 errors**.
+   - `npm run build`: **Compiled successfully** (Turbopack production build).
+
