@@ -37,6 +37,7 @@ export {
 } from './domain/evidence';
 
 export type { BusinessBrainService } from './application/service';
+export { DefaultBusinessBrainService } from './application/service';
 
 export {
   compileContext,
