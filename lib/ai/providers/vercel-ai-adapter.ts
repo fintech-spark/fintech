@@ -26,6 +26,7 @@ import {
   embed as aiEmbed,
   embedMany as aiEmbedMany,
   generateText,
+  Output,
   type EmbeddingModel,
   type LanguageModel,
   type ModelMessage,
@@ -239,6 +240,7 @@ export class VercelAIProviderAdapter implements AIProviderAdapter {
           messages,
           maxOutputTokens: request.model.maxTokens ?? 4096,
           temperature: request.model.temperature ?? 0,
+          ...(request.responseFormat === 'json' ? { output: Output.json() } : {}),
         }),
       );
 
@@ -250,8 +252,16 @@ export class VercelAIProviderAdapter implements AIProviderAdapter {
             ? 'length'
             : 'stop';
 
+      const content =
+        result.text ||
+        (result.output !== undefined
+          ? typeof result.output === 'string'
+            ? result.output
+            : JSON.stringify(result.output)
+          : '');
+
       return {
-        content: result.text,
+        content,
         ...(toolCalls.length > 0 ? { toolCalls: toolCalls as NonNullable<CompletionResponse['toolCalls']> } : {}),
         usage: toTokenUsage(result.usage),
         finishReason,

@@ -78,7 +78,7 @@ export class DefaultBusinessBrainService implements BusinessBrainService {
     // 5. Generate or ground answer
     let answerText = "";
     let tokensUsed = 0;
-    const modelUsed = "deterministic-grounding";
+    let modelUsed = "deterministic-grounding";
 
     if (this.adapter) {
       try {
@@ -106,6 +106,7 @@ export class DefaultBusinessBrainService implements BusinessBrainService {
         });
         answerText = completion.content;
         tokensUsed = completion.usage.promptTokens + completion.usage.completionTokens;
+        modelUsed = defaultModel.modelId;
       } catch {
         answerText = this.buildDeterministicAnswer(cleanMessage, assembly);
       }
