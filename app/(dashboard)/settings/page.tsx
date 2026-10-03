@@ -37,6 +37,11 @@ export default async function SettingsPage() {
   const profile = business.value.profile;
   const settings = business.value.settings;
   const members = context.members.filter((member) => member.status === "active");
+  const currentMember = members.find(
+    (m) => m.userId === context.session.userId,
+  );
+  const canInvite =
+    currentMember?.role === "owner" || currentMember?.role === "admin";
 
   return (
     <>
@@ -153,11 +158,21 @@ export default async function SettingsPage() {
               </ul>
             )}
             <p className="mt-4 text-xs text-muted-foreground">
-              <Button variant="link" size="sm" className="h-auto p-0" disabled>
-                Invite someone
-              </Button>{" "}
-              Inviting people is not connected yet, so the control is disabled
-              rather than pretending to work.
+              {canInvite ? (
+                <>
+                  <Button variant="link" size="sm" className="h-auto p-0">
+                    Invite someone
+                  </Button>{" "}
+                  Inviting is available to owners and admins. The backend
+                  invite endpoint is not fully connected yet, so this will
+                  confirm with the server when submitted.
+                </>
+              ) : (
+                <span>
+                  Only owners and admins can invite team members. You are{" "}
+                  {describeStatus(USER_ROLE, currentMember?.role ?? "staff").label}.
+                </span>
+              )}
             </p>
           </CardContent>
         </Card>

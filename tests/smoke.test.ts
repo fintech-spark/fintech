@@ -3,7 +3,7 @@ import { z } from "zod";
 
 const setupMarker = z.object({
   name: z.literal("Merchant Brain"),
-  productImplementationStarted: z.literal(false),
+  productImplementationStarted: z.literal(true),
 });
 
 describe("setup foundation", () => {
@@ -11,8 +11,8 @@ describe("setup foundation", () => {
     expect(
       setupMarker.parse({
         name: "Merchant Brain",
-        productImplementationStarted: false,
+        productImplementationStarted: true,
       }),
-    ).toEqual({ name: "Merchant Brain", productImplementationStarted: false });
+    ).toEqual({ name: "Merchant Brain", productImplementationStarted: true });
   });
 });
