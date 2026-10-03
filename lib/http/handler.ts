@@ -38,9 +38,9 @@ export type ApiHandler<T> = (request: Request, context: RouteContext) => Promise
 
 /** Wraps a handler with uniform success and error responses. */
 export function withApi<T>(handler: ApiHandler<T>) {
-  return async (request: Request, context?: NextRouteContext): Promise<Response> => {
+  return async (request: Request, context: NextRouteContext): Promise<Response> => {
     try {
-      const params = context ? await context.params : {};
+      const params = context?.params ? await context.params : {};
       const result = await handler(request, { params });
       return NextResponse.json(
         { data: result.data, ...(result.meta ? { meta: result.meta } : {}) },
