@@ -19,21 +19,22 @@ import { ExpenseApproveForm } from "@/components/expenses/expense-approve-form";
 export async function generateMetadata({
   params,
 }: {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }): Promise<Metadata> {
-  return { title: `Approve expense ${params.id.slice(0, 8)}` };
+  const { id } = await params;
+  return { title: `Approve expense ${id.slice(0, 8)}` };
 }
 
 export default async function ExpenseApprovePage({
   params,
 }: {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }) {
   const context = await resolveMerchantContext();
   if (!isAuthenticated(context)) return null;
 
+  const { id: expenseId } = await params;
   const businessId = context.activeBusinessId;
-  const expenseId = params.id;
   const request = settle(getExpense(businessId, expenseId));
   const [result] = await Promise.all([request]);
 

@@ -19,21 +19,22 @@ import { safeLabel } from "@/lib/format/labels";
 export async function generateMetadata({
   params,
 }: {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }): Promise<Metadata> {
-  return { title: `Transaction ${params.id.slice(0, 8)}` };
+  const { id } = await params;
+  return { title: `Transaction ${id.slice(0, 8)}` };
 }
 
 export default async function TransactionDetailPage({
   params,
 }: {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }) {
   const context = await resolveMerchantContext();
   if (!isAuthenticated(context)) return null;
 
+  const { id: transactionId } = await params;
   const businessId = context.activeBusinessId;
-  const transactionId = params.id;
   const request = settle(getTransaction(businessId, transactionId));
   const [result] = await Promise.all([request]);
 

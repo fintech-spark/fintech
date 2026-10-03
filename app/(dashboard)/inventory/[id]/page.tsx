@@ -188,4 +188,3 @@ export default async function ProductPage({
   );
 }
 
-export { describeStatus };
