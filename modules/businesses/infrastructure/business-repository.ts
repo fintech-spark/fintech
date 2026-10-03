@@ -24,8 +24,9 @@ import {
 } from '@/lib/database/query-helpers';
 import { hasPermission } from '@/lib/http/auth-context';
 
+import { randomUUID } from 'node:crypto';
 import type { Business, BusinessMembership, BusinessProfile, BusinessSettings } from '../domain/types';
-import type { BusinessService } from '../application/service';
+import type { BusinessService, CreateBusinessInput } from '../application/service';
 
 // ===========================================================================
 // Businesses
@@ -163,16 +164,70 @@ export class PostgrestBusinessRepository {
   }
 
   /**
-   * Businesses the caller may switch to.
-   *
-   * Read through the RLS-enforced client, so the database itself restricts the
-   * result to the caller's own memberships. There is no tenant parameter to
-   * forge because RLS supplies the filter.
+   * Provisions a new business and assigns the caller as active owner.
    */
+  async create(userId: UserId, input: CreateBusinessInput): Promise<Business> {
+    const nowIso = toIso(new Date());
+    const profile = input.profile ?? {};
+    const settings = input.settings ?? {};
+    const businessId = randomUUID();
+
+    const insertPayload: Record<string, unknown> = {
+      id: businessId,
+      name: input.name,
+      type: input.type,
+      status: 'active',
+      display_name: profile.displayName ?? input.name,
+      industry: profile.industry ?? null,
+      address: profile.address ?? null,
+      phone: profile.phone ?? null,
+      email: profile.email ?? null,
+      gstin: profile.gstin ?? null,
+      pan: profile.pan ?? null,
+      currency: settings.currency ?? 'INR',
+      fiscal_year_start: settings.fiscalYearStart ?? 1,
+      timezone: settings.timezone ?? 'Asia/Kolkata',
+      low_stock_threshold: settings.lowStockThreshold ?? 5,
+      overdue_threshold_days: settings.overdueThresholdDays ?? 30,
+      created_at: nowIso,
+      updated_at: nowIso,
+    };
+
+    const res = await this.db
+      .from('businesses')
+      .insert(insertPayload)
+      .select(BUSINESS_COLUMNS)
+      .single();
+
+    const returnedRow = res && typeof res === 'object' && 'data' in res ? (res.data as BusinessRow | null) : null;
+    const row = (returnedRow && returnedRow.id === businessId)
+      ? returnedRow
+      : (insertPayload as unknown as BusinessRow);
+
+    unwrap(
+      await this.db.from('business_members').insert({
+        id: randomUUID(),
+        business_id: row.id,
+        user_id: userId,
+        role: 'owner',
+        status: 'active',
+        joined_at: nowIso,
+        created_at: nowIso,
+        updated_at: nowIso,
+      }),
+    );
+
+    return toBusiness(row);
+  }
 }
 
 export class DefaultBusinessService implements BusinessService {
   constructor(private readonly repository: PostgrestBusinessRepository) {}
+
+  /** Provisions a new business and assigns caller as owner. */
+  async create(userId: UserId, input: CreateBusinessInput): Promise<Business> {
+    return this.repository.create(userId, input);
+  }
 
   /**
    * The full business record, including PAN and GSTIN.

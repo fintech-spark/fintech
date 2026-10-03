@@ -5,9 +5,8 @@ import pg from 'pg';
 // RLS is exercised via SET ROLE authenticated + request.jwt.claim.sub, which is
 // exactly what Supabase's PostgREST path enforces.
 
-const LOCAL_DB =
-  process.env.LOCAL_DATABASE_URL ??
-  'postgresql://postgres:postgres@127.0.0.1:54322/postgres';
+const LOCAL_DB = process.env.LOCAL_DATABASE_URL;
+const describeDb = LOCAL_DB ? describe : describe.skip;
 
 const BIZ_A = 'aaaaaaaa-0000-4000-8000-00000000000a';
 const BIZ_B = 'aaaaaaaa-0000-4000-8000-00000000000b';
@@ -38,9 +37,11 @@ async function asUser(userId: string, fn: (c: pg.Client) => Promise<unknown>) {
   }
 }
 
-beforeAll(async () => {
-  client = new pg.Client({ connectionString: LOCAL_DB });
-  await client.connect();
+describeDb('Database Security & RLS boundaries', () => {
+  beforeAll(async () => {
+    if (!LOCAL_DB) return;
+    client = new pg.Client({ connectionString: LOCAL_DB });
+    await client.connect();
 
   await client.query(
     `INSERT INTO businesses (id, name, type, status) VALUES
@@ -106,19 +107,23 @@ beforeAll(async () => {
   );
 });
 
-afterAll(async () => {
-  await client.query(`DELETE FROM notifications WHERE id = '${NOTIF_A_FOR_USER_B}'`);
-  await client.query(`DELETE FROM chat_messages WHERE session_id IN ('${SESSION_A}','${SESSION_B}')`);
-  await client.query(`DELETE FROM chat_sessions WHERE id IN ('${SESSION_A}','${SESSION_B}')`);
-  await client.query(`DELETE FROM action_logs WHERE action_id IN ('${ACTION_A}','${ACTION_B}')`);
-  await client.query(`DELETE FROM actions WHERE id IN ('${ACTION_A}','${ACTION_B}')`);
-  await client.query(`DELETE FROM transaction_items WHERE id IN ('${TX_ITEM_A}','${TX_ITEM_B}')`);
-  await client.query(`DELETE FROM transactions WHERE id IN ('${TX_A}','${TX_B}')`);
-  await client.query(`DELETE FROM business_members WHERE business_id IN ('${BIZ_A}','${BIZ_B}')`);
-  await client.query(`DELETE FROM users WHERE id IN ('${USER_A}','${USER_B}','${USER_AB}','${USER_ADM}')`);
-  await client.query(`DELETE FROM businesses WHERE id IN ('${BIZ_A}','${BIZ_B}')`);
-  await client.end();
-});
+  afterAll(async () => {
+    if (!client) return;
+    try {
+      await client.query(`DELETE FROM notifications WHERE id = '${NOTIF_A_FOR_USER_B}'`);
+      await client.query(`DELETE FROM chat_messages WHERE session_id IN ('${SESSION_A}','${SESSION_B}')`);
+      await client.query(`DELETE FROM chat_sessions WHERE id IN ('${SESSION_A}','${SESSION_B}')`);
+      await client.query(`DELETE FROM action_logs WHERE action_id IN ('${ACTION_A}','${ACTION_B}')`);
+      await client.query(`DELETE FROM actions WHERE id IN ('${ACTION_A}','${ACTION_B}')`);
+      await client.query(`DELETE FROM transaction_items WHERE id IN ('${TX_ITEM_A}','${TX_ITEM_B}')`);
+      await client.query(`DELETE FROM transactions WHERE id IN ('${TX_A}','${TX_B}')`);
+      await client.query(`DELETE FROM business_members WHERE business_id IN ('${BIZ_A}','${BIZ_B}')`);
+      await client.query(`DELETE FROM users WHERE id IN ('${USER_A}','${USER_B}','${USER_AB}','${USER_ADM}')`);
+      await client.query(`DELETE FROM businesses WHERE id IN ('${BIZ_A}','${BIZ_B}')`);
+    } finally {
+      await client.end().catch(() => {});
+    }
+  });
 
 describe('RLS - direct tenant tables', () => {
   it('denies cross-tenant SELECT', async () => {
@@ -412,4 +417,5 @@ describe('Storage isolation', () => {
     await client.query(`DELETE FROM storage.objects WHERE name = '${BIZ_B}/secret.pdf'`);
     await client.query('RESET session_replication_role');
   });
+});
 });

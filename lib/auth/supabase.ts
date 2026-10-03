@@ -92,6 +92,16 @@ export async function refreshSession(refreshToken: string): Promise<SessionToken
 }
 
 /**
+ * Sends a password reset email to the specified user address.
+ */
+export async function resetPasswordForEmail(email: string): Promise<void> {
+  assertUsableAnonKey();
+  const client = createServerClient();
+  const { error } = await client.auth.resetPasswordForEmail(email);
+  if (error) throw mapAuthError(error);
+}
+
+/**
  * Revokes the caller's own session at the auth server.
  *
  * The access token is the credential the logout endpoint expects, so the

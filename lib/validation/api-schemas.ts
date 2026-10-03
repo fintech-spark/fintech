@@ -196,6 +196,48 @@ export const rejectDocumentSchema = z.object({
   reason: z.string().min(1).max(500),
 });
 
+export const businessTypeSchema = z.enum([
+  'retail',
+  'wholesale',
+  'manufacturing',
+  'services',
+  'food_beverage',
+  'other',
+]);
+
+/** POST /api/businesses */
+export const createBusinessSchema = z.object({
+  name: z.string().trim().min(1, 'Business name is required').max(200),
+  type: businessTypeSchema.default('retail'),
+  profile: z
+    .object({
+      displayName: z.string().max(200).optional(),
+      industry: z.string().max(120).optional(),
+      address: z.string().max(500).optional(),
+      phone: z.string().max(40).optional(),
+      email: z.string().email().max(200).optional(),
+      gstin: z.string().max(20).optional(),
+      pan: z.string().max(20).optional(),
+    })
+    .optional()
+    .default({}),
+  settings: z
+    .object({
+      currency: currencySchema.optional().default('INR'),
+      fiscalYearStart: z.number().int().min(1).max(12).optional().default(1),
+      timezone: z.string().min(1).max(64).optional().default('Asia/Kolkata'),
+      lowStockThreshold: z.number().int().nonnegative().optional().default(5),
+      overdueThresholdDays: z.number().int().nonnegative().optional().default(30),
+    })
+    .default({
+      currency: 'INR',
+      fiscalYearStart: 1,
+      timezone: 'Asia/Kolkata',
+      lowStockThreshold: 5,
+      overdueThresholdDays: 30,
+    }),
+});
+
 /** PATCH /api/businesses/current/profile — mirrors Partial<BusinessProfile> */
 export const updateBusinessProfileSchema = z
   .object({

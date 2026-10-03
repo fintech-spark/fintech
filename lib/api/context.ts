@@ -37,6 +37,12 @@ export interface AuthenticatedMerchantContext {
   }[];
 }
 
+/** Fresh user signed in but without any businesses yet. Ready for onboarding. */
+export interface OnboardingMerchantContext {
+  readonly status: "onboarding";
+  readonly session: WireSession;
+}
+
 /** No valid session. The merchant must sign in. */
 export interface UnauthenticatedContext {
   readonly status: "unauthenticated";
@@ -54,6 +60,7 @@ export interface BackendUnavailableContext {
 
 export type MerchantContext =
   | AuthenticatedMerchantContext
+  | OnboardingMerchantContext
   | UnauthenticatedContext
   | BackendUnavailableContext;
 
@@ -106,8 +113,8 @@ export async function resolveMerchantContext(): Promise<MerchantContext> {
 
   if (permitted.length === 0) {
     // Signed in, but attached to no business yet. That is an onboarding
-    // state, not an error, and it must not look like a broken app.
-    return { status: "unauthenticated" };
+    // state, not an unauthenticated state.
+    return { status: "onboarding", session };
   }
 
   const requested = (await cookies()).get(ACTIVE_BUSINESS_COOKIE)?.value;

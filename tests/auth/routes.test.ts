@@ -18,6 +18,7 @@ const supabase = vi.hoisted(() => ({
   signUpWithPassword: vi.fn(),
   refreshSession: vi.fn(),
   revokeSession: vi.fn(),
+  resetPasswordForEmail: vi.fn(),
 }));
 
 vi.mock('@/lib/auth/supabase', () => supabase);
@@ -26,6 +27,7 @@ import { POST as login } from '@/app/api/auth/login/route';
 import { POST as signup } from '@/app/api/auth/signup/route';
 import { POST as logout } from '@/app/api/auth/logout/route';
 import { POST as refresh } from '@/app/api/auth/refresh/route';
+import { POST as forgotPassword } from '@/app/api/auth/forgot-password/route';
 
 const TOKENS = {
   accessToken: 'issued-access',
@@ -256,5 +258,43 @@ describe('POST /api/auth/refresh', () => {
 
     expect(response.status).toBe(502);
     expect(response.headers.get('set-cookie')).toBeNull();
+  });
+});
+
+describe('POST /api/auth/forgot-password', () => {
+  function forgotRequest(body: unknown = { email: 'ravi@example.com' }): Request {
+    return new Request('https://merchant.test/api/auth/forgot-password', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        origin: 'https://merchant.test',
+        'x-forwarded-for': '203.0.113.19',
+      },
+      body: typeof body === 'string' ? body : JSON.stringify(body),
+    });
+  }
+
+  it('answers 200 with generic success and invokes resetPasswordForEmail', async () => {
+    supabase.resetPasswordForEmail.mockResolvedValue(undefined);
+
+    const response = await forgotPassword(forgotRequest());
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    expect(body.data).toEqual({ sent: true });
+    expect(supabase.resetPasswordForEmail).toHaveBeenCalledWith('ravi@example.com');
+  });
+
+  it('rejects invalid email addresses with 400', async () => {
+    const response = await forgotPassword(forgotRequest({ email: 'not-an-email' }));
+    expect(response.status).toBe(400);
+    expect(supabase.resetPasswordForEmail).not.toHaveBeenCalled();
+  });
+
+  it('still answers 200 even if the provider throws to avoid enumeration', async () => {
+    supabase.resetPasswordForEmail.mockRejectedValue(new Error('User not found'));
+
+    const response = await forgotPassword(forgotRequest());
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ data: { sent: true } });
   });
 });

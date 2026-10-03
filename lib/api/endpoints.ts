@@ -90,6 +90,25 @@ export async function listBusinesses(): Promise<readonly WireBusinessSummary[]> 
   return result.data;
 }
 
+/** `POST /api/businesses` — provisions a new business and assigns owner membership. */
+export async function createBusiness(input: {
+  readonly name: string;
+  readonly type?: string;
+  readonly profile?: Record<string, unknown>;
+  readonly settings?: Record<string, unknown>;
+}): Promise<WireBusinessSummary> {
+  const result = await apiFetch(
+    "/api/businesses",
+    businessSummarySchema,
+    {
+      method: "POST",
+      body: input,
+      capability: "Creating your business",
+    },
+  );
+  return result.data;
+}
+
 /** `GET /api/businesses/{businessId}` */
 export function getBusiness(businessId: string): Promise<WireBusiness> {
   return apiFetch(`/api/businesses/${encodeURIComponent(businessId)}`, businessSchema, {

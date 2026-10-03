@@ -13,6 +13,7 @@ import Link from "next/link";
 import { Building2, Cable, LogIn, ShieldCheck } from "lucide-react";
 
 import { BusinessSwitcher } from "./business-switcher";
+import { OnboardingShell } from "./onboarding-shell";
 import { SidebarNav } from "./sidebar-nav";
 import { TopBar } from "./top-bar";
 import { APP_NAME } from "./nav-config";
@@ -40,6 +41,10 @@ export async function AppShell({
 
   if (context.status === "unauthenticated") {
     return <NeedsAccount />;
+  }
+
+  if (context.status === "onboarding") {
+    return <OnboardingShell session={context.session} />;
   }
 
   const accountName = context.session.email || "Your account";
@@ -157,17 +162,23 @@ function NeedsAccount() {
 
             <Alert>
               <ShieldCheck aria-hidden="true" />
-              <AlertTitle>Sign-in is not connected yet</AlertTitle>
+              <AlertTitle>Authentication required</AlertTitle>
               <AlertDescription>
-                The authentication flow belongs to the backend workstream and has
-                not been built. Rather than show you a sign-in form that cannot
-                work, this screen tells you exactly where you are.
+                Sign in with your verified merchant credentials or create an account to view and manage your business.
               </AlertDescription>
             </Alert>
 
-            <Button asChild className="w-full">
-              <Link href="/">Back to the start</Link>
-            </Button>
+            <div className="flex flex-col gap-2">
+              <Button asChild className="w-full">
+                <Link href="/login">Sign in</Link>
+              </Button>
+              <Button asChild variant="outline" className="w-full">
+                <Link href="/signup">Create account</Link>
+              </Button>
+              <Button asChild variant="ghost" className="w-full">
+                <Link href="/">Back to the start</Link>
+              </Button>
+            </div>
           </div>
         </div>
 

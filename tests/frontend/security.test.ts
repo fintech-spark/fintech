@@ -32,7 +32,7 @@ function collectSources(directory: string, into: SourceFile[] = []): SourceFile[
     if (!SOURCE_EXTENSIONS.some((extension) => entry.endsWith(extension))) continue;
     const contents = readFileSync(full, "utf8");
     into.push({
-      path: relative(ROOT, full),
+      path: relative(ROOT, full).replace(/\\/g, "/"),
       contents,
       lines: contents.split("\n"),
     });

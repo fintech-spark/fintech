@@ -164,8 +164,10 @@ describe('pre-embedding redaction', () => {
   });
 
   it('removes a Google API key', () => {
-    const result = redactForEmbedding('AIzaSyD-1234567890abcdefghijklmnopqrstu');
-    expect(result.text).not.toContain('AIzaSyD-1234567890abcdefghijklmnopqrstu');
+    // Synthetic key for redaction unit test — gitleaks:allow
+    const fakeKey = 'AIza' + 'SyD-1234567890abcdefghijklmnopqrstu';
+    const result = redactForEmbedding(fakeKey);
+    expect(result.text).not.toContain(fakeKey);
   });
 
   it('removes a bearer token', () => {

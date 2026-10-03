@@ -931,6 +931,35 @@ describe('administrative reads', () => {
       expect(Object.keys(entry).sort()).toEqual(['id', 'name', 'status', 'type']);
     }
   });
+
+  it('provisions a new business and assigns the caller as owner', async () => {
+    const { POST } = await import('@/app/api/businesses/route');
+    const res = await POST(
+      request('https://api.test/api/businesses', {
+        method: 'POST',
+        body: {
+          name: 'Singh Enterprises',
+          type: 'retail',
+        },
+      }),
+      params(undefined),
+    );
+
+    expect(res.status).toBe(201);
+    const body = await res.json();
+    expect(body.data.name).toBe('Singh Enterprises');
+    expect(body.data.type).toBe('retail');
+    expect(body.data.status).toBe('active');
+
+    const businessWrites = insertPayloads('businesses');
+    expect(businessWrites).toHaveLength(1);
+    expect(businessWrites[0]!.name).toBe('Singh Enterprises');
+
+    const memberWrites = insertPayloads('business_members');
+    expect(memberWrites).toHaveLength(1);
+    expect(memberWrites[0]!.role).toBe('owner');
+    expect(memberWrites[0]!.status).toBe('active');
+  });
 });
 
 // ---------------------------------------------------------------------------

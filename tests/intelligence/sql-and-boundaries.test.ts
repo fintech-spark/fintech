@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, relative } from 'node:path';
 import { isAllowedImport, MODULE_DEPENDENCIES } from '@/lib/boundaries';
 
 // ---------------------------------------------------------------------------
@@ -26,7 +26,7 @@ function readModuleSources(): { file: string; source: string }[] {
         const full = join(dir, entry);
         if (statSync(full).isDirectory()) walk(full);
         else if (entry.endsWith('.ts')) {
-          out.push({ file: full.replace(`${process.cwd()}/`, ''), source: readFileSync(full, 'utf-8') });
+          out.push({ file: relative(process.cwd(), full).replace(/\\/g, '/'), source: readFileSync(full, 'utf-8') });
         }
       }
     };

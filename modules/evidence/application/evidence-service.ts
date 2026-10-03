@@ -5,10 +5,7 @@
 
 import type {
   EvidenceEnvelope,
-  EvidenceRecord,
   EvidenceConflict,
-  EvidenceImpact,
-  EvidenceConfidence,
 } from '../domain/types';
 
 export interface EvidenceService {
