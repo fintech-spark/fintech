@@ -46,6 +46,7 @@ SELECT
 FROM transactions t
 LEFT JOIN LATERAL (
   SELECT
+    ti.id,
     ti.product_id,
     ti.quantity,
     CASE WHEN p.cost_price_minor IS NULL THEN NULL
