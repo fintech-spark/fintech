@@ -31,7 +31,7 @@ export function createServerClient(options: ServerClientOptions = {}): SupabaseC
   const url = requireEnv('SUPABASE_URL', process.env.SUPABASE_URL);
   const anonKey = requireEnv(
     'SUPABASE_ANON_KEY',
-    process.env.SUPABASE_ANON_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+    process.env.SUPABASE_ANON_KEY,
   );
 
   return createClient(url, anonKey, {
