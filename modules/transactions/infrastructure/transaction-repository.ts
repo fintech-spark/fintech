@@ -15,6 +15,7 @@ import {
   ConflictError,
   NotFoundError,
   ValidationError,
+  isUniqueViolationError,
 } from '@/lib/errors';
 import {
   type Db,
@@ -27,6 +28,7 @@ import {
   unwrap,
 } from '@/lib/database/query-helpers';
 import type { Permission } from '@/modules/auth/domain/types';
+import { POSTGREST_MAX_ROWS } from '@/lib/bounded-scan';
 import { hasPermission } from '@/lib/http/auth-context';
 import type {
   Transaction,
@@ -53,6 +55,85 @@ const ITEM_COLUMNS = `
   id, transaction_id, product_id, product_name, quantity,
   unit_price_minor, discount_minor, tax_minor, total_minor
 `;
+
+/**
+ * Rejects a computed money total that JavaScript cannot represent exactly.
+ *
+ * `createMoney` throws a bare `TypeError` for a non-integer amount, which is not
+ * an `AppError` and so reaches the client as a generic 500 — telling the caller
+ * the server broke when in fact the request was out of range. Totals are
+ * therefore checked here, where the failure can be reported as the 400 it is.
+ */
+function assertExactMinorAmount(value: number, field: string): number {
+  if (Number.isSafeInteger(value)) return value;
+  throw new ValidationError('A monetary total in this request exceeds the supported range.', [
+    { field, message: 'Amount exceeds the maximum supported value.' },
+  ]);
+}
+
+/**
+ * Line items per transaction, from `createTransactionSchema`'s `.max(200)`.
+ * Used to size item batches against the server's response cap.
+ */
+const MAX_ITEMS_PER_TRANSACTION = 200;
+
+/**
+ * How many transactions' items one query may fetch.
+ *
+ * PostgREST truncates a response at `POSTGREST_MAX_ROWS`, and the only evidence
+ * it did so is a row count sitting at the cap. Fetching a whole page of ids in a
+ * single `.in()` would therefore drop line items silently, and a partial ledger
+ * is worse than a slow one. Ids are batched so the worst case for each batch
+ * provably fits under the cap: a 100-transaction page costs a handful of
+ * queries instead of 100, and every item is still returned.
+ */
+const ITEM_BATCH_SIZE = Math.max(1, Math.floor(POSTGREST_MAX_ROWS / MAX_ITEMS_PER_TRANSACTION));
+
+/**
+ * True when `stored` is the same request that produced `requested`.
+ *
+ * Used to tell an idempotent retry (replay the original) from a key reused for a
+ * different transaction (409). Only persisted fields are compared: there is no
+ * stored request fingerprint, and migrations are not this module's to change.
+ *
+ * `notes` is deliberately excluded — it is a free-text annotation rather than a
+ * ledger value, so a retry that re-sends it with different wording is still the
+ * same request. Server-assigned fields (status, ids, timestamps, author) are
+ * excluded for the same reason: the retry cannot know them.
+ */
+function isSameRequest(stored: Transaction, requested: Transaction): boolean {
+  if (
+    stored.type !== requested.type ||
+    stored.counterpartyType !== requested.counterpartyType ||
+    stored.counterpartyId !== requested.counterpartyId ||
+    stored.paymentMethod !== requested.paymentMethod ||
+    stored.reference !== requested.reference ||
+    stored.transactionDate.getTime() !== requested.transactionDate.getTime()
+  ) {
+    return false;
+  }
+
+  if (
+    stored.subtotal.amount !== requested.subtotal.amount ||
+    stored.discount.amount !== requested.discount.amount ||
+    stored.tax.amount !== requested.tax.amount ||
+    stored.total.amount !== requested.total.amount ||
+    stored.items.length !== requested.items.length
+  ) {
+    return false;
+  }
+
+  return stored.items.every((item, index) => {
+    const other = requested.items[index];
+    return (
+      item.productId === other.productId &&
+      item.quantity === other.quantity &&
+      item.unitPrice.amount === other.unitPrice.amount &&
+      item.discount.amount === other.discount.amount &&
+      item.tax.amount === other.tax.amount
+    );
+  });
+}
 
 interface TransactionRow {
   id: string;
@@ -155,14 +236,54 @@ export class PostgrestTransactionRepository {
   }
 
   private async loadItems(transactionId: TransactionId): Promise<readonly ItemRow[]> {
-    const items = unwrap(
-      await this.db
-        .from('transaction_items')
-        .select(ITEM_COLUMNS)
-        .eq('transaction_id', transactionId)
-        .order('id', { ascending: true }),
-    );
-    return (items ?? []) as ItemRow[];
+    const grouped = await this.loadItemsForTransactions([transactionId]);
+    return grouped.get(transactionId) ?? [];
+  }
+
+  /**
+   * Loads line items for many transactions at once, grouped by transaction id.
+   *
+   * Replaces the one-query-per-row pattern behind `list` and
+   * `findByCounterparty`, which issued up to MAX_PAGE_SIZE extra round trips
+   * per page request.
+   */
+  private async loadItemsForTransactions(
+    transactionIds: readonly TransactionId[],
+  ): Promise<Map<string, ItemRow[]>> {
+    const grouped = new Map<string, ItemRow[]>();
+    if (transactionIds.length === 0) return grouped;
+
+    for (let start = 0; start < transactionIds.length; start += ITEM_BATCH_SIZE) {
+      const batch = transactionIds.slice(start, start + ITEM_BATCH_SIZE);
+
+      const rows = unwrap(
+        await this.db
+          .from('transaction_items')
+          .select(ITEM_COLUMNS)
+          .in('transaction_id', batch)
+          .order('id', { ascending: true }),
+      );
+
+      for (const row of (rows ?? []) as ItemRow[]) {
+        const bucket = grouped.get(row.transaction_id);
+        if (bucket) bucket.push(row);
+        else grouped.set(row.transaction_id, [row]);
+      }
+    }
+
+    // A transaction cannot hold more items than the create schema permits. If
+    // one does, the batch above hit the server's row cap and this response is
+    // incomplete — refuse it rather than return a short ledger.
+    for (const [transactionId, items] of grouped) {
+      if (items.length > MAX_ITEMS_PER_TRANSACTION) {
+        throw new BusinessRuleError(
+          `Transaction ${transactionId} has more line items than this endpoint can return.`,
+          { subject: 'transaction_items', truncated: true },
+        );
+      }
+    }
+
+    return grouped;
   }
 
   /**
@@ -262,8 +383,10 @@ export class PostgrestTransactionRepository {
     if (error) throw error;
 
     const rows = (data ?? []) as TransactionRow[];
-    const items = await Promise.all(rows.map((row) => this.loadItems(asTransactionId(row.id) as TransactionId)
-      .then((loaded) => toTransaction(row, loaded))));
+    const grouped = await this.loadItemsForTransactions(
+      rows.map((row) => asTransactionId(row.id) as TransactionId),
+    );
+    const items = rows.map((row) => toTransaction(row, grouped.get(row.id) ?? []));
 
     return paginate(items, count ?? items.length, page, limit);
   }
@@ -284,13 +407,10 @@ export class PostgrestTransactionRepository {
     );
 
     const result = (rows ?? []) as TransactionRow[];
-    return Promise.all(
-      result.map((row: TransactionRow) =>
-        this.loadItems(asTransactionId(row.id) as TransactionId).then((items: readonly ItemRow[]) =>
-          toTransaction(row, items),
-        ),
-      ),
+    const grouped = await this.loadItemsForTransactions(
+      result.map((row) => asTransactionId(row.id) as TransactionId),
     );
+    return result.map((row) => toTransaction(row, grouped.get(row.id) ?? []));
   }
 
   async findByIdempotencyKey(businessId: BusinessId, key: string): Promise<Transaction | null> {
@@ -363,6 +483,8 @@ export class DefaultTransactionService implements TransactionService {
     const currency = 'INR' as Money['currency'];
 
     // Deterministic arithmetic lives in domain/rules.ts, never in the route.
+    // Every derived amount is checked for exact representability before it is
+    // stored, so an out-of-range request is a 400 rather than a driver 500.
     const items = input.items.map<TransactionItem>((item: CreateTransactionItemInput) => {
       const unitPrice = createMoney(item.unitPrice, currency);
       const discount = createMoney(item.discount ?? 0, currency);
@@ -379,16 +501,22 @@ export class DefaultTransactionService implements TransactionService {
         discount,
         tax,
         total: createMoney(
-          unitPrice.amount * quantity - discount.amount + tax.amount,
+          assertExactMinorAmount(
+            unitPrice.amount * quantity - discount.amount + tax.amount,
+            'items[].unitPrice',
+          ),
           currency,
         ),
       };
     });
 
-    const subtotal = items.reduce((sum, item) => sum + item.unitPrice.amount * item.quantity, 0);
+    const subtotal = assertExactMinorAmount(
+      items.reduce((sum, item) => sum + item.unitPrice.amount * item.quantity, 0),
+      'items',
+    );
     const discountTotal = items.reduce((sum, item) => sum + item.discount.amount, 0);
     const taxTotal = items.reduce((sum, item) => sum + item.tax.amount, 0);
-    const total = subtotal - discountTotal + taxTotal;
+    const total = assertExactMinorAmount(subtotal - discountTotal + taxTotal, 'items');
 
     if (total < 0) {
       throw new BusinessRuleError('Transaction total cannot be negative.');
@@ -416,10 +544,44 @@ export class DefaultTransactionService implements TransactionService {
     };
 
     const idempotencyKey = (input as { idempotencyKey?: string }).idempotencyKey;
-    return this.repository.save({
-      ...transaction,
-      ...(idempotencyKey ? { idempotencyKey } : {}),
-    } as Transaction);
+    if (!idempotencyKey) {
+      return this.repository.save(transaction);
+    }
+
+    // A key already used in this tenant means the same request, so the stored
+    // transaction is replayed rather than duplicated. A key already used for a
+    // *different* body is a client bug and must not silently return the wrong
+    // record, so that case is a conflict.
+    const replay = (existing: Transaction | null): Transaction => {
+      if (!existing) {
+        throw new ConflictError('This idempotency key is already in use by another request.');
+      }
+      if (!isSameRequest(existing, transaction)) {
+        throw new ConflictError(
+          'This idempotency key was already used for a different transaction.',
+          { idempotencyKey },
+        );
+      }
+      return existing;
+    };
+
+    const prior = await this.repository.findByIdempotencyKey(ctx.businessId, idempotencyKey);
+    if (prior) return replay(prior);
+
+    try {
+      return await this.repository.save({
+        ...transaction,
+        idempotencyKey,
+      } as Transaction);
+    } catch (error) {
+      // A concurrent request carrying the same key won the race on the partial
+      // unique index idx_transactions_idempotency. That is a replay, not a
+      // failure, so the winner is read back rather than reported as a conflict.
+      if (isUniqueViolationError(error)) {
+        return replay(await this.repository.findByIdempotencyKey(ctx.businessId, idempotencyKey));
+      }
+      throw error;
+    }
   }
 
   async getById(ctx: TenantContext, id: TransactionId): Promise<Transaction | null> {

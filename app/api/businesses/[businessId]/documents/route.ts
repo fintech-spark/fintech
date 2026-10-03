@@ -8,8 +8,10 @@ import { wireClient } from '@/lib/http/wiring';
  * POST /api/documents — registers metadata for an already-stored object.
 
 The binary is written by a separate upload step; this records the pointer.
-`storagePath` is rejected by the schema if it is absolute or contains `..`, so a
-caller cannot address another tenant's storage prefix.
+The schema rejects absolute paths, traversal segments, backslashes and empty
+segments. It cannot check the tenant prefix — it has no tenant to compare
+against — so `DefaultDocumentService.upload` enforces that the leading path
+segment is the authenticated business id.
  */
 export const POST = withApi(async (request: Request, route) => {
   const { ctx, db } = await resolveTenantContext(request, route.params.businessId);

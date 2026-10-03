@@ -14,7 +14,7 @@ import type {
   TenantContext,
 } from '@/lib/types';
 import { asSupplierId, createMoney } from '@/lib/types';
-import { AuthorizationError } from '@/lib/errors';
+import { AuthorizationError, NotFoundError } from '@/lib/errors';
 import { MAX_LEDGER_SCAN, MAX_PRICING_SCAN, assertScanWithinLimit } from '@/lib/bounded-scan';
 import {
   type Db,
@@ -236,6 +236,16 @@ export class DefaultSupplierService implements SupplierService {
 
   async getPricing(ctx: TenantContext, supplierId: SupplierId) {
     this.require(ctx, 'suppliers:read');
+
+    // Confirm the supplier resolves inside this tenant first. Without it a
+    // foreign or unknown supplierId returned `200 []`, indistinguishable from a
+    // real supplier with an empty price list — and inconsistent with
+    // GET /suppliers/:id, which answers 404 for the same condition. The
+    // business_id filter below already prevents reading another tenant's rows;
+    // this makes the response agree with the rest of the supplier endpoints.
+    const found = await this.repository.findById(ctx.businessId, supplierId);
+    if (!found) throw new NotFoundError('Supplier', supplierId);
+
     return this.repository.pricing(ctx.businessId, supplierId);
   }
 

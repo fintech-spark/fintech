@@ -14,7 +14,7 @@ import type {
   UserId,
 } from '@/lib/types';
 import { asDocumentId } from '@/lib/types';
-import { AuthorizationError, BusinessRuleError, NotFoundError } from '@/lib/errors';
+import { AuthorizationError, BusinessRuleError, NotFoundError, ValidationError } from '@/lib/errors';
 import {
   type Db,
   firstOrNull,
@@ -34,6 +34,7 @@ import type {
   DocumentStatus,
 } from '@/modules/documents/domain/types';
 import { DOCUMENT_STATUS_TRANSITIONS } from '@/modules/documents/domain/types';
+import { isOwnTenantStoragePath } from '@/modules/documents/domain/rules';
 
 // ===========================================================================
 // Documents
@@ -182,6 +183,25 @@ export class PostgrestDocumentRepository {
   }
 }
 
+/**
+ * Rejects a storage path that is not addressed to the caller's own tenant.
+ *
+ * A structurally unusable path is a client error (400). A well-formed path
+ * rooted at a *different* tenant is a boundary violation (403): the caller
+ * addressed storage they do not own.
+ */
+function assertTenantStoragePath(businessId: BusinessId, storagePath: string): void {
+  if (typeof storagePath !== 'string' || storagePath.trim().length === 0) {
+    throw new ValidationError('A storage path is required.', [
+      { field: 'storagePath', message: 'storagePath must not be empty.' },
+    ]);
+  }
+
+  if (!isOwnTenantStoragePath(storagePath, businessId)) {
+    throw new AuthorizationError('The storage path is not addressable within your business.');
+  }
+}
+
 /** Implements the declared document write operations (contract plan §3.8). */
 export class DefaultDocumentService {
   constructor(private readonly repository: PostgrestDocumentRepository) {}
@@ -203,7 +223,9 @@ export class DefaultDocumentService {
    * Registers document metadata.
    *
    * The binary is written to storage by a separate upload step; this records
-   * the pointer. `storagePath` is validated against traversal at the route.
+   * the pointer. The route schema only rejects absolute and traversing paths —
+   * it has no tenant to compare against — so the tenant-prefix rule is enforced
+   * here, against the authenticated TenantContext.
    */
   async upload(
     ctx: TenantContext,
@@ -217,6 +239,7 @@ export class DefaultDocumentService {
     },
   ): Promise<Document> {
     this.require(ctx, 'documents:write');
+    assertTenantStoragePath(ctx.businessId, input.storagePath);
 
     return this.repository.insert({
       id: asDocumentId(crypto.randomUUID()) as DocumentId,

@@ -58,6 +58,21 @@ export class RateLimitError extends AppError {
   constructor(message = 'Too many requests. Please try again later.') { super(message); }
 }
 
+/**
+ * The request body exceeded the accepted size.
+ *
+ * Its own class rather than a `ValidationError` because a body too large to
+ * read is a different failure from a body that failed validation, and 413 tells
+ * a client the request will not succeed however it is corrected.
+ */
+export class PayloadTooLargeError extends AppError {
+  readonly code = 'PAYLOAD_TOO_LARGE';
+  readonly statusCode = 413;
+  constructor(message = 'Request body is too large.', details?: Record<string, unknown>) {
+    super(message, details);
+  }
+}
+
 export class BusinessRuleError extends AppError {
   readonly code = 'BUSINESS_RULE_VIOLATION';
   readonly statusCode = 422;
@@ -126,17 +141,12 @@ export function isForeignKeyViolationError(error: unknown): boolean {
 export function wrapDatabaseError(error: unknown): AppError {
   if (error instanceof AppError) return error;
   if (error instanceof Error) {
-    const pgError = error as { code?: string; constraint?: string; detail?: string };
-
     // A unique violation is a client-visible conflict, not a server fault: the
     // caller sent something that already exists. Mapping it to DatabaseError
     // reported 500 for what is a 409, and left `ConflictError` — which exists
-    // for exactly this — unused across the whole codebase. The constraint name
-    // is not forwarded: it leaks schema detail.
+    // for exactly this — unused across the whole codebase.
     if (isUniqueViolationError(error)) {
-      return new ConflictError('A record with this value already exists.', {
-        pgCode: pgError.code,
-      });
+      return new ConflictError('A record with this value already exists.');
     }
 
     // Likewise a foreign-key violation means the referenced record is absent or
@@ -145,12 +155,15 @@ export function wrapDatabaseError(error: unknown): AppError {
     if (isForeignKeyViolationError(error)) {
       return new ValidationError('A referenced record does not exist.');
     }
-    // The driver message can contain SQL text, column names, constraint
-    // definitions or connection strings. It is deliberately NOT forwarded —
-    // only the SQLSTATE is safe to expose for support and debugging.
-    return new DatabaseError('A database error occurred.', {
-      pgCode: pgError.code ?? 'unknown',
-    });
+
+    // Nothing about the driver failure is forwarded. The message can carry SQL
+    // text, column names, constraint definitions or connection strings, and the
+    // SQLSTATE is no better: it names the database vendor and hands an attacker
+    // a free oracle for probing which constraints exist. The HTTP status and
+    // the message already say everything the client needs, and the correlation
+    // id is what support should match on. The raw error belongs in a server log,
+    // not in a response body.
+    return new DatabaseError('A database error occurred.');
   }
   return new DatabaseError('An unknown database error occurred.');
 }

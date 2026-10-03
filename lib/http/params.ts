@@ -9,7 +9,7 @@
 // passed to PostgREST as bound values, never as SQL text.
 
 import { z } from 'zod';
-import { ValidationError } from '@/lib/errors';
+import { PayloadTooLargeError, ValidationError } from '@/lib/errors';
 
 export const MAX_PAGE_SIZE = 100;
 export const DEFAULT_PAGE_SIZE = 20;
@@ -217,6 +217,76 @@ export function parseDateRange(searchParams: URLSearchParams): { from?: string; 
   return { ...(from ? { from } : {}), ...(to ? { to } : {}) };
 }
 
+/**
+ * Largest JSON request body accepted, in bytes.
+ *
+ * `request.json()` buffers the whole body before any schema runs, so without a
+ * cap a single authenticated POST could force the process to hold an arbitrary
+ * amount of memory. 1 MiB is far above the largest legitimate payload here — a
+ * 200-line-item transaction is a few tens of kilobytes — and every schema
+ * already bounds its own fields.
+ */
+export const MAX_REQUEST_BODY_BYTES = 1024 * 1024;
+
+/**
+ * Reads the body as text, refusing to buffer more than `MAX_REQUEST_BODY_BYTES`.
+ *
+ * `Content-Length` is checked first as a cheap early exit, but it is a client
+ * claim and is not trusted on its own: the byte count is enforced while reading
+ * so an absent or understated header cannot bypass the limit.
+ */
+async function readBoundedText(request: Request): Promise<string> {
+  const tooLarge = () =>
+    new PayloadTooLargeError('Request body is too large.', {
+      maxBytes: MAX_REQUEST_BODY_BYTES,
+    });
+
+  const declared = request.headers.get('content-length');
+  if (declared !== null) {
+    const size = Number(declared);
+    if (Number.isFinite(size) && size > MAX_REQUEST_BODY_BYTES) throw tooLarge();
+  }
+
+  const body = request.body;
+  if (!body) {
+    // A Request constructed without a stream (test stubs, some runtimes) has
+    // already buffered the body, so the only remaining check is its length.
+    const text = await request.text();
+    if (text.length > MAX_REQUEST_BODY_BYTES) throw tooLarge();
+    return text;
+  }
+
+  const reader = body.getReader();
+  const chunks: Uint8Array[] = [];
+  let received = 0;
+
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (!value) continue;
+
+      received += value.byteLength;
+      if (received > MAX_REQUEST_BODY_BYTES) {
+        await reader.cancel();
+        throw tooLarge();
+      }
+      chunks.push(value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+
+  const merged = new Uint8Array(received);
+  let offset = 0;
+  for (const chunk of chunks) {
+    merged.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+
+  return new TextDecoder().decode(merged);
+}
+
 /** Parses and validates a JSON request body. */
 export async function parseJsonBody<S extends z.ZodTypeAny>(
   request: Request,
@@ -224,8 +294,9 @@ export async function parseJsonBody<S extends z.ZodTypeAny>(
 ): Promise<z.infer<S>> {
   let raw: unknown;
   try {
-    raw = await request.json();
-  } catch {
+    raw = JSON.parse(await readBoundedText(request));
+  } catch (error) {
+    if (error instanceof PayloadTooLargeError) throw error;
     throw new ValidationError('Request body must be valid JSON.', [
       { field: 'body', message: 'Must be valid JSON.' },
     ]);

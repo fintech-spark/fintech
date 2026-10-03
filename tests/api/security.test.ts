@@ -91,8 +91,23 @@ describe('cross-tenant isolation', () => {
     vi.restoreAllMocks();
   });
 
-  /** Mocks the Supabase client so Business A is a member of BIZ_A only. */
-  async function mockContext(memberships: string[]) {
+  /**
+ * Mocks the Supabase client so the caller is an active member of `memberships`.
+ *
+ * `.eq()` arguments are applied rather than ignored. The previous version
+ * ignored every filter and answered with `memberships[0]`, which made two whole
+ * classes of assertion impossible: it could not distinguish a correctly
+ * business-scoped membership lookup from one that queried nothing, and because
+ * it always reported `role: 'owner'` — and owner passes every permission in
+ * `hasPermission` — no role-based denial was observable through this fake.
+ */
+async function mockContext(
+    memberships: string[],
+    options: { role?: string; userId?: string } = {},
+  ) {
+    const role = options.role ?? 'owner';
+    const memberUserId = options.userId ?? USER;
+
     process.env.SUPABASE_URL = 'http://127.0.0.1:54321';
     process.env.SUPABASE_ANON_KEY = 'test-anon-key';
 
@@ -103,10 +118,29 @@ describe('cross-tenant isolation', () => {
           fn === 'auth_user_businesses' ? { data: memberships, error: null } : { data: [], error: null },
         from: () => {
           // Mirrors resolveRole's chain: select().eq().eq().eq().limit()
+          const filters: Array<{ column: string; value: unknown }> = [];
+          const memberRows = () =>
+            memberships.map((businessId) => ({
+              business_id: businessId,
+              user_id: memberUserId,
+              role,
+              status: 'active',
+            }));
+
           const chain = {
             select: () => chain,
-            eq: () => chain,
-            limit: async () => ({ data: [{ business_id: memberships[0], role: 'owner', status: 'active' }], error: null }),
+            eq: (column: string, value: unknown) => {
+              filters.push({ column, value });
+              return chain;
+            },
+            limit: async () => {
+              const matched = memberRows().filter((row) =>
+                filters.every(
+                  (filter) => (row as Record<string, unknown>)[filter.column] === filter.value,
+                ),
+              );
+              return { data: matched, error: null };
+            },
           };
           return chain;
         },
@@ -148,6 +182,37 @@ describe('cross-tenant isolation', () => {
     await expect(resolveTenantContext(request(), BIZ_A)).rejects.toMatchObject({
       code: 'FORBIDDEN',
     });
+  });
+
+  it('scopes the membership lookup by business id, not just by user', async () => {
+    // Only reachable now that the fake honours `.eq()`. If resolveRole ever
+    // queried the caller's membership without the tenant predicate, the row for
+    // BIZ_A would satisfy a request for BIZ_B and this would stop throwing.
+    await mockContext([BIZ_A]);
+    const { resolveTenantContext } = await import('@/lib/http/auth-context');
+    // auth_user_businesses() is stubbed to include BIZ_B as well, so only the
+    // business_id predicate on the membership query can refuse this.
+    await expect(resolveTenantContext(request(), BIZ_B)).rejects.toMatchObject({
+      code: 'FORBIDDEN',
+      statusCode: 403,
+    });
+  });
+
+  it('does not resolve a role from a membership row belonging to another user', async () => {
+    // The row exists for this business but belongs to a different user, so the
+    // user_id predicate must exclude it.
+    await mockContext([BIZ_A], { userId: 'ffffffff-ffff-4fff-8fff-ffffffffffff' });
+    const { resolveTenantContext } = await import('@/lib/http/auth-context');
+    await expect(resolveTenantContext(request(), BIZ_A)).rejects.toMatchObject({
+      code: 'FORBIDDEN',
+    });
+  });
+
+  it('resolves a non-owner role from the membership row', async () => {
+    await mockContext([BIZ_A], { role: 'accountant' });
+    const { resolveTenantContext } = await import('@/lib/http/auth-context');
+    const resolved = await resolveTenantContext(request(), BIZ_A);
+    expect(resolved.ctx.role).toBe('accountant');
   });
 });
 

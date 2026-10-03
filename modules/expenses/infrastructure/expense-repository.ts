@@ -19,6 +19,7 @@ import {
   unwrap,
 } from '@/lib/database/query-helpers';
 import { hasPermission } from '@/lib/http/auth-context';
+import { MAX_LEDGER_SCAN, assertScanWithinLimit } from '@/lib/bounded-scan';
 import type {
   Expense,
   ExpenseCategory,
@@ -179,6 +180,16 @@ export class PostgrestExpenseRepository {
     return paginate(items, count ?? items.length, page, limit);
   }
 
+  /**
+   * Per-category totals over a date range.
+   *
+   * This aggregates in the application rather than in SQL, so it must read
+   * every matching row — and an unbounded read is silently capped by the server
+   * at `POSTGREST_MAX_ROWS`. The totals would then be understated with nothing
+   * to indicate it, which is the one failure mode a merchant cannot audit. The
+   * scan is therefore bounded explicitly and overflow throws rather than
+   * returning a partial sum.
+   */
   async totalsByCategory(
     businessId: BusinessId,
     dateRange: { from: Date; to: Date },
@@ -188,9 +199,16 @@ export class PostgrestExpenseRepository {
       .select('category, amount_minor')
       .eq('business_id', businessId)
       .gte('expense_date', toIso(dateRange.from))
-      .lte('expense_date', toIso(dateRange.to));
+      .lte('expense_date', toIso(dateRange.to))
+      .range(0, MAX_LEDGER_SCAN);
 
     if (error) throw error;
+
+    assertScanWithinLimit(
+      (data ?? []).length,
+      MAX_LEDGER_SCAN,
+      'This expense category total',
+    );
 
     const totals = new Map<ExpenseCategory, { total: number; count: number }>();
     for (const row of (data ?? []) as Array<{ category: ExpenseCategory; amount_minor: number }>) {

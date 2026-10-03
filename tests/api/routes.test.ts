@@ -17,6 +17,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { MAX_PAGE_NUMBER, MAX_PAGE_SIZE } from '@/lib/http/params';
 import { POSTGREST_MAX_ROWS } from '@/lib/bounded-scan';
+import {
+  createDocumentSchema,
+  createExpenseSchema,
+  createTransactionSchema,
+  recordMovementSchema,
+} from '@/lib/validation/api-schemas';
 
 // ---------------------------------------------------------------------------
 // Fixture ids
@@ -64,7 +70,17 @@ interface QueryLog {
 }
 
 const queries: QueryLog[] = [];
+const writes: Array<{ table: string; operation: string; payload: unknown }> = [];
 let rowsByTable: Record<string, unknown[]> = {};
+
+/** Payloads actually written to `table`, so persistence can be asserted. */
+function insertPayloads(table: string): Array<Record<string, unknown>> {
+  return writes
+    .filter((w) => w.table === table && w.operation === 'insert')
+    .flatMap((w) => (Array.isArray(w.payload) ? w.payload : [w.payload])) as Array<
+    Record<string, unknown>
+  >;
+}
 
 /** The caller's `business_members` row, as `resolveRole` reads it. */
 function membership(role: string, status = 'active') {
@@ -83,7 +99,15 @@ function makeQuery(table: string) {
   const builder: Record<string, unknown> = {};
 
   for (const method of ['select', 'insert', 'update', 'upsert', 'delete']) {
-    builder[method] = vi.fn(() => builder);
+    // `insert`/`update`/`upsert` record their payload so a test can assert what
+    // was actually persisted — a fake that only answered reads could not tell a
+    // tenant-scoped write from a mass-assigned one.
+    builder[method] = vi.fn((payload?: unknown) => {
+      if (payload !== undefined) {
+        writes.push({ table, operation: method, payload });
+      }
+      return builder;
+    });
   }
 
   for (const method of ['eq', 'neq', 'gt', 'gte', 'lt', 'lte', 'is', 'ilike', 'or', 'not']) {
@@ -272,6 +296,7 @@ const BUSINESS_ROW = {
 
 beforeEach(() => {
   queries.length = 0;
+  writes.length = 0;
   rowsByTable = {
     businesses: [BUSINESS_ROW],
     business_members: [membership('owner')],
@@ -311,6 +336,93 @@ describe('route authentication', () => {
       params(BIZ_A),
     );
     expect(res.status).toBe(401);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// List query shape — the N+1 regression
+// ---------------------------------------------------------------------------
+
+describe('transaction list query shape', () => {
+  function countQueriesFor(table: string): number {
+    return queries.filter((q) => q.table === table).length;
+  }
+
+  function seedTransactions(count: number) {
+    rowsByTable.transactions = Array.from({ length: count }, (_unused, index) => ({
+      ...TXN_ROW,
+      id: `00000000-0000-4000-8000-${String(index).padStart(12, '0')}`,
+    }));
+  }
+
+  function seedItemsFor(count: number) {
+    rowsByTable.transaction_items = Array.from({ length: count }, (_unused, index) => ({
+      id: `item-${index}`,
+      transaction_id: `00000000-0000-4000-8000-${String(index).padStart(12, '0')}`,
+      product_id: PRODUCT_ID,
+      product_name: 'Test product',
+      quantity: 1,
+      unit_price_minor: 10000,
+      discount_minor: 0,
+      tax_minor: 1800,
+      total_minor: 11800,
+    }));
+  }
+
+  it('does not issue one line-item query per transaction', async () => {
+    seedTransactions(40);
+    seedItemsFor(40);
+
+    const { GET } = await import('@/app/api/businesses/[businessId]/transactions/route');
+    const res = await GET(
+      request(`https://api.test/api/businesses/${BIZ_A}/transactions?limit=100`),
+      params(BIZ_A),
+    );
+
+    expect(res.status).toBe(200);
+    // The old implementation issued 40 extra queries here. The batched loader
+    // bounds them by the response cap instead of by the page size.
+    expect(countQueriesFor('transaction_items')).toBeLessThan(10);
+  });
+
+  it('still returns every line item after batching', async () => {
+    seedTransactions(12);
+    seedItemsFor(12);
+
+    const { GET } = await import('@/app/api/businesses/[businessId]/transactions/route');
+    const res = await GET(
+      request(`https://api.test/api/businesses/${BIZ_A}/transactions?limit=100`),
+      params(BIZ_A),
+    );
+
+    const body = (await res.json()) as { data: Array<{ items: unknown[] }> };
+    expect(body.data).toHaveLength(12);
+    // Truncation is the failure mode a naive `.in()` would introduce.
+    for (const transaction of body.data) {
+      expect(transaction.items).toHaveLength(1);
+    }
+  });
+
+  it('costs a bounded number of item queries, not one per transaction', async () => {
+    const { GET } = await import('@/app/api/businesses/[businessId]/transactions/route');
+
+    // Item batches are sized against the server's row cap, so the count is
+    // ceil(rows / ITEM_BATCH_SIZE) rather than rows. The point of the assertion
+    // is that it is bounded by the cap and not by the page size.
+    const batchSize = Math.floor(POSTGREST_MAX_ROWS / 200);
+    expect(batchSize).toBeGreaterThan(1);
+
+    seedTransactions(100);
+    seedItemsFor(100);
+    queries.length = 0;
+    const res = await GET(
+      request(`https://api.test/api/businesses/${BIZ_A}/transactions?limit=100`),
+      params(BIZ_A),
+    );
+    expect(res.status).toBe(200);
+
+    expect(countQueriesFor('transaction_items')).toBe(Math.ceil(100 / batchSize));
+    expect(countQueriesFor('transaction_items')).toBeLessThan(100);
   });
 });
 
@@ -440,6 +552,226 @@ describe('cross-tenant record access', () => {
     const txnQuery = queries.find((q) => q.table === 'transactions');
     expect(txnQuery?.filters).toContainEqual({ column: 'business_id', value: BIZ_A, op: 'eq' });
     expect(txnQuery?.filters).toContainEqual({ column: 'id', value: TXN_ID, op: 'eq' });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Mass assignment — the tripwire
+// ---------------------------------------------------------------------------
+
+describe('mass assignment tripwire', () => {
+  /** Every field a client must never be able to set directly. */
+  const SERVER_OWNED = ['businessId', 'business_id', 'createdBy', 'created_by', 'status', 'id'];
+
+  function writeSchemas() {
+    return [
+      ['createTransactionSchema', createTransactionSchema, {
+        type: 'sale',
+        counterpartyType: 'customer',
+        counterpartyId: 'cust-1',
+        transactionDate: '2026-01-15T00:00:00.000Z',
+        items: [{ productId: PRODUCT_ID, quantity: 1, unitPrice: 100 }],
+      }],
+      ['createExpenseSchema', createExpenseSchema, {
+        category: 'rent',
+        amount: 100,
+        description: 'Rent',
+        expenseDate: '2026-01-15T00:00:00.000Z',
+      }],
+      ['createDocumentSchema', createDocumentSchema, {
+        fileName: 'a.pdf',
+        mimeType: 'application/pdf',
+        fileSize: 1000,
+        sourceType: 'invoice',
+        storagePath: `${BIZ_A}/u/a.pdf`,
+      }],
+      ['recordMovementSchema', recordMovementSchema, {
+        productId: PRODUCT_ID,
+        type: 'sale',
+        quantity: 1,
+      }],
+    ] as const;
+  }
+
+  it('strips every server-owned field a client adds to a write body', () => {
+    // Zod strips unknown keys by default. That default is the only thing
+    // preventing a caller from choosing its own tenant, author or status, and it
+    // is one `.passthrough()` away from silently disappearing — so it is
+    // asserted for every write schema rather than assumed.
+    for (const [name, schema, valid] of writeSchemas()) {
+      for (const field of SERVER_OWNED) {
+        const parsed = schema.safeParse({ ...valid, [field]: 'attacker-supplied' });
+        expect(parsed.success, `${name} rejected a body containing only valid fields plus ${field}`).toBe(true);
+        if (parsed.success) {
+          expect(
+            Object.prototype.hasOwnProperty.call(parsed.data, field),
+            `${name} let a client set ${field}`,
+          ).toBe(false);
+        }
+      }
+    }
+  });
+
+  it('never writes a client-supplied business id to the row', async () => {
+    const { POST } = await import('@/app/api/businesses/[businessId]/transactions/route');
+
+    const res = await POST(
+      request(`https://api.test/api/businesses/${BIZ_A}/transactions`, {
+        method: 'POST',
+        body: {
+          type: 'sale',
+          counterpartyType: 'customer',
+          counterpartyId: 'cust-1',
+          transactionDate: '2026-01-15T00:00:00.000Z',
+          items: [{ productId: PRODUCT_ID, quantity: 1, unitPrice: 100 }],
+          businessId: BIZ_B,
+          business_id: BIZ_B,
+          createdBy: 'forged-user',
+          status: 'completed',
+        },
+      }),
+      params(BIZ_A),
+    );
+
+    // The request is well-formed, so it is accepted — the point is what is
+    // persisted, not whether it is rejected.
+    expect(res.status).toBe(201);
+
+    const inserted = insertPayloads('transactions');
+    expect(inserted).toHaveLength(1);
+    expect(inserted[0]!.business_id).toBe(BIZ_A);
+    expect(inserted[0]!.status).toBe('draft');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// State transitions at the HTTP boundary
+// ---------------------------------------------------------------------------
+
+describe('state transition routes', () => {
+  function seedTransaction(status: string) {
+    rowsByTable.transactions = [{ ...TXN_ROW, status }];
+  }
+
+  function seedDocument(status: string) {
+    rowsByTable.documents = [
+      {
+        id: TXN_ID,
+        business_id: BIZ_A,
+        source_type: 'invoice',
+        file_name: 'a.pdf',
+        mime_type: 'application/pdf',
+        file_size: 1000,
+        storage_path: `${BIZ_A}/u/a.pdf`,
+        status,
+        original_name: 'a.pdf',
+        content_hash: null,
+        page_count: null,
+        language: null,
+        extraction_id: null,
+        rejection_reason: null,
+        tags: null,
+        uploaded_by: USER_ID,
+        uploaded_at: '2026-01-15T00:00:00.000Z',
+        processed_at: null,
+        updated_at: '2026-01-15T00:00:00.000Z',
+      },
+    ];
+  }
+
+  async function patchTransactionStatus(status: string) {
+    const { PATCH } = await import('@/app/api/businesses/[businessId]/transactions/[id]/status/route');
+    return PATCH(
+      request(`https://api.test/api/businesses/${BIZ_A}/transactions/${TXN_ID}/status`, {
+        method: 'PATCH',
+        body: { status },
+      }),
+      params(BIZ_A, { id: TXN_ID }),
+    );
+  }
+
+  it('applies a legal transaction transition', async () => {
+    seedTransaction('draft');
+    const res = await patchTransactionStatus('confirmed');
+    expect(res.status).toBe(200);
+  });
+
+  it('refuses an illegal transaction transition as 422', async () => {
+    seedTransaction('completed');
+    const res = await patchTransactionStatus('draft');
+    expect(res.status).toBe(422);
+  });
+
+  it('refuses to revive a voided transaction', async () => {
+    seedTransaction('voided');
+    const res = await patchTransactionStatus('confirmed');
+    expect(res.status).toBe(422);
+  });
+
+  it('does not mutate a transaction owned by another tenant', async () => {
+    rowsByTable.transactions = [{ ...TXN_ROW, business_id: BIZ_B }];
+    const res = await patchTransactionStatus('confirmed');
+    expect(res.status).toBe(404);
+  });
+
+  it('rejects an unknown status value at the boundary', async () => {
+    seedTransaction('draft');
+    const res = await patchTransactionStatus('archived');
+    expect(res.status).toBe(400);
+  });
+
+  it('applies a legal document approval', async () => {
+    seedDocument('review_required');
+    const { POST } = await import('@/app/api/businesses/[businessId]/documents/[id]/approve/route');
+    const res = await POST(
+      request(`https://api.test/api/businesses/${BIZ_A}/documents/${TXN_ID}/approve`, { method: 'POST' }),
+      params(BIZ_A, { id: TXN_ID }),
+    );
+    expect(res.status).toBe(200);
+  });
+
+  it('refuses to approve an already-rejected document', async () => {
+    seedDocument('rejected');
+    const { POST } = await import('@/app/api/businesses/[businessId]/documents/[id]/approve/route');
+    const res = await POST(
+      request(`https://api.test/api/businesses/${BIZ_A}/documents/${TXN_ID}/approve`, { method: 'POST' }),
+      params(BIZ_A, { id: TXN_ID }),
+    );
+    expect(res.status).toBe(422);
+  });
+
+  it('requires a reason when rejecting a document', async () => {
+    seedDocument('review_required');
+    const { POST } = await import('@/app/api/businesses/[businessId]/documents/[id]/reject/route');
+
+    const missing = await POST(
+      request(`https://api.test/api/businesses/${BIZ_A}/documents/${TXN_ID}/reject`, {
+        method: 'POST',
+        body: {},
+      }),
+      params(BIZ_A, { id: TXN_ID }),
+    );
+    expect(missing.status).toBe(400);
+
+    const supplied = await POST(
+      request(`https://api.test/api/businesses/${BIZ_A}/documents/${TXN_ID}/reject`, {
+        method: 'POST',
+        body: { reason: 'illegible' },
+      }),
+      params(BIZ_A, { id: TXN_ID }),
+    );
+    expect(supplied.status).toBe(200);
+  });
+
+  it('does not approve a document owned by another tenant', async () => {
+    seedDocument('review_required');
+    rowsByTable.documents = [{ ...(rowsByTable.documents[0] as Record<string, unknown>), business_id: BIZ_B }];
+    const { POST } = await import('@/app/api/businesses/[businessId]/documents/[id]/approve/route');
+    const res = await POST(
+      request(`https://api.test/api/businesses/${BIZ_A}/documents/${TXN_ID}/approve`, { method: 'POST' }),
+      params(BIZ_A, { id: TXN_ID }),
+    );
+    expect(res.status).toBe(404);
   });
 });
 

@@ -33,7 +33,39 @@ export const documentStatusSchema = z.enum([
 ]);
 export const currencySchema = z.enum(['INR', 'USD', 'EUR', 'GBP']);
 
-const minorAmount = z.number().int('Money must be an integer in minor units.').nonnegative();
+/**
+ * Largest single money value accepted, in minor units.
+ *
+ * Postgres stores money in `bigint`, and the service adds and multiplies these
+ * values in JavaScript, so the real ceiling is `Number.MAX_SAFE_INTEGER`, not
+ * bigint's range. An unbounded `z.number().int()` accepts values such as 1e30,
+ * which pass validation and then fail at the driver as an unhandled 500.
+ */
+export const MAX_MINOR_AMOUNT = 1_000_000_000_000;
+
+const minorAmount = z
+  .number()
+  .int('Money must be an integer in minor units.')
+  .nonnegative()
+  .max(MAX_MINOR_AMOUNT, 'Amount exceeds the maximum supported value.');
+
+/**
+ * Quantity, matching `transaction_items.quantity numeric(20,3)`.
+ *
+ * Bounded at three decimal places because the column stores three, and capped
+ * so `unitPrice * quantity` cannot exceed `Number.MAX_SAFE_INTEGER`: a value
+ * Postgres would round to `0.000` fails its own `CHECK (quantity > 0)` and a
+ * value that large loses integer precision before it ever reaches the ledger.
+ */
+const quantitySchema = z
+  .number()
+  .finite()
+  .positive('Quantity must be greater than zero.')
+  .max(1_000_000, 'Quantity exceeds the maximum supported value.')
+  .refine(
+    (value) => Number.isInteger(value * 1000),
+    'Quantity must have at most 3 decimal places.',
+  );
 
 /** POST /api/transactions — mirrors CreateTransactionInput */
 export const createTransactionSchema = z.object({
@@ -44,8 +76,7 @@ export const createTransactionSchema = z.object({
     .array(
       z.object({
         productId: uuid,
-        // Quantity is numeric(20,3) in Postgres; non-negative, finite only.
-        quantity: z.number().finite().positive('Quantity must be greater than zero.'),
+        quantity: quantitySchema,
         unitPrice: minorAmount,
         discount: minorAmount.default(0),
         tax: minorAmount.default(0),
@@ -99,7 +130,7 @@ export const createExpenseSchema = z.object({
 export const recordMovementSchema = z.object({
   productId: uuid,
   type: movementTypeSchema,
-  quantity: z.number().finite().positive('Quantity must be greater than zero.'),
+  quantity: quantitySchema,
   reference: z.string().max(200).optional(),
   referenceType: z.enum(['transaction', 'adjustment', 'return']).optional(),
   referenceId: z.string().max(200).optional(),
@@ -122,6 +153,14 @@ export const createDocumentSchema = z.object({
     .refine(
       (value) => !value.includes('..') && !value.startsWith('/'),
       'storagePath must be a relative path without traversal segments.',
+    )
+    .refine(
+      (value) => !value.includes('\\'),
+      'storagePath must not contain backslash separators.',
+    )
+    .refine(
+      (value) => value.split('/').every((segment) => segment.length > 0),
+      'storagePath must not contain empty path segments.',
     ),
   tags: z.array(z.string().min(1).max(50)).max(20).optional(),
 });
