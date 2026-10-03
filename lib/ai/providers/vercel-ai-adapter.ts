@@ -47,6 +47,7 @@ import type {
   ModelRole,
   TokenUsage,
 } from '@/lib/ai/providers/types';
+import { SUPPORTED_ATTACHMENT_MEDIA_TYPES } from '@/lib/ai/providers/types';
 
 // ---------------------------------------------------------------------------
 // Failure taxonomy
@@ -222,10 +223,13 @@ export class VercelAIProviderAdapter implements AIProviderAdapter {
   }
 
   async complete(request: CompletionRequest): Promise<CompletionResponse> {
+    // Fail-closed before the first attempt and before any key is read:
+    // unsupported or empty attachments never reach the vendor.
+    assertSupportedAttachments(request);
+    const messages = request.messages.map(toModelMessage);
+
     const modelId = resolveModelId(this.provider, request.model.role, request.model.modelId);
     const languageModel = this.languageModel(modelId);
-
-    const messages = request.messages.map(toModelMessage);
 
     return this.withRetry('complete', async () => {
       const result = await this.withTimeout(
@@ -369,11 +373,52 @@ export function createProviderAdapter(
 // Shape adaptation
 // ---------------------------------------------------------------------------
 
-function toModelMessage(message: CompletionRequest['messages'][number]): ModelMessage {
+export function toModelMessage(message: CompletionRequest['messages'][number]): ModelMessage {
   if (typeof message.content === 'string') {
     return { role: message.role, content: message.content } as ModelMessage;
   }
-  return { role: message.role, content: message.content } as ModelMessage;
+
+  // Mapped explicitly rather than cast: a blind cast forwards our own part
+  // shape to the SDK, and the SDK silently ignores a part it does not
+  // recognise — which is how a scanned invoice reaches the model as text-only.
+  const content = message.content.map((part) =>
+    part.type === 'text'
+      ? ({ type: 'text', text: part.text } as const)
+      : ({ type: 'file', data: part.data, mediaType: part.mediaType } as const),
+  );
+
+  return { role: message.role, content } as ModelMessage;
+}
+
+/**
+ * Rejects content the provider must not receive, before any network call.
+ *
+ * Thrown outside `withRetry`: an unsupported media type is permanent, and
+ * retrying it would burn attempts on a request that cannot succeed.
+ */
+export function assertSupportedAttachments(request: CompletionRequest): void {
+  for (const message of request.messages) {
+    if (typeof message.content === 'string') continue;
+
+    for (const part of message.content) {
+      if (part.type !== 'file') continue;
+
+      if (!(SUPPORTED_ATTACHMENT_MEDIA_TYPES as readonly string[]).includes(part.mediaType)) {
+        throw new AIProviderError(
+          `unsupported attachment media type "${part.mediaType}"`,
+          request.model.provider,
+          { operation: 'complete', category: 'invalid_request' },
+        );
+      }
+      if (part.data.length === 0) {
+        throw new AIProviderError(
+          'attachment payload is empty',
+          request.model.provider,
+          { operation: 'complete', category: 'invalid_request' },
+        );
+      }
+    }
+  }
 }
 
 interface RawToolCall {
