@@ -2,8 +2,10 @@ import { CardHeading } from "@/components/common/card-heading";
 import Link from "next/link";
 import {
   Boxes,
+  BrainCircuit,
   CircleDollarSign,
   FileText,
+  Sparkles,
   TrendingDown,
   Users,
   Wallet,
@@ -16,11 +18,11 @@ import { PageHeader, SectionHeader } from "@/components/common/page-header";
 import { StatusBadge } from "@/components/common/status-badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/card";
-import { getInventoryValue, getPayableTotals, getReceivableTotals, listDocuments, listLowStockProducts } from "@/lib/api/endpoints";
+import { getAnalyticsSnapshot, getInventoryValue, getPayableTotals, getReceivableTotals, listDocuments, listLowStockProducts } from "@/lib/api/endpoints";
 import { isAuthenticated, resolveMerchantContext } from "@/lib/api/context";
 import { pendingCapability } from "@/lib/api/pending";
 import { describeMissing, errorOr, settle, type Settled } from "@/lib/api/settle";
-import { formatCount, formatMoney } from "@/lib/format/money";
+import { formatCount, formatMoney, formatMinorUnits } from "@/lib/format/money";
 import { formatDateTime } from "@/lib/format/dates";
 import { describeStatus, DOCUMENT_STATUS } from "@/lib/format/status";
 import type { Page } from "@/lib/api/client";
@@ -47,14 +49,16 @@ export default async function OverviewPage() {
   const documentsRequest = settle(
     listDocuments(businessId, { status: "review_required", limit: 10 }),
   );
+  const analyticsRequest = settle(getAnalyticsSnapshot(businessId));
 
-  const [receivables, payables, inventoryValue, lowStock, documentsNeedingReview] =
+  const [receivables, payables, inventoryValue, lowStock, documentsNeedingReview, analytics] =
     await Promise.all([
       receivablesRequest,
       payablesRequest,
       inventoryValueRequest,
       lowStockRequest,
       documentsRequest,
+      analyticsRequest,
     ]);
 
   const missing = describeMissing([
@@ -93,29 +97,81 @@ export default async function OverviewPage() {
         }
       />
 
-      {/*
-        The top signal. An honest one, on purpose: the honest signal in this
-        build is "here is what we can verify, and here is what is not built
-        yet". A confident one-line verdict would require the analytics engine
-        this app cannot currently read.
-      */}
-      <Card className="border-info-border bg-info-subtle">
-        <CardHeader>
-          <CardHeading className="text-info-foreground">
-            Here is what your records show today
-          </CardHeading>
-          <CardDescription className="max-w-prose text-pretty">
-            The figures below are read directly from your customers, suppliers,
-            inventory and documents. Merchant Brain has not yet calculated the
-            trends, forecasts or problem detection that sit on top of them.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Button variant="outline" size="sm" asChild>
-            <Link href="/profit-leaks">See what is not available yet</Link>
-          </Button>
-        </CardContent>
-      </Card>
+      {/* Live Business Analytics or Guided Status */}
+      {analytics.ok && (analytics.value.revenueMinor > 0 || analytics.value.quality === "complete") ? (
+        <Card className="border-primary/20 bg-primary/5 shadow-xs">
+          <CardHeader className="flex flex-row items-start justify-between pb-3">
+            <div>
+              <div className="flex items-center gap-2">
+                <BrainCircuit className="size-5 text-primary" />
+                <CardHeading className="text-base font-semibold">
+                  30-Day Business Performance Snapshot
+                </CardHeading>
+              </div>
+              <CardDescription className="mt-1">
+                Deterministic metrics computed from verified transaction and ledger records.
+              </CardDescription>
+            </div>
+            <Button size="sm" asChild>
+              <Link href="/business-brain">
+                <Sparkles className="size-3.5 mr-1" />
+                Ask Business Brain
+              </Link>
+            </Button>
+          </CardHeader>
+          <CardContent className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 pt-1">
+            <div className="rounded-lg border border-border bg-card p-3">
+              <p className="text-xs text-muted-foreground uppercase font-medium">Gross Revenue</p>
+              <p className="text-xl font-bold font-mono text-foreground mt-1">
+                {formatMinorUnits(analytics.value.revenueMinor, (analytics.value.currency as CurrencyCode) || "INR")}
+              </p>
+              <p className="text-xs text-muted-foreground mt-0.5">30-day recognized sales</p>
+            </div>
+            <div className="rounded-lg border border-border bg-card p-3">
+              <p className="text-xs text-muted-foreground uppercase font-medium">Gross Profit</p>
+              <p className="text-xl font-bold font-mono text-positive-foreground mt-1">
+                {formatMinorUnits(analytics.value.grossProfitMinor, (analytics.value.currency as CurrencyCode) || "INR")}
+              </p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                {(analytics.value.grossMarginBasisPoints / 100).toFixed(1)}% gross margin
+              </p>
+            </div>
+            <div className="rounded-lg border border-border bg-card p-3">
+              <p className="text-xs text-muted-foreground uppercase font-medium">Operating Expenses</p>
+              <p className="text-xl font-bold font-mono text-destructive mt-1">
+                {formatMinorUnits(analytics.value.operatingExpensesMinor, (analytics.value.currency as CurrencyCode) || "INR")}
+              </p>
+              <p className="text-xs text-muted-foreground mt-0.5">Recognized running costs</p>
+            </div>
+            <div className="rounded-lg border border-border bg-card p-3">
+              <p className="text-xs text-muted-foreground uppercase font-medium">Net Operating Income</p>
+              <p className="text-xl font-bold font-mono text-foreground mt-1">
+                {formatMinorUnits(analytics.value.netProfitMinor, (analytics.value.currency as CurrencyCode) || "INR")}
+              </p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                {(analytics.value.netMarginBasisPoints / 100).toFixed(1)}% net margin
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      ) : (
+        <Card className="border-info-border bg-info-subtle">
+          <CardHeader>
+            <CardHeading className="text-info-foreground">
+              Here is what your records show today
+            </CardHeading>
+            <CardDescription className="max-w-prose text-pretty">
+              The figures below are read directly from your customers, suppliers,
+              inventory and documents. As transactions are posted, Business Brain analyzes your trends and cash flow.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button variant="outline" size="sm" asChild>
+              <Link href="/business-brain">Ask Business Brain</Link>
+            </Button>
+          </CardContent>
+        </Card>
+      )}
 
       {missing ? (
         <Card className="border-caution-border bg-caution-subtle">
