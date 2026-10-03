@@ -17,7 +17,6 @@ import { TriangleAlert, CircleCheck } from "lucide-react";
 
 export default function InventoryMovementClient({ businessId }: { readonly businessId: string }) {
   const [productId, setProductId] = useState("");
-  const [productId, setProductId] = useState("");
   const [type, setType] = useState("adjustment");
   const [quantity, setQuantity] = useState("");
   const [reference, setReference] = useState("");
