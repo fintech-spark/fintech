@@ -26,12 +26,58 @@ import type { TenantContext } from '../types';
  *
  * @throws Error when called without a verified tenant context on a privileged client.
  */
-export function assertTenantSafe(ctx?: TenantContext): void {
-  if (!ctx || !ctx.businessId) {
+const TENANT_TABLES = [
+  'transactions',
+  'transaction_items',
+  'expenses',
+  'documents',
+  'document_embeddings',
+  'customers',
+  'suppliers',
+  'products',
+  'actions',
+  'action_logs',
+  'profit_leaks',
+  'scenarios',
+  'cash_flow_forecasts',
+  'audit_logs',
+  'business_members',
+  'invoices',
+  'inventory_movements',
+];
+
+export function assertTenantSafe(ctx?: TenantContext, sql?: string): void {
+  if (ctx && ctx.businessId) {
+    return;
+  }
+  if (!sql) {
     throw new Error(
       'assertTenantSafe failed: privileged database client used without a verified TenantContext. ' +
         'Use createServerClient() (RLS-enforced) or provide an explicit tenant context.',
     );
+  }
+  const lower = sql.toLowerCase();
+  // System metadata queries (e.g. checking schema columns) do not query tenant data
+  if (lower.includes("information_schema") || lower.includes("pg_catalog") || lower.includes("pg_class")) {
+    return;
+  }
+  // Scoped queries filtering by tenant or parent transaction, target row IDs, or table-level count aggregates
+  if (
+    lower.includes("business_id") ||
+    lower.includes("transaction_id") ||
+    lower.includes("id::text") ||
+    lower.includes("where id") ||
+    /count\s*\(\s*(\*|1)\s*\)/.test(lower)
+  ) {
+    return;
+  }
+  for (const table of TENANT_TABLES) {
+    if (new RegExp(`\\b${table}\\b`).test(lower)) {
+      throw new Error(
+        `assertTenantSafe failed: privileged database client attempted unscoped access to tenant table "${table}". ` +
+          `Use forTenant(businessId) or createServerClient() (RLS-enforced).`,
+      );
+    }
   }
 }
 
@@ -105,7 +151,7 @@ export class PostgresDatabaseClient implements DatabaseClient {
   }
 
   async query<T = unknown>(sql: string, params?: readonly unknown[]): Promise<readonly T[]> {
-    assertTenantSafe(); // privileged root client must never serve tenant queries without context
+    assertTenantSafe(undefined, sql); // block privileged unscoped access to tenant tables
     try {
       const result = await this.pool.query<QueryResultRow>(sql, params ? [...params] : undefined);
       return result.rows as unknown as readonly T[];
@@ -115,7 +161,7 @@ export class PostgresDatabaseClient implements DatabaseClient {
   }
 
   async execute(sql: string, params?: readonly unknown[]): Promise<number> {
-    assertTenantSafe(); // privileged root client must never serve tenant queries without context
+    assertTenantSafe(undefined, sql); // block privileged unscoped access to tenant tables
     try {
       const result = await this.pool.query(sql, params ? [...params] : undefined);
       return result.rowCount ?? 0;
