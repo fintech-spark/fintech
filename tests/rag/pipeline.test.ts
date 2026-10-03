@@ -300,6 +300,78 @@ describe('retrieval policy', () => {
     );
   });
 
+  it('honours a caller topK above the default', () => {
+    const candidates = Array.from({ length: 12 }, (_, i) =>
+      scored(`c${i}`, `text ${i}`, 0.9 - i * 0.01, `doc-${i}`),
+    );
+
+    const result = applyRetrievalPolicy(candidates, DEFAULT_RETRIEVAL_POLICY, {
+      topK: DEFAULT_RETRIEVAL_POLICY.maxTopK,
+    });
+
+    expect(result.kept).toHaveLength(DEFAULT_RETRIEVAL_POLICY.maxTopK);
+  });
+
+  it('clamps a caller topK into the policy ceiling', () => {
+    const candidates = Array.from({ length: 12 }, (_, i) =>
+      scored(`c${i}`, `text ${i}`, 0.9 - i * 0.01, `doc-${i}`),
+    );
+
+    const result = applyRetrievalPolicy(candidates, DEFAULT_RETRIEVAL_POLICY, { topK: 999 });
+
+    expect(result.kept).toHaveLength(DEFAULT_RETRIEVAL_POLICY.maxTopK);
+  });
+
+  it('backfills the requested topK from candidates the filters dropped', () => {
+    // Slicing to topK *before* filtering returns four chunks when five were
+    // asked for: the suppressed duplicate leaves a hole nothing refills.
+    const shared = hashChunk('same text');
+    const candidates = [
+      scored('a', 'same text', 0.95, 'doc-1', 0),
+      scored('b', 'same text', 0.94, 'doc-1', 1),
+      scored('c', 'other text from doc one', 0.93, 'doc-1', 2),
+      scored('d', 'from doc two', 0.9, 'doc-2', 0),
+      scored('e', 'from doc three', 0.89, 'doc-3', 0),
+      scored('f', 'from doc four', 0.88, 'doc-4', 0),
+      scored('g', 'from doc five', 0.87, 'doc-5', 0),
+      scored('h', 'from doc six', 0.86, 'doc-6', 0),
+    ].map((item, index) =>
+      index < 2
+        ? {
+            ...item,
+            chunk: {
+              ...item.chunk,
+              metadata: { ...item.chunk.metadata, contentHash: shared },
+            },
+          }
+        : item,
+    );
+
+    const result = applyRetrievalPolicy(candidates, DEFAULT_RETRIEVAL_POLICY, { topK: 5 });
+
+    expect(result.kept).toHaveLength(5);
+    expect(result.suppressed.duplicates).toBe(1);
+  });
+
+  it('collapses identical text within a document but keeps it in another', () => {
+    const shared = hashChunk('standard tax invoice header');
+    const withHash = (item: ScoredChunk) => ({
+      ...item,
+      chunk: { ...item.chunk, metadata: { ...item.chunk.metadata, contentHash: shared } },
+    });
+
+    const result = applyRetrievalPolicy([
+      withHash(scored('a', 'standard tax invoice header', 0.9, 'doc-1', 0)),
+      withHash(scored('b', 'standard tax invoice header', 0.85, 'doc-1', 1)),
+      withHash(scored('c', 'standard tax invoice header', 0.8, 'doc-2', 0)),
+    ]);
+
+    // Two documents containing the same boilerplate are two pieces of
+    // evidence. Erasing the second would drop a whole document from the answer.
+    expect(result.kept.map((item) => item.chunk.documentId)).toEqual(['doc-1', 'doc-2']);
+    expect(result.suppressed.duplicates).toBe(1);
+  });
+
   it('rejects a non-finite score rather than passing it through', () => {
     const result = applyRetrievalPolicy([scored('a', 'text', Number.NaN)]);
     expect(result.kept).toHaveLength(0);

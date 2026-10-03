@@ -182,7 +182,11 @@ export class DefaultRAGService implements RAGService {
         : {}),
     });
 
-    const filtered = applyRetrievalPolicy(candidates.slice(0, topK));
+    // Candidates are filtered first and counted against afterwards: dropping a
+    // chunk for threshold, duplication or budget must not shrink the answer
+    // below the topK the caller asked for while fresher candidates sit unused
+    // in the over-fetched set.
+    const filtered = applyRetrievalPolicy(candidates, DEFAULT_RETRIEVAL_POLICY, { topK });
 
     return {
       chunks: filtered.kept,

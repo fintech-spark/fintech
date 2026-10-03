@@ -276,6 +276,11 @@ export class PgChunkStore implements ChunkStore {
 
     const chunks: ScoredChunk[] = [];
     for (const row of rows) {
+      // Defence in depth below the SQL. The query already filters on
+      // `business_id`, but a future join change or alias slip would not be
+      // caught by the type system, and a cross-tenant chunk that reaches the
+      // context compiler is a data leak rather than a bad answer.
+      if (row.business_id !== businessId) continue;
       const mapped = rowToScoredChunk(row);
       if (mapped) chunks.push(mapped);
     }

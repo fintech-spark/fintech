@@ -114,9 +114,16 @@ export function compileContext(input: CompileInput): CompileOutput {
       if (metrics.length >= budget.maxMetrics) break;
       const record: DeterministicMetricRecord = {
         ...extracted,
-        id: evidenceId('deterministic_metric', `${extracted.metric}:${extracted.periodStart}`),
+        // Currency is part of the identity. The same tool emits `revenue` once
+        // per reporting currency; without it both rows mint `[M-revenue:2026-01]`
+        // and the registry keeps only the first, so a citation for the second
+        // currency resolves to the wrong amount.
+        id: evidenceId(
+          'deterministic_metric',
+          `${extracted.metric}:${extracted.currency}:${extracted.periodStart}`,
+        ),
         source: {
-          id: `${envelope.provenance.tool}:${extracted.metric}`,
+          id: `${envelope.provenance.tool}:${extracted.metric}:${extracted.currency}`,
           kind: extracted.source,
           origin: `tool:${envelope.provenance.tool}@${envelope.provenance.version}`,
           observedAt: envelope.provenance.generatedAt,

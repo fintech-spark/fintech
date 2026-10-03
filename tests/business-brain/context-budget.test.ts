@@ -22,6 +22,7 @@ import {
   EMBEDDING_DIMENSIONS,
   ProviderEmbeddingProvider,
   categoriseEmbeddingFailure as categorise,
+  EMBEDDING_BATCH_SIZE,
 } from '@/modules/rag';
 import { createToolRegistry, defineTool } from '@/lib/ai/tools/registry';
 import type { AIProviderAdapter, CompletionResponse, EmbeddingResponse } from '@/lib/ai/providers/types';
@@ -278,7 +279,10 @@ describe('embedding provider failure handling', () => {
       }),
     ).embedBatch(['a', 'b']);
 
-    expect(result.vectors).toHaveLength(0);
+    // One slot per input, each empty: the array stays index-aligned so a
+    // partial failure cannot shift later vectors onto the wrong text.
+    expect(result.vectors).toHaveLength(2);
+    expect(result.vectors.every((vector) => vector === undefined)).toBe(true);
     expect(result.failures).toHaveLength(2);
     expect(result.failures[0]?.reason).toMatch(/unavailable/i);
   });
@@ -327,7 +331,8 @@ describe('embedding provider failure handling', () => {
   it('rejects a vector count that does not match the input count', async () => {
     const result = await provider(vi.fn(async () => okResponse(1))).embedBatch(['a', 'b', 'c']);
 
-    expect(result.vectors).toHaveLength(0);
+    expect(result.vectors).toHaveLength(3);
+    expect(result.vectors.every((vector) => vector === undefined)).toBe(true);
     expect(result.failures).toHaveLength(3);
     expect(result.failures[0]?.reason).toMatch(/1 vectors for 3 inputs/);
   });
@@ -354,6 +359,31 @@ describe('embedding provider failure handling', () => {
 
     expect(attempts).toBe(2);
     expect(result.failures).toHaveLength(1);
+  });
+
+  it('keeps vectors index-aligned when an earlier batch fails', async () => {
+    // Regression: a failed batch used to leave a compacted array, so every
+    // vector after it landed on the wrong chunk — a real embedding attached to
+    // unrelated text, with no failure recorded for it.
+    let call = 0;
+    const embed = vi.fn(async (request: { input: string | string[] }) => {
+      call += 1;
+      if (call === 1) {
+        throw Object.assign(new Error('fetch failed'), { statusCode: 503 });
+      }
+      const count = Array.isArray(request.input) ? request.input.length : 1;
+      return okResponse(count);
+    });
+
+    const texts = Array.from({ length: EMBEDDING_BATCH_SIZE * 2 }, (_, i) => `text-${i}`);
+    const result = await provider(embed, 1).embedBatch(texts);
+
+    expect(result.vectors).toHaveLength(texts.length);
+    expect(result.vectors.slice(0, EMBEDDING_BATCH_SIZE).every((v) => v === undefined)).toBe(true);
+    expect(result.vectors.slice(EMBEDDING_BATCH_SIZE).every((v) => v !== undefined)).toBe(true);
+    expect(result.failures).toHaveLength(EMBEDDING_BATCH_SIZE);
+    expect(result.failures[0]?.index).toBe(0);
+    expect(result.failures.at(-1)?.index).toBe(EMBEDDING_BATCH_SIZE - 1);
   });
 
   it('treats an empty batch as a no-op', async () => {

@@ -28,7 +28,15 @@ export const EMBEDDING_DIMENSIONS = 1536;
 export type EmbeddingVector = readonly number[];
 
 export interface EmbeddingBatchResult {
-  readonly vectors: readonly EmbeddingVector[];
+  /**
+   * Index-aligned with the input: `vectors[i]` is the embedding of `texts[i]`,
+   * or `undefined` when that index failed (in which case `failures` says why).
+   *
+   * Alignment is the contract. A compacted array makes every later index point
+   * at the wrong text once a batch in the middle fails — the chunk keeps a real
+   * vector, just not its own.
+   */
+  readonly vectors: readonly (EmbeddingVector | undefined)[];
   /** Index-aligned with the input. Never silently omitted. */
   readonly failures: readonly { readonly index: number; readonly reason: string }[];
   readonly provider: string;
@@ -121,14 +129,18 @@ export class ProviderEmbeddingProvider implements EmbeddingProvider {
       return { vectors: [], failures: [], provider: this.provider, model: this.model };
     }
 
-    const vectors: EmbeddingVector[] = [];
+    // Slots, not a push list: a failed batch must leave a hole at its own
+    // indices instead of shifting every later vector down by one batch.
+    const vectors: (EmbeddingVector | undefined)[] = new Array(texts.length).fill(undefined);
     const failures: { index: number; reason: string }[] = [];
 
     for (let offset = 0; offset < texts.length; offset += EMBEDDING_BATCH_SIZE) {
       const batch = texts.slice(offset, offset + EMBEDDING_BATCH_SIZE);
       const outcome = await this.embedOneBatch(batch);
       if (outcome.ok) {
-        vectors.push(...outcome.vectors);
+        outcome.vectors.forEach((vector, index) => {
+          vectors[offset + index] = vector;
+        });
       } else {
         // Attribute the failure to every item in the batch rather than
         // guessing which one the provider choked on.

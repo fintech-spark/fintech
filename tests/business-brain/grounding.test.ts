@@ -96,6 +96,34 @@ describe('grounding — authoritative structured values', () => {
     expect(metric?.changeBps).toBe(-3200);
   });
 
+  it('mints one evidence id per reporting currency', () => {
+    // Regression: the id used to be `${metric}:${periodStart}`, so the INR and
+    // USD rows for the same metric minted the same id and the registry kept
+    // only the first — a citation for the second currency resolved to the
+    // wrong amount.
+    const compiled = compileContext({
+      question: 'q',
+      correlationId: 'corr-1',
+      toolEnvelopes: [
+        envelope('sales_summary', [
+          { ...REVENUE_METRIC, currency: 'INR' },
+          { ...REVENUE_METRIC, currency: 'USD', valueMinorUnits: 15_000 },
+        ]),
+      ],
+      retrievedChunks: [],
+    });
+
+    const metrics = compiled.context.deterministicMetrics;
+    expect(metrics).toHaveLength(2);
+    expect(new Set(metrics.map((metric) => metric.id)).size).toBe(2);
+
+    const metricIds = compiled.evidence.citableIds.filter((id) => id.startsWith('[M-'));
+    expect(metricIds).toHaveLength(2);
+    expect(metricIds.join(' ')).toContain('INR');
+    expect(metricIds.join(' ')).toContain('USD');
+    expect(new Set(metrics.map((metric) => metric.source.id)).size).toBe(2);
+  });
+
   it('records provenance for every metric', () => {
     const compiled = compileContext({
       question: 'q',

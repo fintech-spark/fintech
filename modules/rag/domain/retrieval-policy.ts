@@ -67,12 +67,23 @@ export interface FilteredRetrieval {
  *
  * Pure and order-dependent on `candidates` being sorted by descending score,
  * which is what the repository's `ORDER BY similarity DESC` guarantees.
+ *
+ * `options.topK` is the caller's resolved count. Without it the policy falls
+ * back to `defaultTopK`, which silently caps a request for eight chunks at
+ * five — the reason a requested topK has to be threaded through here rather
+ * than enforced by slicing the candidates beforehand. Slicing first also means
+ * every chunk the filters drop shrinks the answer below the requested count;
+ * the filters run first, and the caller's count is applied to what survives.
  */
 export function applyRetrievalPolicy(
   candidates: readonly ScoredChunk[],
   policy: RetrievalPolicy = DEFAULT_RETRIEVAL_POLICY,
+  options: { readonly topK?: number } = {},
 ): FilteredRetrieval {
-  const requested = policy.defaultTopK;
+  const requested =
+    options.topK === undefined || !Number.isFinite(options.topK)
+      ? policy.defaultTopK
+      : Math.min(Math.max(1, Math.floor(options.topK)), policy.maxTopK);
   let belowThreshold = 0;
   let duplicates = 0;
   let overBudget = 0;
@@ -93,8 +104,10 @@ export function applyRetrievalPolicy(
       continue;
     }
 
-    // Duplicate suppression is by content hash, so the same text reached via
-    // two document versions or two chunk boundaries collapses to one hit.
+    // Duplicate suppression is per document: the same span twice inside one
+    // document is redundancy, while identical boilerplate in two documents is
+    // two pieces of evidence and both may need citing. The per-document cap
+    // above is what stops one document crowding out another.
     const fingerprint = fingerprintOf(candidate);
     if (seenContent.has(fingerprint)) {
       duplicates += 1;
@@ -128,15 +141,18 @@ export function applyRetrievalPolicy(
 }
 
 /**
- * Identity for duplicate suppression.
+ * Identity for duplicate suppression, scoped to the document that holds it.
  *
  * Prefers the recorded content hash, which is exact, and falls back to a
- * normalised text comparison for chunks indexed before hashing existed.
+ * normalised text comparison for chunks indexed before hashing existed. Both
+ * branches are document-scoped so they behave the same way — an unscoped hash
+ * would collapse identical text found in two different documents and silently
+ * drop one of them from the answer.
  */
 function fingerprintOf(candidate: ScoredChunk): string {
-  const hash = candidate.chunk.metadata.contentHash;
-  if (hash) return `hash:${hash}`;
   const documentId = candidate.chunk.documentId;
+  const hash = candidate.chunk.metadata.contentHash;
+  if (hash) return `hash:${documentId}:${hash}`;
   const index = candidate.chunk.metadata.chunkIndex;
   return `pos:${documentId}:${index}:${normaliseForCompare(candidate.chunk.content)}`;
 }
