@@ -37,6 +37,10 @@
     ".next/dev/types/**/*.ts"
   ],
   "exclude": [
-    "node_modules"
+    "node_modules",
+    "fintech-ai",
+    "fintech-backend",
+    "fintech-intelligence",
+    "fintech-security"
   ]
 }

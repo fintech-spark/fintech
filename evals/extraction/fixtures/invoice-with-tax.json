@@ -1,0 +1,17 @@
+{
+  "id": "invoice-with-tax",
+  "documentType": "invoice",
+  "description": "Synthetic invoice with tax and two line items. No real merchant data.",
+  "content": "INVOICE\nInvoice No: INV-SYN-001\nDate: 2026-01-15\nDue: 2026-02-15\nSupplier: Synthetic Supplies Pvt Ltd\nBuyer: Test Retail Store\n\n1. Widget Small   qty 2   unit 250.00   total 500.00\n2. Widget Large   qty 1   unit 750.00   total 750.00\n\nSubtotal: 1250.00\nTax (GST 18%): 225.00\nTotal: 1475.00\nCurrency: INR",
+  "expected": {
+    "invoiceNumber": "INV-SYN-001",
+    "issueDate": "2026-01-15",
+    "dueDate": "2026-02-15",
+    "supplierName": "Synthetic Supplies Pvt Ltd",
+    "lineItemCount": 2,
+    "subtotalMinor": 125000,
+    "taxMinor": 22500,
+    "totalMinor": 147500,
+    "currency": "INR"
+  }
+}

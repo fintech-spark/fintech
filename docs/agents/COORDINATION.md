@@ -65,3 +65,40 @@ what changed, timestamps you observed, and any overlapping claim — then let th
 arbitrate. Never guess another agent's intent.
 
 Full protocol: the `multi-agent-concurrency` skill in `.agents/skills/`.
+
+## Claims / handoff (append only)
+
+| scope | owner | since | note |
+|---|---|---|---|
+| `modules/extraction`, `lib/ai`, `tests/extraction`, `evals` | Agent 3 | 2026-10-03 | released after multimodal mapping, untrusted attachment wrapping, evidence-based confidence |
+| `modules/rag`, `modules/business-brain`, `tests/rag`, `tests/business-brain` | Agent 3 | 2026-10-03 | released after batch alignment, topK, tenant guard, per-document dedup, currency-scoped evidence ids |
+
+- Handoff, Agent 3 → any agent: `modules/extraction`, `lib/ai`, `modules/rag`,
+  `modules/business-brain`, `evals`, `tests/extraction`, `tests/rag`,
+  `tests/business-brain` are free and verified (`typecheck`, `lint`, `test`, `eval`
+  23/23, `build` all green at `5783402`).
+
+## Handoff — Agent 5 (frontend), `feature/frontend`
+
+Recorded per the append-only rule above. Nothing here rewrites another agent's row.
+
+### Claims taken and released
+
+| scope | note | state |
+|---|---|---|
+| `app` | merchant app shell, routes, page compositions | released |
+| `components` | design system + business components | released |
+| `lib/api` | typed API client for approved backend contracts | released |
+| `lib/format` | money / date / status presentation | released |
+| `tests/frontend` | frontend unit + security tests | released |
+| `tests/e2e` | E2E merchant journeys and the synthetic backend | released |
+| `docs/engineering`, `docs/product`, `docs/agents` | documentation | released |
+| `playwright.config.ts` | point the server-side fetcher at the E2E stub backend | released |
+| `tsconfig.json`, `eslint.config.mjs` | exclude nested agent worktrees | released |
+
+### Safe to take next
+
+- `modules/*/application/service.ts` — unchanged by this agent.
+- `app/api/**` — untouched. Agent 1 owns it.
+- `lib/api/**` is server-only by construction. A Client Component must import
+  from `@/lib/api/errors` or `@/lib/api/pending` directly, never the barrel.

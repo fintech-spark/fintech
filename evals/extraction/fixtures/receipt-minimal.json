@@ -1,0 +1,12 @@
+{
+  "id": "receipt-minimal",
+  "documentType": "receipt",
+  "description": "Synthetic minimal receipt. Most fields absent; extractor must not invent them.",
+  "content": "SYNTHETIC CORNER STORE\nDate: 2026-03-03\nTea        10.00\nBiscuits   20.00\nTotal      30.00",
+  "expected": {
+    "amountMinor": 3000,
+    "merchant": "Synthetic Corner Store",
+    "occurredOn": "2026-03-03",
+    "mustNotInfer": ["invoiceNumber", "tax", "supplierName", "category"]
+  }
+}

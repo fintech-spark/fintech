@@ -1,0 +1,47 @@
+{
+  "fixtureName": "inconsistent-subtotal",
+  "expectedStatus": "REJECTED",
+  "description": "Subtotal claims 1000 but line items sum to 800.",
+  "sourceType": "invoice",
+  "documentId": "doc-incon-003",
+  "businessId": "biz-test-003",
+  "extraction": {
+    "invoiceNumber": "INV-003",
+    "issueDate": "2026-04-01",
+    "dueDate": "2026-05-01",
+    "supplierName": "Synthetic Vendor C",
+    "lineItems": [
+      {
+        "description": "Line A",
+        "quantity": 1,
+        "unitPrice": {
+          "amountMinor": 400,
+          "currency": "INR"
+        },
+        "total": {
+          "amountMinor": 400,
+          "currency": "INR"
+        }
+      },
+      {
+        "description": "Line B",
+        "quantity": 1,
+        "unitPrice": {
+          "amountMinor": 400,
+          "currency": "INR"
+        },
+        "total": {
+          "amountMinor": 400,
+          "currency": "INR"
+        }
+      }
+    ],
+    "subtotalMinor": 1000,
+    "taxMinor": 180,
+    "discountMinor": 0,
+    "totalMinor": 1180,
+    "currency": "INR",
+    "needsReview": false
+  },
+  "validationNotes": "Line-item total = 800; stated subtotal = 1000. Arithmetic contradiction. Must be rejected, not silently corrected."
+}

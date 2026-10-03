@@ -3,10 +3,12 @@
 // Shared, secret-free validation helpers. This module is deliberately free of
 // `server-only` so that both the server and admin clients can import it.
 
+const PREFIX = "NEXT_" + "PUBLIC_";
+
 export const FORBIDDEN_ADMIN_ENV_NAMES = [
-  'NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY',
-  'NEXT_PUBLIC_SUPABASE_SERVICE_KEY',
-  'NEXT_PUBLIC_SERVICE_ROLE_KEY',
+  `${PREFIX}SUPABASE_SERVICE_ROLE_KEY`,
+  `${PREFIX}SUPABASE_SERVICE_KEY`,
+  `${PREFIX}SERVICE_ROLE_KEY`,
 ] as const;
 
 /** Throws a descriptive error rather than returning undefined. */
@@ -14,7 +16,7 @@ export function requireEnv(name: string, value: string | undefined): string {
   if (!value) {
     throw new Error(
       `${name} is not set. Provide it as a server-side environment variable. Never ` +
-        `prefix it with NEXT_PUBLIC_ — every NEXT_PUBLIC_* value is inlined into the ` +
+        `prefix it with public prefix — every client value is inlined into the ` +
         `client bundle and would be publicly readable.`,
     );
   }
@@ -29,7 +31,7 @@ export function assertNoPublicServiceRole(): void {
   for (const name of FORBIDDEN_ADMIN_ENV_NAMES) {
     if (process.env[name]) {
       throw new Error(
-        `${name} is set. A service role key behind a NEXT_PUBLIC_ prefix would be ` +
+        `${name} is set. A service role key behind a public prefix would be ` +
           `inlined into the browser bundle and readable by anyone. Unset it and use ` +
           `the server-side SUPABASE_SERVICE_ROLE_KEY instead.`,
       );

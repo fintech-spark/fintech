@@ -35,11 +35,68 @@
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
+  /* The page sits a hair below the card so elevation reads without shadows. */
+  --background: oklch(0.982 0.003 250);
+  --foreground: oklch(0.163 0.006 260);
+
+  /* ── Merchant Brain semantic status scale ────────────────────────────────
+   * Status is never communicated by colour alone. Every status token has a
+   * paired label in `lib/format/status.ts`; colour is the second signal.
+   *
+   *   --*-subtle      tinted surface (badges, row highlights)
+   *   --*-border      hairline for tinted surfaces
+   *   --*-foreground  readable text/icon colour on background or card
+   */
+  --positive-subtle: oklch(0.962 0.028 158);
+  --positive-border: oklch(0.878 0.062 158);
+  --positive-foreground: oklch(0.436 0.106 158);
+  --caution-subtle: oklch(0.968 0.038 82);
+  --caution-border: oklch(0.889 0.075 82);
+  --caution-foreground: oklch(0.481 0.107 62);
+  --negative-subtle: oklch(0.962 0.024 25);
+  --negative-border: oklch(0.884 0.056 25);
+  --negative-foreground: oklch(0.482 0.157 25);
+  --pending-subtle: oklch(0.962 0.014 255);
+  --pending-border: oklch(0.888 0.028 255);
+  --pending-foreground: oklch(0.451 0.093 255);
+  --info-subtle: oklch(0.965 0.02 220);
+  --info-border: oklch(0.889 0.04 220);
+  --info-foreground: oklch(0.443 0.086 232);
+
+  /* Raised / sunken surfaces. Cards must never dissolve into the page. */
+  --surface-raised: oklch(1 0 0);
+  --surface-sunken: oklch(0.972 0.003 250);
+
+  /* Quiet, coherent series palette for charts. Never a rainbow. */
+  --chart-1: oklch(0.482 0.093 255);
+  --chart-2: oklch(0.549 0.106 178);
+  --chart-3: oklch(0.606 0.121 62);
+  --chart-4: oklch(0.517 0.084 300);
+  --chart-5: oklch(0.63 0.021 260);
+
+  /* Forecast / scenario series are visually distinct from recorded fact. */
+  --chart-projected: oklch(0.702 0.017 260);
 }
 
 @theme inline {
+  --color-positive-subtle: var(--positive-subtle);
+  --color-positive-border: var(--positive-border);
+  --color-positive-foreground: var(--positive-foreground);
+  --color-caution-subtle: var(--caution-subtle);
+  --color-caution-border: var(--caution-border);
+  --color-caution-foreground: var(--caution-foreground);
+  --color-negative-subtle: var(--negative-subtle);
+  --color-negative-border: var(--negative-border);
+  --color-negative-foreground: var(--negative-foreground);
+  --color-pending-subtle: var(--pending-subtle);
+  --color-pending-border: var(--pending-border);
+  --color-pending-foreground: var(--pending-foreground);
+  --color-info-subtle: var(--info-subtle);
+  --color-info-border: var(--info-border);
+  --color-info-foreground: var(--info-foreground);
+  --color-surface-raised: var(--surface-raised);
+  --color-surface-sunken: var(--surface-sunken);
+  --color-chart-projected: var(--chart-projected);
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-muted-foreground: var(--muted-foreground);
@@ -127,6 +184,32 @@ body {
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.556 0 0);
+
+  --positive-subtle: oklch(0.29 0.045 158);
+  --positive-border: oklch(0.4 0.07 158);
+  --positive-foreground: oklch(0.815 0.113 158);
+  --caution-subtle: oklch(0.3 0.045 76);
+  --caution-border: oklch(0.42 0.07 76);
+  --caution-foreground: oklch(0.833 0.113 82);
+  --negative-subtle: oklch(0.29 0.055 25);
+  --negative-border: oklch(0.42 0.088 25);
+  --negative-foreground: oklch(0.808 0.117 22);
+  --pending-subtle: oklch(0.29 0.03 255);
+  --pending-border: oklch(0.4 0.05 255);
+  --pending-foreground: oklch(0.804 0.093 255);
+  --info-subtle: oklch(0.29 0.035 232);
+  --info-border: oklch(0.4 0.055 232);
+  --info-foreground: oklch(0.808 0.086 232);
+
+  --surface-raised: oklch(0.205 0 0);
+  --surface-sunken: oklch(0.173 0 0);
+
+  --chart-1: oklch(0.702 0.13 255);
+  --chart-2: oklch(0.749 0.126 178);
+  --chart-3: oklch(0.788 0.141 68);
+  --chart-4: oklch(0.702 0.114 300);
+  --chart-5: oklch(0.62 0.021 260);
+  --chart-projected: oklch(0.55 0.017 260);
 }
 
 @layer base {
@@ -135,8 +218,68 @@ body {
   }
   body {
     @apply bg-background text-foreground;
+    /* Long-form merchant copy should not sprawl past a readable measure. */
+    text-wrap: pretty;
   }
   html {
     @apply font-sans;
+    scroll-behavior: smooth;
   }
+  /* Money, quantities, percentages and dates line up in columns. */
+  table,
+  [data-numeric] {
+    font-variant-numeric: tabular-nums;
+  }
+  /* Kills the double-tap-zoom delay on touch without disabling pinch zoom. */
+  button,
+  [role="button"],
+  a,
+  summary,
+  label {
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: color-mix(in oklch, var(--foreground) 8%, transparent);
+  }
+}
+
+@layer base {
+  /* Focus must always be visible, including inside sticky surfaces. */
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+/* ── Layout utilities ─────────────────────────────────────────────────────
+ * Defined as utilities rather than inline styles so that the ESLint rule
+ * `shadcn/no-inline-styles` can stay on, and so safe-area handling is a
+ * named, reviewable token instead of a magic value at the call site.
+ */
+
+/* Home-indicator inset for the mobile bottom navigation. */
+@utility pb-safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* Full-bleed headers need the notch inset on both sides. */
+@utility px-safe-inline {
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+}
+
+/* Overlays scroll internally without chaining to the page behind them. */
+@utility overscroll-contain {
+  overscroll-behavior: contain;
 }

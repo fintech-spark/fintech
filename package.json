@@ -4,6 +4,8 @@
   "description": "Merchant Brain development foundation",
   "scripts": {
     "test": "vitest run",
+    "eval": "vitest run --config evals/vitest.eval.config.ts",
+    "eval:watch": "vitest --config evals/vitest.eval.config.ts",
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
@@ -19,6 +21,7 @@
     "db:migrate:status": "node scripts/migrate.mjs status",
     "db:seed": "node scripts/seed.mjs",
     "test:db": "vitest run tests/database-schema.test.ts tests/database-validation.test.ts",
+    "test:db:live": "vitest run --config vitest.live.config.ts",
     "verify:setup": "npm run lint && npm run typecheck && npm test && npm run build"
   },
   "type": "module",
@@ -35,6 +38,7 @@
     "@supabase/supabase-js": "^2.117.2",
     "ai": "^7.0.126",
     "class-variance-authority": "^0.7.1",
+    "cmdk": "^1.1.1",
     "cn": "^0.4.0",
     "lucide-react": "^1.49.0",
     "next": "^16.3.8",
