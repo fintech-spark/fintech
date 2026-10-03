@@ -51,7 +51,7 @@ vi.mock("@/lib/supabase/server-client", () => ({
 }));
 
 const mockBrain = {
-  query: vi.fn(async (_ctx, query) => ({
+  query: vi.fn(async () => ({
     message: "Your revenue last month was INR 50,000.",
     toolsUsed: [{ toolName: "sales_summary", input: {}, output: null, latencyMs: 12 }],
     evidence: [{
