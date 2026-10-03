@@ -21,6 +21,35 @@ Use the semantic shadcn tokens in `app/globals.css` rather than raw Tailwind col
 
 Future theme changes update tokens, not one-off component colors. Status meanings must remain stable: positive, caution, negative, neutral, and pending are semantic concepts and must not rely on color alone.
 
+### Status scale (implemented)
+
+Five semantic tones, each a `--*-subtle` / `--*-border` / `--*-foreground`
+triple in `app/globals.css`. Never a raw colour, never colour alone:
+
+| Tone | Meaning | Example status |
+|---|---|---|
+| `positive` | A good business outcome | Paid, Confirmed, Healthy |
+| `caution` | Needs attention | Needs review, Part paid, Overdue balance |
+| `negative` | Serious risk or destructive action | Rejected, Out of stock, Overdue |
+| `pending` | Waiting on a person or a process | Needs review, Reading |
+| `info` | Informational context | Understood, Not connected yet |
+| `neutral` | No signal | Voided, Inactive |
+
+The vocabulary itself — every label and its plain-language meaning — lives in
+`lib/format/status.ts`, one table per backend union.
+`tests/frontend/status.test.ts` fails if a backend status has no label, so the
+two can never drift.
+
+The page surface also sits one step below its cards (`--background` vs
+`--card`, with a hairline ring) so elevation reads without shadows.
+
+### Layout utilities
+
+Safe-area and overscroll handling are named Tailwind utilities — `pb-safe-bottom`,
+`px-safe-inline`, `overscroll-contain` — rather than inline styles, so
+`shadcn/no-inline-styles` can stay enabled and the handling is reviewable in one
+place.
+
 ## Typography
 
 - Use one readable sans family for UI and a restrained monospace face for IDs, reference numbers, and technical values.
