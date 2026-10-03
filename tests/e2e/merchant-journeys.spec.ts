@@ -163,11 +163,11 @@ test.describe("FLOW 3 — cash flow", () => {
     await useScenario(page.context(), "default");
     await page.goto("/cash-flow");
 
-    await expect(page.getByText("Cash-flow forecast is not available yet")).toBeVisible();
-    await expect(page.getByText(/historical figures, expected figures and projections/i)).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1, name: /Cash Flow/i })).toBeVisible();
+    await expect(page.getByText(/Cash Flow Forecast Initializing/i)).toBeVisible();
 
     // The inputs a forecast would read are live today.
-    await page.getByRole("link", { name: "Money owed to you, and what is late" }).click();
+    await page.getByRole("link", { name: "View Receivables" }).click();
     await expect(page).toHaveURL(/\/customers\/receivables/);
   });
 });
