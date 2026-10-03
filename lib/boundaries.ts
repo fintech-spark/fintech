@@ -14,7 +14,25 @@ export const MODULE_DEPENDENCIES: Record<string, readonly string[]> = {
   'cash-flow': ['analytics', 'transactions', 'expenses', 'customers', 'suppliers'],
   simulator: ['analytics'],
   rag: ['documents'],
-  'business-brain': ['rag', 'analytics', 'profit-leaks', 'cash-flow', 'actions'],
+  // business-brain is the AI read/reasoning layer. Phase 7 gave it the
+  // structured-domain edges it needs to answer merchant questions with
+  // deterministic facts: the five leaves below are all dependency-free, so
+  // adding them keeps the graph acyclic. Write edges remain absent — this
+  // module retrieves and analyses, it never mutates.
+  'business-brain': [
+    'rag',
+    'analytics',
+    'profit-leaks',
+    'cash-flow',
+    'actions',
+    'transactions',
+    'inventory',
+    'customers',
+    'suppliers',
+    'expenses',
+    'businesses',
+    'documents',
+  ],
   actions: [],
   notifications: [],
   audit: [],
@@ -22,6 +40,7 @@ export const MODULE_DEPENDENCIES: Record<string, readonly string[]> = {
 
 export function isAllowedImport(fromModule: string, toModule: string): boolean {
   if (toModule === 'lib') return true;
+  if (fromModule === toModule) return true;
   const allowedDeps = MODULE_DEPENDENCIES[fromModule];
   if (!allowedDeps) return false;
   return allowedDeps.includes(toModule);

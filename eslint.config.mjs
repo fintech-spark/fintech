@@ -35,6 +35,14 @@ export default defineConfig([
     },
   },
   globalIgnores([
+    // Nested git worktrees belonging to other agents on this machine. They
+    // are separate projects with their own tsconfigs; linting or typechecking
+    // them from here reports their work as our failures.
+    "fintech-ai/**",
+    "fintech-backend/**",
+    "fintech-intelligence/**",
+    "fintech-security/**",
+    ".obsidian/**",
     ".agents/**",
     ".next/**",
     "out/**",

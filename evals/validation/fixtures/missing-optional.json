@@ -1,0 +1,38 @@
+{
+  "fixtureName": "missing-optional",
+  "expectedStatus": "NEEDS_REVIEW",
+  "description": "Invoice valid structurally but missing optional dueDate.",
+  "sourceType": "invoice",
+  "documentId": "doc-opt-002",
+  "businessId": "biz-test-002",
+  "extraction": {
+    "invoiceNumber": "INV-002",
+    "issueDate": "2026-03-01",
+    "dueDate": null,
+    "supplierName": "Synthetic Vendor B",
+    "lineItems": [
+      {
+        "description": "Item X",
+        "quantity": 1,
+        "unitPrice": {
+          "amountMinor": 1200,
+          "currency": "INR"
+        },
+        "total": {
+          "amountMinor": 1200,
+          "currency": "INR"
+        }
+      }
+    ],
+    "subtotalMinor": 1200,
+    "taxMinor": 216,
+    "discountMinor": 0,
+    "totalMinor": 1416,
+    "currency": "INR",
+    "needsReview": true,
+    "uncertaintyReasons": [
+      "dueDate missing; review required for billing timeline"
+    ]
+  },
+  "validationNotes": "All arithmetic consistent. Mandatory fields present. Only dueDate absent. Should not be rejected."
+}

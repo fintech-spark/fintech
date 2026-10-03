@@ -14,7 +14,7 @@
 
 import { readdir, readFile } from 'node:fs/promises';
 import { join, dirname } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createHash } from 'node:crypto';
 import pg from 'pg';
 
@@ -95,6 +95,90 @@ async function getPendingMigrations() {
   );
 }
 
+// An applied migration is a historical fact: its file must be byte-identical to
+// what ran. If someone edits one after the fact, the database and the repository
+// silently disagree about schema history, and the next environment that runs the
+// edited file diverges from this one. Detect it before applying anything new.
+//
+// A recorded checksum that is not a sha256 digest (e.g. rows stamped by hand or
+// applied outside this runner) has no reference to compare against: report it as
+// unverified rather than as a mismatch, because there is nothing to prove wrong.
+const SHA256_HEX = /^[0-9a-f]{64}$/;
+
+function findDrift(applied, onDisk) {
+  const byName = new Map(onDisk.map((m) => [m.filename, m]));
+  const drift = [];
+
+  for (const row of applied) {
+    const file = byName.get(row.filename);
+    if (!file) {
+      drift.push({
+        filename: row.filename,
+        problem: 'missing',
+        blocking: true,
+        message: `recorded in the database, absent from supabase/migrations/`,
+      });
+      continue;
+    }
+    if (!SHA256_HEX.test(row.checksum)) {
+      drift.push({
+        filename: row.filename,
+        problem: 'unverified',
+        blocking: false,
+        message: `applied as "${row.checksum}" — no digest to compare (applied outside this runner?)`,
+      });
+      continue;
+    }
+    if (file.checksum !== row.checksum) {
+      drift.push({
+        filename: row.filename,
+        problem: 'modified',
+        blocking: true,
+        message: `applied digest ${row.checksum.slice(0, 12)} ≠ file digest ${file.checksum.slice(0, 12)}`,
+      });
+    }
+  }
+
+  return drift;
+}
+
+function reportDrift(drift) {
+  const blocking = drift.filter((d) => d.blocking);
+  const unverified = drift.filter((d) => !d.blocking);
+
+  if (blocking.length > 0) {
+    console.error('\nMigration drift detected — refusing to run.');
+    for (const entry of blocking) {
+      const detail = entry.problem === 'modified' ? 'EDITED' : 'MISSING';
+      console.error(`  [${detail}] ${entry.filename}`);
+      console.error(`          ${entry.message}`);
+    }
+    if (blocking.some((d) => d.problem === 'modified')) {
+      console.error(
+        '\nAn already-applied migration must never be edited. Restore it:\n' +
+          '  git checkout -- supabase/migrations/<file>\n' +
+          'and express the change as a NEW migration file.',
+      );
+    }
+    if (blocking.some((d) => d.problem === 'missing')) {
+      console.error(
+        '\nA recorded migration file was deleted. Restore it from git so the\n' +
+          'schema history stays reproducible, or document the history rewrite.',
+      );
+    }
+  }
+
+  for (const entry of unverified) {
+    console.warn(`  [UNVERIFIED] ${entry.filename}: ${entry.message}`);
+  }
+  if (unverified.length > 0) {
+    console.warn(
+      '  These rows cannot be integrity-checked. They do not block the run;\n' +
+        '  future migrations are hashed automatically when applied here.',
+    );
+  }
+}
+
 async function runMigrations(pool) {
   const client = await pool.connect();
 
@@ -102,10 +186,16 @@ async function runMigrations(pool) {
     await ensureMigrationsTable(client);
     const applied = await getAppliedMigrations(client);
     const appliedSet = new Set(applied.map((r) => r.filename));
+    const allMigrations = await getPendingMigrations();
 
-    const pending = (await getPendingMigrations()).filter(
-      (m) => !appliedSet.has(m.filename)
-    );
+    const drift = findDrift(applied, allMigrations);
+    reportDrift(drift);
+    if (drift.some((entry) => entry.blocking)) {
+      process.exitCode = 1;
+      return;
+    }
+
+    const pending = allMigrations.filter((m) => !appliedSet.has(m.filename));
 
     if (pending.length === 0) {
       console.log('All migrations are already applied.');
@@ -148,25 +238,48 @@ async function showStatus(pool) {
     const applied = await getAppliedMigrations(client);
     const appliedSet = new Set(applied.map((r) => r.filename));
     const allMigrations = await getPendingMigrations();
+    const drift = findDrift(applied, allMigrations);
+    const driftByName = new Map(drift.map((d) => [d.filename, d]));
 
     console.log('\nMigration Status:');
     console.log('─'.repeat(70));
 
     for (const migration of allMigrations) {
-      const isApplied = appliedSet.has(migration.filename);
-      const status = isApplied ? '✓ applied' : '○ pending';
-      console.log(`  ${status}  ${migration.filename}`);
+      const driftEntry = driftByName.get(migration.filename);
+      const status = driftEntry
+        ? { modified: '✗ edited', missing: '✗ gone', unverified: '? nohash' }[driftEntry.problem]
+        : appliedSet.has(migration.filename)
+          ? '✓ applied'
+          : '○ pending';
+      console.log(`  ${status.padEnd(9)} ${migration.filename}`);
     }
 
     const pendingCount = allMigrations.filter((m) => !appliedSet.has(m.filename)).length;
+    const blockingCount = drift.filter((d) => d.blocking).length;
+    const unverifiedCount = drift.length - blockingCount;
     console.log('─'.repeat(70));
-    console.log(`  ${applied.length} applied, ${pendingCount} pending\n`);
+    console.log(
+      `  ${applied.length} applied, ${pendingCount} pending` +
+        (blockingCount > 0 ? `, ${blockingCount} drifted` : '') +
+        (unverifiedCount > 0 ? `, ${unverifiedCount} unverified` : '') +
+        '\n',
+    );
+    reportDrift(drift);
+    if (blockingCount > 0) {
+      process.exitCode = 1;
+    }
   } finally {
     client.release();
   }
 }
 
-main().catch((error) => {
-  console.error('Fatal error:', error.message);
-  process.exit(1);
-});
+// Run the CLI only when executed directly, so tests can import the integrity
+// rules without opening a database connection.
+export { findDrift };
+
+if (pathToFileURL(process.argv[1] ?? '').href === import.meta.url) {
+  main().catch((error) => {
+    console.error('Fatal error:', error.message);
+    process.exit(1);
+  });
+}
