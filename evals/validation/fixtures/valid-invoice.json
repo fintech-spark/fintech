@@ -1,0 +1,57 @@
+{
+  "fixtureName": "valid-invoice",
+  "expectedStatus": "VALIDATED",
+  "description": "Fully consistent invoice; all required fields present; arithmetic consistent.",
+  "sourceType": "invoice",
+  "documentId": "doc-valid-001",
+  "businessId": "biz-test-001",
+  "extraction": {
+    "invoiceNumber": "INV-001",
+    "issueDate": "2026-01-15",
+    "dueDate": "2026-02-15",
+    "supplierName": "Synthetic Vendor A",
+    "lineItems": [
+      {
+        "description": "Synthetic Product 1",
+        "quantity": 2,
+        "unitPrice": {
+          "amountMinor": 500,
+          "currency": "INR"
+        },
+        "total": {
+          "amountMinor": 1000,
+          "currency": "INR"
+        }
+      },
+      {
+        "description": "Synthetic Product 2",
+        "quantity": 1,
+        "unitPrice": {
+          "amountMinor": 750,
+          "currency": "INR"
+        },
+        "total": {
+          "amountMinor": 750,
+          "currency": "INR"
+        }
+      }
+    ],
+    "subtotalMinor": 1750,
+    "taxMinor": 315,
+    "discountMinor": 0,
+    "totalMinor": 2065,
+    "currency": "INR",
+    "needsReview": false,
+    "evidence": [
+      {
+        "sourceType": "invoice",
+        "sourceId": "doc-valid-001",
+        "field": "invoiceNumber",
+        "excerpt": "Invoice # INV-001",
+        "support": "DIRECTLY_SUPPORTED",
+        "observedAt": "2026-01-15"
+      }
+    ]
+  },
+  "validationNotes": "Subtotal 1750 = 1000+750; total = 1750 + 315 = 2065. All fields present. Direct source evidence."
+}

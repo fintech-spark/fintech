@@ -1,0 +1,24 @@
+{
+  "fixtureName": "unsupported-derived",
+  "expectedStatus": "NEEDS_REVIEW",
+  "description": "Only total present; subtotal and line items absent from source.",
+  "sourceType": "invoice",
+  "documentId": "doc-derived-011",
+  "businessId": "biz-test-011",
+  "extraction": {
+    "invoiceNumber": "INV-011",
+    "issueDate": "2026-12-15",
+    "supplierName": "Synthetic Vendor J",
+    "lineItems": [],
+    "subtotalMinor": null,
+    "taxMinor": null,
+    "discountMinor": null,
+    "totalMinor": 2500,
+    "currency": "INR",
+    "needsReview": true,
+    "uncertaintyReasons": [
+      "Only total present; subtotal and line items missing from source; derived/unsupported"
+    ]
+  },
+  "validationNotes": "Value present but unsupported by source fragments. Should not be automatically accepted as authoritative."
+}

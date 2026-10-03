@@ -1,0 +1,37 @@
+{
+  "fixtureName": "unreadable-field",
+  "expectedStatus": "NEEDS_REVIEW",
+  "description": "Required invoiceNumber unreadable (blank).",
+  "sourceType": "invoice",
+  "documentId": "doc-unread-006",
+  "businessId": "biz-test-006",
+  "extraction": {
+    "invoiceNumber": null,
+    "issueDate": "2026-08-01",
+    "supplierName": "Synthetic Vendor E",
+    "lineItems": [
+      {
+        "description": "Item",
+        "quantity": 1,
+        "unitPrice": {
+          "amountMinor": 300,
+          "currency": "INR"
+        },
+        "total": {
+          "amountMinor": 300,
+          "currency": "INR"
+        }
+      }
+    ],
+    "subtotalMinor": 300,
+    "taxMinor": 54,
+    "discountMinor": 0,
+    "totalMinor": 354,
+    "currency": "INR",
+    "needsReview": true,
+    "uncertaintyReasons": [
+      "invoiceNumber unreadable"
+    ]
+  },
+  "validationNotes": "Required tracking field missing; source may have it unreadable."
+}

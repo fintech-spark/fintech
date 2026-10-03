@@ -1,0 +1,37 @@
+{
+  "fixtureName": "ambiguous-vendor",
+  "expectedStatus": "NEEDS_REVIEW",
+  "description": "Vendor partially readable; source ambiguous.",
+  "sourceType": "invoice",
+  "documentId": "doc-ambig-vendor-005",
+  "businessId": "biz-test-005",
+  "extraction": {
+    "invoiceNumber": "INV-005",
+    "issueDate": "2026-07-01",
+    "supplierName": "Acme C...",
+    "lineItems": [
+      {
+        "description": "Service",
+        "quantity": 1,
+        "unitPrice": {
+          "amountMinor": 800,
+          "currency": "INR"
+        },
+        "total": {
+          "amountMinor": 800,
+          "currency": "INR"
+        }
+      }
+    ],
+    "subtotalMinor": 800,
+    "taxMinor": 144,
+    "discountMinor": 0,
+    "totalMinor": 944,
+    "currency": "INR",
+    "needsReview": true,
+    "uncertaintyReasons": [
+      "Vendor name partially readable; review required"
+    ]
+  },
+  "validationNotes": "Not wrong — just unclear. Must not be rejected as invalid."
+}
