@@ -1001,3 +1001,75 @@ describe('date range semantics', () => {
     expect(range.to.getTime() - range.from.getTime()).toBe(28 * DAY);
   });
 });
+
+
+describe("expense idempotency", () => {
+  it("replays existing expense when same request is submitted with same key", async () => {
+    const { DefaultExpenseService } = await import("@/modules/expenses/infrastructure/expense-repository");
+    const existingExpense = {
+      id: "exp-1",
+      businessId: "biz-1",
+      category: "utilities",
+      amount: { amount: 5000, currency: "INR" },
+      description: "Electricity bill",
+      vendor: "PowerCorp",
+      status: "pending",
+      expenseDate: new Date("2026-01-15T00:00:00.000Z"),
+      isRecurring: false,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      createdBy: "usr-1",
+    };
+
+    const findByIdempotencyKey = vi.fn(async () => existingExpense);
+    const save = vi.fn();
+    const service = new DefaultExpenseService({ findByIdempotencyKey, save } as never);
+
+    const replayed = await service.create({ businessId: "biz-1", userId: "usr-1", role: "owner" } as never, {
+      category: "utilities",
+      amount: 5000,
+      currency: "INR",
+      description: "Electricity bill",
+      vendor: "PowerCorp",
+      expenseDate: new Date("2026-01-15T00:00:00.000Z"),
+      idempotencyKey: "test-key-12345",
+    } as never);
+
+    expect(replayed.id).toBe("exp-1");
+    expect(save).not.toHaveBeenCalled();
+  });
+
+  it("throws ConflictError when same key is submitted with different payload", async () => {
+    const { DefaultExpenseService } = await import("@/modules/expenses/infrastructure/expense-repository");
+    const existingExpense = {
+      id: "exp-1",
+      businessId: "biz-1",
+      category: "utilities",
+      amount: { amount: 5000, currency: "INR" },
+      description: "Electricity bill",
+      vendor: "PowerCorp",
+      status: "pending",
+      expenseDate: new Date("2026-01-15T00:00:00.000Z"),
+      isRecurring: false,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      createdBy: "usr-1",
+    };
+
+    const findByIdempotencyKey = vi.fn(async () => existingExpense);
+    const save = vi.fn();
+    const service = new DefaultExpenseService({ findByIdempotencyKey, save } as never);
+
+    await expect(
+      service.create({ businessId: "biz-1", userId: "usr-1", role: "owner" } as never, {
+        category: "rent", // different category!
+        amount: 5000,
+        currency: "INR",
+        description: "Electricity bill",
+        vendor: "PowerCorp",
+        expenseDate: new Date("2026-01-15T00:00:00.000Z"),
+        idempotencyKey: "test-key-12345",
+      } as never)
+    ).rejects.toThrow("This idempotency key was already used for a different expense.");
+  });
+});

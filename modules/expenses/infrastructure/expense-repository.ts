@@ -8,7 +8,7 @@ import 'server-only';
 import { randomUUID } from 'node:crypto';
 import type { BusinessId, ExpenseId, Money, PaginatedResult, TenantContext, UserId } from '@/lib/types';
 import { asExpenseId, createMoney } from '@/lib/types';
-import { AuthorizationError, BusinessRuleError, NotFoundError } from '@/lib/errors';
+import { AuthorizationError, BusinessRuleError, ConflictError, NotFoundError, isUniqueViolationError } from '@/lib/errors';
 import {
   type Db,
   firstOrNull,
@@ -240,6 +240,22 @@ export class PostgrestExpenseRepository {
   }
 }
 
+
+function isSameExpenseRequest(stored: Expense, requested: Expense): boolean {
+  if (
+    stored.category !== requested.category ||
+    stored.amount.amount !== requested.amount.amount ||
+    stored.amount.currency !== requested.amount.currency ||
+    stored.description !== requested.description ||
+    stored.vendor !== requested.vendor ||
+    stored.expenseDate.getTime() !== requested.expenseDate.getTime() ||
+    stored.isRecurring !== requested.isRecurring
+  ) {
+    return false;
+  }
+  return true;
+}
+
 export class DefaultExpenseService implements ExpenseService {
   constructor(private readonly repository: PostgrestExpenseRepository) {}
 
@@ -288,12 +304,34 @@ export class DefaultExpenseService implements ExpenseService {
     };
 
     const key = (input as { idempotencyKey?: string }).idempotencyKey;
-    if (key) {
-      const existing = await this.repository.findByIdempotencyKey(ctx.businessId, key);
-      if (existing) return existing;
+    if (!key) {
+      return this.repository.save(expense);
     }
 
-    return this.repository.save(expense, key);
+    const replay = (existing: Expense | null): Expense => {
+      if (!existing) {
+        throw new ConflictError('This idempotency key is already in use by another request.');
+      }
+      if (!isSameExpenseRequest(existing, expense)) {
+        throw new ConflictError(
+          'This idempotency key was already used for a different expense.',
+          { idempotencyKey: key },
+        );
+      }
+      return existing;
+    };
+
+    const prior = await this.repository.findByIdempotencyKey(ctx.businessId, key);
+    if (prior) return replay(prior);
+
+    try {
+      return await this.repository.save(expense, key);
+    } catch (error) {
+      if (isUniqueViolationError(error)) {
+        return replay(await this.repository.findByIdempotencyKey(ctx.businessId, key));
+      }
+      throw error;
+    }
   }
 
   async getById(ctx: TenantContext, id: ExpenseId): Promise<Expense | null> {
