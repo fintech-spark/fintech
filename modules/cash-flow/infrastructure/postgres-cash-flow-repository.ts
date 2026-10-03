@@ -98,6 +98,7 @@ export class PostgresCashFlowRepository implements CashFlowRepository {
       horizon.from,
       horizon.to,
       asTextArrayLiteral(RECOGNIZED_EXPENSE_STATUSES),
+      MAX_DATED_EXPENSE_ROWS,
     ]);
     return rows.map((row) => ({
       id: row.id,
@@ -156,6 +157,17 @@ export const MAX_OBLIGATION_ROWS = 500;
 
 /** Maximum recurring expenses expanded by one projection read. */
 export const MAX_RECURRING_ROWS = 200;
+
+/**
+ * Maximum dated expenses read for one horizon.
+ *
+ * `DATED_EXPENSES_SQL` orders by `expense_date` and bounds the result with
+ * `LIMIT $5`, so this value must be bound. Omitting it made every projection
+ * read fail with pgCode 08P01 ("bind message supplies 4 parameters, but the
+ * prepared statement requires 5"), which is how the defect was found: the
+ * statement had never been executed against a real server.
+ */
+export const MAX_DATED_EXPENSE_ROWS = 1_000;
 
 function toObligation(row: ObligationSqlRow, side: 'customer' | 'supplier'): ObligationInput {
   return {

@@ -29,6 +29,35 @@ export function asTextArrayLiteral(values: readonly string[]): string {
 }
 
 
+/**
+ * Period sale totals, one row per currency.
+ *
+ * The line-item join is deliberately an AGGREGATE lateral subquery. An earlier
+ * version selected raw `transaction_items` rows, which fanned each transaction
+ * out to one row per line and therefore evaluated every transaction-level sum
+ * once per line: a single sale of 39,000 with two lines reported 78,000 of
+ * revenue and a `sale_count` of 2. Because the domain layer derives average
+ * order value by dividing by `sale_count`, and every margin and period delta
+ * from these totals, the error propagated into every reported money figure and
+ * scaled with basket size.
+ *
+ * Aggregating inside the lateral keeps the outer grain at exactly one row per
+ * transaction, so transaction-level columns are summed once. A transaction with
+ * no lines still yields one row (the aggregate returns zero counts), so
+ * `sale_count` counts sales rather than lines.
+ *
+ * The lateral is additionally restricted to sale transactions. Without that
+ * guard the line metrics swept in purchases and refunds: a purchase of four
+ * units added 4 to `quantity_sold` and its cost to `cogs_minor`, so stock bought
+ * was reported as stock sold and COGS was double-counted, understating profit.
+ * These four columns are sale-side figures that `recognizeCogs` and
+ * `recognizeRevenue` consume, so the restriction belongs here.
+ *
+ * `uncosted_line_count` counts lines whose cost could not be derived — an
+ * unlinked line, or a linked product with no recorded cost. Those lines
+ * contribute nothing to `cogs_minor`, and the domain layer degrades data quality
+ * from the two counts rather than treating missing cost as zero.
+ */
 export const SALE_TOTALS_SQL = `
 SELECT
   t.currency::text                                                      AS currency,
@@ -39,22 +68,20 @@ SELECT
   COALESCE(SUM(CASE WHEN t.type = $5 THEN t.total_minor END), 0)        AS refund_minor,
   COUNT(*) FILTER (WHERE t.type = $4)::int                             AS sale_count,
   COALESCE(SUM(line.quantity), 0)                                      AS quantity_sold,
-  COUNT(line.id)::int                                                  AS line_count,
-  COUNT(*) FILTER (WHERE line.id IS NOT NULL AND line.product_id IS NULL)::int
-                                                                        AS uncosted_line_count,
+  COALESCE(SUM(line.line_count), 0)::int                               AS line_count,
+  COALESCE(SUM(line.uncosted_line_count), 0)::int                      AS uncosted_line_count,
   COALESCE(SUM(line.cogs_minor), 0)                                    AS cogs_minor
 FROM transactions t
 LEFT JOIN LATERAL (
   SELECT
-    ti.id,
-    ti.product_id,
-    ti.quantity,
-    CASE WHEN p.cost_price_minor IS NULL THEN NULL
-         ELSE ROUND(p.cost_price_minor * ti.quantity)::bigint
-    END AS cogs_minor
+    COALESCE(SUM(ti.quantity), 0)                            AS quantity,
+    COUNT(*)::int                                            AS line_count,
+    COUNT(*) FILTER (WHERE p.cost_price_minor IS NULL)::int  AS uncosted_line_count,
+    COALESCE(SUM(ROUND(p.cost_price_minor * ti.quantity)), 0)::bigint AS cogs_minor
   FROM transaction_items ti
   LEFT JOIN products p ON p.id = ti.product_id AND p.business_id = t.business_id
   WHERE ti.transaction_id = t.id
+    AND t.type = $4
 ) line ON true
 WHERE t.business_id = $1
   AND t.transaction_date >= $2
