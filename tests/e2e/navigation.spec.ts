@@ -77,15 +77,8 @@ test.describe("capability gaps", () => {
   const screens = [
     { path: "/sales", title: "Sales", capability: "Sales and transaction history" },
     { path: "/expenses", title: "Expenses", capability: "Expense ledger" },
-    { path: "/cash-flow", title: "Cash flow", capability: "Cash-flow forecast" },
     { path: "/profit-leaks", title: "Profit leaks", capability: "Profit leak detection" },
     { path: "/simulator", title: "Simulator", capability: "What-if simulator" },
-    {
-      path: "/business-brain",
-      title: "Ask Merchant Brain",
-      capability: "Business Brain answers",
-    },
-    { path: "/actions", title: "Action Center", capability: "Action Center" },
     { path: "/notifications", title: "Notifications", capability: "Notifications" },
   ];
 
@@ -107,6 +100,26 @@ test.describe("capability gaps", () => {
       await expect(page.getByText(/Planned in Phase/i).first()).toBeVisible();
     });
   }
+
+  test("/cash-flow renders live cash flow projection view", async ({ page }) => {
+    await useScenario(page.context(), "default");
+    await page.goto("/cash-flow");
+    await expect(page.getByRole("heading", { level: 1, name: /Cash Flow/i })).toBeVisible();
+  });
+
+  test("/business-brain renders interactive reasoning interface", async ({ page }) => {
+    await useScenario(page.context(), "default");
+    await page.goto("/business-brain");
+    await expect(page.getByRole("heading", { level: 1, name: /Ask Merchant Brain|Business Brain/i })).toBeVisible();
+    await expect(page.getByText(/Grounded AI Business Reasoning/i)).toBeVisible();
+  });
+
+  test("/actions renders action center with dual-approval controls", async ({ page }) => {
+    await useScenario(page.context(), "default");
+    await page.goto("/actions");
+    await expect(page.getByRole("heading", { level: 1, name: /Action Center/i })).toBeVisible();
+    await expect(page.getByText(/Strict Dual-Approval Policy/i)).toBeVisible();
+  });
 });
 
 test.describe("navigation", () => {
