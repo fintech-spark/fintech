@@ -10,6 +10,7 @@ import type { ContextAssembler, AssemblyResult } from "./context-assembler";
 import type { AIProviderAdapter, ModelConfig } from "@/lib/ai/providers/types";
 import type { Clock } from "@/lib/clock";
 import { systemClock } from "@/lib/clock";
+import { BusinessAnswerSchema } from "@/lib/ai/schemas";
 
 export interface BusinessBrainService {
   query(ctx: TenantContext, query: BrainQuery): Promise<BrainResponse>;
@@ -107,8 +108,10 @@ export class DefaultBusinessBrainService implements BusinessBrainService {
             // prompt's own rules exist to prevent.
             { role: "user", content: assembly.prompt.user },
           ],
+          responseFormat: "json",
+          schema: BusinessAnswerSchema,
         });
-        answerText = completion.content;
+        answerText = parseBusinessAnswer(completion.content, assembly.prompt.citableIds);
         tokensUsed = completion.usage.promptTokens + completion.usage.completionTokens;
         // Record what the adapter actually used. When an adapter cannot report
         // a resolved id, name the provider+role we asked for rather than
@@ -169,7 +172,7 @@ export class DefaultBusinessBrainService implements BusinessBrainService {
    * conversation. The caller cannot choose a key that escapes its own scope.
    */
   private sessionKey(ctx: TenantContext, sessionId: string | undefined): string {
-    return `${ctx.businessId}:${ctx.userId}:${sessionId || "default"}`;
+    return `${ctx.businessId}:${ctx.userId}:${sessionId ?? ""}`;
   }
 
   async getSessionHistory(
@@ -211,4 +214,32 @@ export class DefaultBusinessBrainService implements BusinessBrainService {
     }
     return lines.join("\n");
   }
+}
+
+function parseBusinessAnswer(content: string, citableIds: readonly string[]): string {
+  let decoded: unknown;
+  try {
+    decoded = JSON.parse(content);
+  } catch {
+    // Test doubles and explicitly text-oriented adapters may still return a
+    // plain answer. A response that looks like JSON but is malformed fails
+    // closed; real provider adapters validate the schema before returning.
+    if (/^\s*[\[{]/.test(content)) {
+      throw new Error("Business Brain returned malformed structured output.");
+    }
+    return content;
+  }
+
+  const parsed = BusinessAnswerSchema.safeParse(decoded);
+  if (!parsed.success) {
+    throw new Error("Business Brain returned invalid structured output.");
+  }
+
+  const allowed = new Set(citableIds);
+  const invalidCitation = parsed.data.evidence.find((reference) => !allowed.has(reference.sourceId));
+  if (invalidCitation) {
+    throw new Error(`Business Brain cited unavailable evidence: ${invalidCitation.sourceId}`);
+  }
+
+  return parsed.data.answer;
 }

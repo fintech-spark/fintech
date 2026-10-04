@@ -23,6 +23,7 @@ import { createToolRegistry } from '@/lib/ai/tools/registry';
 import type { AIProviderAdapter, CompletionRequest, CompletionResponse } from '@/lib/ai/providers/types';
 import type { ScoredChunk } from '@/modules/rag';
 import type { TenantContext } from '@/lib/types';
+import { BusinessAnswerSchema } from '@/lib/ai/schemas';
 import { BUSINESS_A, BUSINESS_B, createFakeDatabase, tenantFor } from '../helpers/fake-database';
 
 const usage = { promptTokens: 10, completionTokens: 5, totalTokens: 15 };
@@ -92,6 +93,8 @@ describe('Business Brain — grounding contract', () => {
 
     expect(captured).toHaveLength(1);
     const request = captured[0];
+    expect(request.schema).toBe(BusinessAnswerSchema);
+    expect(request.responseFormat).toBe('json');
     const lastUserMessage = [...request.messages].reverse().find((m) => m.role === 'user');
     const content = String(lastUserMessage?.content ?? '');
 

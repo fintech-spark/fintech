@@ -68,6 +68,30 @@ test.describe("public entry point", () => {
     await expect(page).toHaveURL(/\/overview/);
   });
 
+  test("persists Light, Dark and System theme choices without affecting navigation", async ({
+    page,
+  }) => {
+    await useScenario(page.context(), "default");
+    await page.goto("/overview");
+
+    const themeButton = page.getByRole("button", { name: /^Theme:/ });
+    await themeButton.click();
+    await page.getByRole("menuitemradio", { name: "Dark" }).click();
+    await expect(page.locator("html")).toHaveClass(/\bdark\b/);
+    await expect(page.evaluate(() => localStorage.getItem("merchant-brain-theme"))).resolves.toBe("dark");
+
+    await page.reload();
+    await expect(page.locator("html")).toHaveClass(/\bdark\b/);
+
+    await themeButton.click();
+    await page.getByRole("menuitemradio", { name: "Light" }).click();
+    await expect(page.locator("html")).not.toHaveClass(/\bdark\b/);
+
+    await themeButton.click();
+    await page.getByRole("menuitemradio", { name: "System" }).click();
+    await expect(page.evaluate(() => localStorage.getItem("merchant-brain-theme"))).resolves.toBe("system");
+  });
+
   test("the public CTA creates no session for an unauthenticated visitor", async ({
     page,
     context,

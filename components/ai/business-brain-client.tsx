@@ -47,6 +47,7 @@ export function BusinessBrainClient({ businessId, businessName }: BusinessBrainC
   const [messages, setMessages] = React.useState<ChatExchange[]>([]);
   const [inputValue, setInputValue] = React.useState("");
   const [isLoading, setIsLoading] = React.useState(false);
+  const [sessionId] = React.useState(() => crypto.randomUUID());
   const bottomRef = React.useRef<HTMLDivElement>(null);
   const messageIdCounter = React.useRef(0);
 
@@ -67,7 +68,7 @@ export function BusinessBrainClient({ businessId, businessName }: BusinessBrainC
     setIsLoading(true);
 
     try {
-      const outcome = await askBusinessBrain(businessId, trimmed);
+      const outcome = await askBusinessBrain(businessId, trimmed, sessionId);
       if (outcome.outcome === "success") {
         setMessages((prev) =>
           prev.map((msg) =>
@@ -95,7 +96,7 @@ export function BusinessBrainClient({ businessId, businessName }: BusinessBrainC
         bottomRef.current?.scrollIntoView({ behavior: "smooth" });
       }, 100);
     }
-  }, [businessId, isLoading]);
+  }, [businessId, isLoading, sessionId]);
 
   const getConfidenceBadge = (confidence: WireAiChatResponse["confidence"]) => {
     switch (confidence) {
@@ -191,7 +192,7 @@ export function BusinessBrainClient({ businessId, businessName }: BusinessBrainC
                     )}
 
                     {exchange.error && (
-                      <div className="flex items-center gap-2 text-destructive py-2">
+                      <div className="flex items-center gap-2 py-2 text-destructive" role="alert">
                         <AlertCircle className="size-4" />
                         <span>{exchange.error}</span>
                       </div>
@@ -276,10 +277,13 @@ export function BusinessBrainClient({ businessId, businessName }: BusinessBrainC
       >
         <div className="flex items-center gap-2">
           <input
+            aria-label="Ask Merchant Brain a question"
+            autoComplete="off"
+            name="business-question"
             type="text"
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
-            placeholder="Ask a question about your revenue, profit leaks, overdue invoices, or stock..."
+            placeholder="Ask about revenue, profit leaks, overdue invoices, or stock…"
             disabled={isLoading}
             className="flex-1 bg-transparent px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none"
           />

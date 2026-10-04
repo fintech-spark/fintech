@@ -379,8 +379,9 @@ describe('createDefaultActionExecutorRegistry', () => {
         machineProposed: false,
       },
     );
-    expect(outcome.success).toBe(true);
-    expect(outcome.output).toContain('Payment reminder');
+    expect(outcome.success).toBe(false);
+    expect(outcome.errorCode).toBe('NO_EXECUTOR_CONFIGURED');
+    expect(outcome.output).toContain('Not executed');
   });
 });
 

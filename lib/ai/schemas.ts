@@ -9,7 +9,7 @@ export const EvidenceRefSchema = z.object({
   field: z.string().min(1).optional(),
   excerpt: z.string().min(1).optional(),
   observedAt: z.string().min(1).optional(),
-});
+}).strict();
 
 export const MoneySchema = z.object({
   amountMinor: z.number().int(),
@@ -113,7 +113,7 @@ export const BusinessAnswerSchema = z.object({
   missingInformation: z.array(z.string().min(1)),
   conflicts: z.array(z.string().min(1)),
   confidence: z.enum(["high", "medium", "low", "insufficient_evidence"]),
-});
+}).strict();
 
 export type EvidenceRef = z.infer<typeof EvidenceRefSchema>;
 export type InvoiceExtraction = z.infer<typeof InvoiceExtractionSchema>;

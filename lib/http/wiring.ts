@@ -26,6 +26,8 @@ import {
 import { systemClock } from '@/lib/clock';
 import { eventBus } from '@/lib/events';
 
+const intelligenceAlertSubscriptions = new Map<BusinessId, () => void>();
+
 // Merchant Brain: API route wiring
 //
 // One place that knows how to build the Supabase client and the module services.
@@ -158,26 +160,27 @@ export function wireIntelligence(businessId: BusinessId): WiredIntelligence {
     },
   };
 
-  const recipientResolver: AlertRecipientResolver = {
-    resolveRecipients: async (bizId) => {
-      try {
+  if (!intelligenceAlertSubscriptions.has(businessId)) {
+    const recipientResolver: AlertRecipientResolver = {
+      resolveRecipients: async (bizId) => {
+        if (bizId !== businessId) return [];
         const rows = await tenantDb.query<{ user_id: string }>(
           'SELECT user_id FROM business_members WHERE business_id = $1 AND role IN ($2, $3, $4)',
           [bizId, 'owner', 'admin', 'manager'],
         );
         return rows.map((r) => r.user_id as UserId);
-      } catch {
-        return [];
-      }
-    },
-  };
+      },
+    };
 
-  subscribeIntelligenceAlerts({
-    bus: eventBus,
-    sink: alertSink,
-    recipients: recipientResolver,
-    now: () => systemClock.now(),
-  });
+    const unsubscribe = subscribeIntelligenceAlerts({
+      bus: eventBus,
+      businessId,
+      sink: alertSink,
+      recipients: recipientResolver,
+      now: () => systemClock.now(),
+    });
+    intelligenceAlertSubscriptions.set(businessId, unsubscribe);
+  }
 
   return {
     analytics,
@@ -195,4 +198,3 @@ export function wireBenchmarks(): { readonly pulse: PhonePePulseRepository } {
     pulse: new PostgresPhonePePulseRepository(db),
   };
 }
-

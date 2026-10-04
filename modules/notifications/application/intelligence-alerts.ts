@@ -162,16 +162,21 @@ export function subscribeIntelligenceAlerts(input: {
   bus: EventBus;
   sink: AlertSink;
   recipients: AlertRecipientResolver;
+  /** Restrict this subscriber to one tenant when attached to a shared bus. */
+  businessId?: BusinessId;
   dedupe?: AlertDedupeStore;
   now: () => Date;
 }): () => void {
   const dedupe = input.dedupe ?? new InMemoryAlertDedupeStore();
+  const accepts = (businessId: BusinessId): boolean =>
+    input.businessId === undefined || input.businessId === businessId;
 
   const unsubscribeLeak = input.bus.subscribe('profit_leak.detected', (event) => {
+    if (!accepts(event.businessId)) return;
     const amount = event.payload.estimatedLossMinorUnits;
     const category = event.payload.category;
     if (typeof amount !== 'number' || typeof category !== 'string') return;
-    void deliver(input, dedupe, {
+    return deliver(input, dedupe, {
       kind: 'profit_leak',
       businessId: event.businessId,
       referenceId: String(event.payload.leakId),
@@ -186,10 +191,11 @@ export function subscribeIntelligenceAlerts(input: {
   });
 
   const unsubscribeRisk = input.bus.subscribe('cash_flow.risk_detected', (event) => {
+    if (!accepts(event.businessId)) return;
     const shortfall = event.payload.projectedShortfallMinorUnits;
     if (typeof shortfall !== 'number') return;
     const projectedDate = event.payload.projectedDate;
-    void deliver(input, dedupe, {
+    return deliver(input, dedupe, {
       kind: 'cash_flow_risk',
       businessId: event.businessId,
       referenceId: `${String(event.payload.riskType)}:${isoDay(projectedDate)}`,
@@ -204,7 +210,8 @@ export function subscribeIntelligenceAlerts(input: {
   });
 
   const unsubscribeProposed = input.bus.subscribe('action.proposed', (event) => {
-    void deliver(input, dedupe, {
+    if (!accepts(event.businessId)) return;
+    return deliver(input, dedupe, {
       kind: 'action_proposed',
       businessId: event.businessId,
       referenceId: String(event.payload.actionId),
@@ -219,7 +226,8 @@ export function subscribeIntelligenceAlerts(input: {
   });
 
   const unsubscribeApproved = input.bus.subscribe('action.approved', (event) => {
-    void deliver(input, dedupe, {
+    if (!accepts(event.businessId)) return;
+    return deliver(input, dedupe, {
       kind: 'action_approved',
       businessId: event.businessId,
       referenceId: `${String(event.payload.actionId)}:approved`,
@@ -232,9 +240,10 @@ export function subscribeIntelligenceAlerts(input: {
   });
 
   const unsubscribeCompleted = input.bus.subscribe('action.completed', (event) => {
+    if (!accepts(event.businessId)) return;
     const result = event.payload.result;
     const success = typeof result.success === 'boolean' ? result.success : undefined;
-    void deliver(input, dedupe, {
+    return deliver(input, dedupe, {
       kind: 'action_completed',
       businessId: event.businessId,
       referenceId: `${String(event.payload.actionId)}:completed:${success === true ? 'ok' : 'failed'}`,

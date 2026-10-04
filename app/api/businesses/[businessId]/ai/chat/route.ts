@@ -30,7 +30,10 @@ export const POST = withApi(async (request: Request, route) => {
   const response = await brain.query(ctx, {
     businessId: ctx.businessId,
     userId: ctx.userId,
-    sessionId: body.sessionId ?? "default-session",
+    // Never share a process-wide/default conversation key. Clients that want
+    // continuity provide their own UUID; a one-off request gets an isolated
+    // server-generated session instead.
+    sessionId: body.sessionId ?? crypto.randomUUID(),
     message: body.message,
   });
 

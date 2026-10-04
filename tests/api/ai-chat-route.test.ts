@@ -151,6 +151,7 @@ describe("POST /api/businesses/[businessId]/ai/chat", () => {
       expect.objectContaining({
         businessId: BIZ_A,
         message: "Why did my sales drop last month?",
+        sessionId: expect.stringMatching(/^[0-9a-f-]{36}$/),
       })
     );
   });

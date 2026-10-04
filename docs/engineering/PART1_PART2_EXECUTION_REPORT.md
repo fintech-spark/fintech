@@ -117,9 +117,10 @@ Every metric below was executed on the current repository state:
 ## 6. Accepted Risks & Infrastructure Constraints
 
 1. **Accepted Risk — Dev Dependency Advisory (`braces`)**:
-   - `npm audit` reports a high-severity denial-of-service advisory in transitive dev dependencies (`braces` via `micromatch` -> `fast-glob` -> `shadcn`/`eslint-config-next`).
-   - Remediation via `npm audit fix --force` would downgrade `shadcn` to version 1.0.0 (breaking change).
-   - This code is strictly build-time development tooling; `npm run security:audit --omit=dev` confirms **0 production runtime vulnerabilities**. Formally accepted as a dev-only tooling risk.
+   - `npm audit --audit-level=high` reports **9 HIGH** findings across the `shadcn`/`@shadcn/registry`/`ts-morph` chain and the `eslint-config-next` build/lint chain: `braces` → `micromatch` → `fast-glob`.
+   - `npm audit --audit-level=high --omit=dev` reports **0 vulnerabilities**, proving no production/runtime dependency is affected.
+   - npm has no `braces` release newer than `3.0.3`; the only automatic fix is the breaking `eslint-config-next@14.2.35` downgrade. `npm audit fix --force` was not used because it would move the project off Next 16's supported config line.
+   - The `shadcn` package cannot be removed safely in the current UI work because `app/globals.css` imports its build-time `shadcn/tailwind.css` asset. The advisory is confined to development/build tooling and is accepted pending a compatible patched `fast-glob`/`braces` release or a supported Next ESLint upgrade.
 
 2. **Accepted Limitation — Local Live DB Verification**:
    - The local host environment lacks Docker Desktop, Podman, and a local PostgreSQL service.

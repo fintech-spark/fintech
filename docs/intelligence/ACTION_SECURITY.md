@@ -134,6 +134,12 @@ There is **no** dynamic dispatch: no `eval`, no `new Function`, no string module
 resolution, no shell, no HTTP fetch driven by an action's parameters.
 `tests/intelligence/sql-and-boundaries.test.ts` fails the build if any of these appear.
 
+The default registry currently registers every known action type with a
+`refusingExecutor`. This keeps the allowlist and freeze guarantees active while
+the product-specific database, messaging, and supplier integrations remain
+unconfigured. An approved request therefore returns `NO_EXECUTOR_CONFIGURED`
+and is audited; it is never reported as a completed side effect.
+
 ### The module has no sibling dependencies
 
 `MODULE_DEPENDENCIES` declares `actions: []`. The actions module imports **no** other

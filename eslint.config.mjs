@@ -44,6 +44,7 @@ export default defineConfig([
     "fintech-security/**",
     ".obsidian/**",
     ".agents/**",
+    ".kilo/**",
     ".next/**",
     "out/**",
     "build/**",

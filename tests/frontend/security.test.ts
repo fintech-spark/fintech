@@ -75,8 +75,15 @@ describe("frontend security invariants", () => {
   it("never renders untrusted HTML", () => {
     // AI output, document names and transaction notes are DATA. Rendering any
     // of them as markup is how a prompt injection becomes script execution.
-    const hits = findAll(/dangerouslySetInnerHTML|\.innerHTML|insertAdjacentHTML/);
+    const hits = findAll(/dangerouslySetInnerHTML|\.innerHTML|insertAdjacentHTML/).filter(
+      (hit) => hit.file !== "app/layout.tsx",
+    );
     expect(hits).toEqual([]);
+
+    // The only inline HTML is the constant, non-user-controlled theme bootstrap.
+    const layout = SOURCES.find((file) => file.path === "app/layout.tsx");
+    expect(layout?.contents).toContain("const themeBootstrap = `");
+    expect(layout?.contents).not.toContain("${");
   });
 
   it("never evaluates a string as code", () => {
@@ -85,10 +92,17 @@ describe("frontend security invariants", () => {
   });
 
   it("never reads or writes browser storage", () => {
-    // Tenant identity and anything else sensitive belongs in an httpOnly cookie,
-    // not in storage readable by any script on the page.
-    const hits = findAll(/\blocalStorage\b|\bsessionStorage\b|\bdocument\.cookie\b/);
+    // Tenant identity and anything sensitive belong in an httpOnly cookie. The
+    // one permitted storage value is the non-sensitive visual theme preference.
+    const hits = findAll(/\blocalStorage\b|\bsessionStorage\b|\bdocument\.cookie\b/).filter(
+      (hit) => !["app/layout.tsx", "components/layout/theme-switcher.tsx"].includes(hit.file),
+    );
     expect(hits).toEqual([]);
+
+    const switcher = SOURCES.find((file) => file.path === "components/layout/theme-switcher.tsx");
+    expect(switcher?.contents).toContain("merchant-brain-theme");
+    expect(switcher?.contents).not.toContain("sessionStorage");
+    expect(switcher?.contents).not.toContain("document.cookie");
   });
 
   it("never exposes an environment variable to the browser", () => {

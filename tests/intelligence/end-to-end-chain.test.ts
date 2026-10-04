@@ -203,6 +203,7 @@ function buildHarness(): Harness {
   const alerts: IntelligenceAlert[] = [];
   subscribeIntelligenceAlerts({
     bus,
+    businessId: TENANT_A,
     sink: {
       deliver: (alert) => {
         alerts.push(alert);
@@ -297,6 +298,25 @@ describe('scenario 2: profit leak', () => {
     const afterFirst = harness.alerts.length;
     await harness.profitLeaks.analyze(OWNER, JANUARY);
     expect(harness.alerts.length).toBe(afterFirst);
+  });
+
+  it('does not deliver another tenant\'s event to this subscriber', async () => {
+    const harness = buildHarness();
+    await harness.bus.publish({
+      id: 'foreign-leak-event',
+      type: 'profit_leak.detected',
+      businessId: TENANT_B,
+      timestamp: new Date(NOW),
+      correlationId: 'foreign-correlation',
+      payload: {
+        leakId: 'foreign-leak',
+        category: 'waste',
+        estimatedLossMinorUnits: 10_000,
+        severity: 'high',
+      },
+    });
+
+    expect(harness.alerts).toHaveLength(0);
   });
 });
 

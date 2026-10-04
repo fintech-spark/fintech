@@ -22,9 +22,10 @@ export type AiChatResult =
 export async function askBusinessBrain(
   businessId: string,
   message: string,
+  sessionId?: string,
 ): Promise<AiChatResult> {
   try {
-    const response = await sendAiChatMessage(businessId, { message });
+    const response = await sendAiChatMessage(businessId, { message, sessionId });
     return { outcome: "success", response };
   } catch (error) {
     const apiErr = toApiError(error);
