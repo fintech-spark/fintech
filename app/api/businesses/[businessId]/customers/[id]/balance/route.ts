@@ -1,6 +1,6 @@
 import { withApi } from '@/lib/http/handler';
 import { parseUuid } from '@/lib/http/params';
-import { resolveTenantContext } from '@/lib/http/auth-context';
+import { assertPermission, resolveTenantContext } from '@/lib/http/auth-context';
 import { wireClient } from '@/lib/http/wiring';
 
 /**
@@ -8,6 +8,7 @@ import { wireClient } from '@/lib/http/wiring';
  */
 export const GET = withApi(async (request: Request, route) => {
   const { ctx, db } = await resolveTenantContext(request, route.params.businessId);
+  assertPermission(ctx, 'customers:read');
   const services = wireClient(db);
   return { data: await services.customers.getBalance(ctx, parseUuid(route.params.id, 'id') as never) };
 });

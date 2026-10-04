@@ -1,6 +1,6 @@
 import { withApi } from '@/lib/http/handler';
 import { recordMovementSchema } from '@/lib/validation/api-schemas';
-import { resolveTenantContext } from '@/lib/http/auth-context';
+import { assertPermission, resolveTenantContext } from '@/lib/http/auth-context';
 import { parseJsonBody } from '@/lib/http/params';
 import { wireClient } from '@/lib/http/wiring';
 
@@ -13,6 +13,7 @@ so a lost update fails rather than overwriting. Negative resulting stock is a
  */
 export const POST = withApi(async (request: Request, route) => {
   const { ctx, db } = await resolveTenantContext(request, route.params.businessId);
+  assertPermission(ctx, 'inventory:write');
   const services = wireClient(db);
   const body = await parseJsonBody(request, recordMovementSchema);
 

@@ -1,6 +1,6 @@
 import { withApi } from '@/lib/http/handler';
 import { parseJsonBody, parsePagination, parseEnum, dateRangeArgs } from '@/lib/http/params';
-import { resolveTenantContext } from '@/lib/http/auth-context';
+import { assertPermission, resolveTenantContext } from '@/lib/http/auth-context';
 import { wireClient } from '@/lib/http/wiring';
 import { createExpenseSchema } from '@/lib/validation/api-schemas';
 
@@ -25,6 +25,7 @@ const EXPENSE_STATUSES = ['pending', 'approved', 'rejected', 'paid'] as const;
  */
 export const POST = withApi(async (request: Request, route) => {
   const { ctx, db } = await resolveTenantContext(request, route.params.businessId);
+  assertPermission(ctx, 'expenses:write');
   const { expenses } = wireClient(db);
   const body = await parseJsonBody(request, createExpenseSchema);
   return {
@@ -49,6 +50,7 @@ export const POST = withApi(async (request: Request, route) => {
  */
 export const GET = withApi(async (request: Request, route) => {
   const { ctx, db } = await resolveTenantContext(request, route.params.businessId);
+  assertPermission(ctx, 'expenses:read');
   const { expenses } = wireClient(db);
   const sp = new URL(request.url).searchParams;
   const pagination = parsePagination(sp);
