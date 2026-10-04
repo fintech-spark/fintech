@@ -6,7 +6,7 @@ Every skill available to an agent in this repository. Read **this file**, not th
 skills themselves, to decide what to load — it is a few hundred tokens; loading all
 skill bodies is tens of thousands.
 
-Generated: 2026-10-04 18:57  ·  49 skills
+Generated: 2026-10-04 23:05  ·  49 skills
 
 | Skill | Use when | Path |
 |---|---|---|
