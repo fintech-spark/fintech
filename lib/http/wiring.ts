@@ -19,6 +19,10 @@ import {
   type AlertSink,
   type AlertRecipientResolver,
 } from '@/modules/notifications';
+import {
+  PostgresPhonePePulseRepository,
+  type PhonePePulseRepository,
+} from '@/modules/analytics';
 import { systemClock } from '@/lib/clock';
 import { eventBus } from '@/lib/events';
 
@@ -184,3 +188,11 @@ export function wireIntelligence(businessId: BusinessId): WiredIntelligence {
     notifications,
   };
 }
+
+export function wireBenchmarks(): { readonly pulse: PhonePePulseRepository } {
+  const db = getDatabaseClient();
+  return {
+    pulse: new PostgresPhonePePulseRepository(db),
+  };
+}
+

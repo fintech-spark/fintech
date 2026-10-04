@@ -75,6 +75,8 @@ import {
   type WireProfitLeak,
   type WireScenario,
   type WireNotification,
+  pulseBenchmarkSchema,
+  type WirePulseBenchmark,
 } from "./contracts";
 
 // ── Session & business ─────────────────────────────────────────────────────
@@ -1014,4 +1016,27 @@ export async function createDocumentRecord(
   );
   return result.data;
 }
+
+// ── Market Benchmarks ─────────────────────────────────────────────────────
+
+/** `GET /api/benchmarks/pulse` */
+export async function getPulseBenchmarks(
+  params?: { readonly year?: number; readonly quarter?: number },
+): Promise<WirePulseBenchmark> {
+  const result = await apiFetch(
+    "/api/benchmarks/pulse",
+    pulseBenchmarkSchema,
+    {
+      query: params
+        ? {
+            ...(params.year !== undefined ? { year: String(params.year) } : {}),
+            ...(params.quarter !== undefined ? { quarter: String(params.quarter) } : {}),
+          }
+        : undefined,
+      capability: "Market benchmarks",
+    },
+  );
+  return result.data;
+}
+
 

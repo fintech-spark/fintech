@@ -24,6 +24,7 @@ import {
   receivables,
   supplierPricing,
   suppliers,
+  pulseBenchmark,
   type Scenario,
 } from "./data";
 
@@ -143,6 +144,11 @@ export function handleApiRequest(
   if (path === "/api/businesses") {
     return ok(businesses);
   }
+
+  if (path === "/api/benchmarks/pulse") {
+    return ok(pulseBenchmark);
+  }
+
 
   // Only the `partial` scenario fails a subset; every other scenario is whole.
   if (scenario === "partial" && PARTIAL_FAILURES.has(path)) {

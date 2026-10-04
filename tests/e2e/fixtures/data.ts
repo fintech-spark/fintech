@@ -267,3 +267,32 @@ export const documents = [
     uploadedBy: "22222222-2222-4222-8222-222222222222",
   },
 ] as const;
+
+export const pulseBenchmark = {
+  period: { year: 2026, quarter: 2 },
+  nationalMetrics: {
+    transactionCount: 38664285691,
+    transactionAmount: 45496453556876.69,
+    registeredUsers: 711653262,
+  },
+  comparisons: {
+    quarterOverQuarter: { current: 38664285691, previous: 36251699085, change: 2412586606, changePct: 6.66 },
+    yearOverYear: { current: 38664285691, previous: 30000000000, change: 8664285691, changePct: 28.88 },
+  },
+  nationalTrend: [
+    { year: 2026, quarter: 1, transactionCount: 36251699085 },
+    { year: 2026, quarter: 2, transactionCount: 38664285691 },
+  ],
+  userGrowth: [
+    { year: 2026, quarter: 2, registered: 711653262 },
+  ],
+  categoryBreakdown: [
+    { category: "retail", transactionCount: 24691181013, sharePct: 63.86 },
+    { category: "p2p", transactionCount: 11889781621, sharePct: 30.75 },
+    { category: "utility", transactionCount: 2083323057, sharePct: 5.39 },
+  ],
+  topStates: [
+    { name: "maharashtra", parent: null, rank: 1, count: 5064451991, amount: 5465176553156.58 },
+    { name: "karnataka", parent: null, rank: 2, count: 4491711923, amount: 5292341222754.30 },
+  ],
+};

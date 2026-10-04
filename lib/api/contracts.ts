@@ -630,3 +630,63 @@ export const notificationWireSchema = z.object({
 
 export type WireNotification = z.infer<typeof notificationWireSchema>;
 
+// ── PhonePe Pulse Market Benchmarks ───────────────────────────────────────
+
+export const pulsePeriodSchema = z.object({
+  year: z.number().int(),
+  quarter: z.number().int(),
+});
+
+export const comparisonSchema = z.object({
+  current: z.number(),
+  previous: z.number(),
+  change: z.number(),
+  changePct: z.number().nullable(),
+});
+
+export const trendPointSchema = z.object({
+  year: z.number().int(),
+  quarter: z.number().int(),
+  transactionCount: z.number(),
+});
+
+export const growthPointSchema = z.object({
+  year: z.number().int(),
+  quarter: z.number().int(),
+  registered: z.number(),
+});
+
+export const geoMetricSchema = z.object({
+  name: z.string(),
+  parent: z.string().nullable(),
+  rank: z.number().nullable(),
+  count: z.number(),
+  amount: z.number().nullable(),
+});
+
+export const categoryBreakdownSchema = z.object({
+  category: z.string(),
+  transactionCount: z.number(),
+  sharePct: z.number(),
+});
+
+export const pulseBenchmarkSchema = z.object({
+  period: pulsePeriodSchema,
+  nationalMetrics: z.object({
+    transactionCount: z.number(),
+    transactionAmount: z.number().nullable(),
+    registeredUsers: z.number().nullable(),
+  }),
+  comparisons: z.object({
+    quarterOverQuarter: comparisonSchema.nullable(),
+    yearOverYear: comparisonSchema.nullable(),
+  }),
+  nationalTrend: z.array(trendPointSchema),
+  userGrowth: z.array(growthPointSchema),
+  categoryBreakdown: z.array(categoryBreakdownSchema),
+  topStates: z.array(geoMetricSchema),
+});
+
+export type WirePulseBenchmark = z.infer<typeof pulseBenchmarkSchema>;
+
+

@@ -139,3 +139,33 @@ export type {
 } from './infrastructure/analytics-repository';
 
 export { PostgresAnalyticsRepository } from './infrastructure/postgres-analytics-repository';
+
+export type {
+  Comparison,
+  GeoMetric,
+  GrowthPoint,
+  PulsePeriod,
+  PulseRow,
+  TrendPoint,
+} from './domain/phonepe-pulse';
+
+export {
+  buildGrowthSeries,
+  buildTransactionTrend,
+  comparePeriods,
+  compareValues,
+  isValidPeriod,
+  latestPeriod,
+  periodKey,
+  previousQuarter,
+  rankGeographies,
+  sameQuarterLastYear,
+} from './domain/phonepe-pulse';
+
+export type {
+  CategoryBreakdown,
+  PhonePePulseBenchmarkSummary,
+  PhonePePulseRepository,
+} from './infrastructure/phonepe-pulse-repository';
+
+export { PostgresPhonePePulseRepository } from './infrastructure/phonepe-pulse-repository';

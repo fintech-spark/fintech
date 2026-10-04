@@ -10,6 +10,7 @@
 
 import {
   Banknote,
+  BarChart3,
   Boxes,
   BrainCircuit,
   Calculator,
@@ -136,6 +137,12 @@ export const NAV_GROUPS: readonly NavGroup[] = [
         label: "Simulator",
         description: "Try a change and see the effect before you make it.",
         icon: Calculator,
+      },
+      {
+        href: "/benchmarks",
+        label: "Benchmarks",
+        description: "National digital payment trends and state volume benchmarks from PhonePe Pulse.",
+        icon: BarChart3,
       },
     ],
   },
