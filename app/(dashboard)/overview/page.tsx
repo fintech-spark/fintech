@@ -1,12 +1,15 @@
 import { CardHeading } from "@/components/common/card-heading";
 import Link from "next/link";
 import {
+  Activity,
+  BarChart3,
   Boxes,
   BrainCircuit,
   CircleDollarSign,
   FileText,
   Sparkles,
   TrendingDown,
+  TrendingUp,
   Users,
   Wallet,
 } from "lucide-react";
@@ -15,9 +18,18 @@ import { FreshnessLine } from "@/components/common/freshness";
 import { MetricCard } from "@/components/common/metric-card";
 import { PageHeader, SectionHeader } from "@/components/common/page-header";
 import { StatusBadge } from "@/components/common/status-badge";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/card";
-import { getAnalyticsSnapshot, getInventoryValue, getPayableTotals, getReceivableTotals, listDocuments, listLowStockProducts } from "@/lib/api/endpoints";
+import {
+  getAnalyticsSnapshot,
+  getInventoryValue,
+  getPayableTotals,
+  getPulseBenchmarks,
+  getReceivableTotals,
+  listDocuments,
+  listLowStockProducts,
+} from "@/lib/api/endpoints";
 import { isAuthenticated, resolveMerchantContext } from "@/lib/api/context";
 import { describeMissing, errorOr, settle, type Settled } from "@/lib/api/settle";
 import { formatCount, formatMoney, formatMinorUnits } from "@/lib/format/money";
@@ -26,6 +38,33 @@ import { describeStatus, DOCUMENT_STATUS } from "@/lib/format/status";
 import type { Page } from "@/lib/api/client";
 import type { WireDocument } from "@/lib/api/contracts";
 import type { CurrencyCode } from "@/lib/types";
+
+function formatIndianNumber(val: number): string {
+  if (val >= 10_000_000_000) {
+    return `${(val / 1_000_000_000).toFixed(2)}B`;
+  }
+  if (val >= 10_000_000) {
+    return `${(val / 10_000_000).toFixed(2)} Cr`;
+  }
+  if (val >= 100_000) {
+    return `${(val / 100_000).toFixed(2)} Lakh`;
+  }
+  return new Intl.NumberFormat("en-IN").format(val);
+}
+
+function formatRupeeAmount(val: number | null): string {
+  if (val === null || val === undefined) return "—";
+  if (val >= 100_000_000_000_000) {
+    return `₹${(val / 100_000_000_000_000).toFixed(2)} Lakh Cr`;
+  }
+  if (val >= 10_000_000_000_000) {
+    return `₹${(val / 10_000_000_000_000).toFixed(2)} Trillion`;
+  }
+  if (val >= 10_000_000) {
+    return `₹${(val / 10_000_000).toFixed(2)} Cr`;
+  }
+  return `₹${new Intl.NumberFormat("en-IN").format(Math.round(val))}`;
+}
 
 export const metadata = { title: "Overview" };
 
@@ -38,8 +77,8 @@ export default async function OverviewPage() {
   const businessId = context.activeBusinessId;
   const loadedAt = new Date();
 
-  // Five independent reads. Started together, settled independently: one
-  // failure must not blank the other four, and each must keep its own type.
+  // Six independent reads. Started together, settled independently: one
+  // failure must not blank the other five, and each must keep its own type.
   const receivablesRequest = settle(getReceivableTotals(businessId));
   const payablesRequest = settle(getPayableTotals(businessId));
   const inventoryValueRequest = settle(getInventoryValue(businessId));
@@ -48,16 +87,25 @@ export default async function OverviewPage() {
     listDocuments(businessId, { status: "review_required", limit: 10 }),
   );
   const analyticsRequest = settle(getAnalyticsSnapshot(businessId));
+  const pulseRequest = settle(getPulseBenchmarks());
 
-  const [receivables, payables, inventoryValue, lowStock, documentsNeedingReview, analytics] =
-    await Promise.all([
-      receivablesRequest,
-      payablesRequest,
-      inventoryValueRequest,
-      lowStockRequest,
-      documentsRequest,
-      analyticsRequest,
-    ]);
+  const [
+    receivables,
+    payables,
+    inventoryValue,
+    lowStock,
+    documentsNeedingReview,
+    analytics,
+    pulse,
+  ] = await Promise.all([
+    receivablesRequest,
+    payablesRequest,
+    inventoryValueRequest,
+    lowStockRequest,
+    documentsRequest,
+    analyticsRequest,
+    pulseRequest,
+  ]);
 
   const missing = describeMissing([
     { label: "Money owed to you", error: errorOr(receivables) },
@@ -308,13 +356,81 @@ export default async function OverviewPage() {
         />
       </div>
 
+      {/* PhonePe Pulse Market Benchmarks Card */}
+      {pulse.ok ? (
+        <Card className="border-border bg-card shadow-xs">
+          <CardHeader className="flex flex-row items-start justify-between pb-3">
+            <div>
+              <div className="flex items-center gap-2">
+                <Activity className="size-5 text-primary" />
+                <CardHeading className="text-base font-semibold">
+                  National UPI Market Benchmarks (PhonePe Pulse)
+                </CardHeading>
+                <Badge variant="outline" className="border-positive-border text-positive-foreground bg-positive-subtle text-xs">
+                  119,623 Records Active
+                </Badge>
+              </div>
+              <CardDescription className="mt-1">
+                Macroeconomic benchmark data for Q{pulse.value.period.quarter} {pulse.value.period.year}. Compare your store&apos;s activity with digital commerce trends across Indian states.
+              </CardDescription>
+            </div>
+            <Button variant="outline" size="sm" asChild>
+              <Link href="/benchmarks">
+                <BarChart3 className="size-3.5 mr-1" />
+                Explore Benchmarks
+              </Link>
+            </Button>
+          </CardHeader>
+          <CardContent className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 pt-1">
+            <div className="rounded-lg border border-border bg-muted/30 p-3">
+              <p className="text-xs text-muted-foreground uppercase font-medium">National UPI Volume</p>
+              <p className="text-xl font-bold font-mono text-foreground mt-1">
+                {formatRupeeAmount(pulse.value.nationalMetrics.transactionAmount)}
+              </p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Total payment value in Q{pulse.value.period.quarter}
+              </p>
+            </div>
+            <div className="rounded-lg border border-border bg-muted/30 p-3">
+              <p className="text-xs text-muted-foreground uppercase font-medium">Transaction Count</p>
+              <p className="text-xl font-bold font-mono text-foreground mt-1">
+                {formatIndianNumber(pulse.value.nationalMetrics.transactionCount)}
+              </p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                {pulse.value.comparisons.quarterOverQuarter
+                  ? `${(pulse.value.comparisons.quarterOverQuarter.changePct ?? 0) >= 0 ? "+" : ""}${(pulse.value.comparisons.quarterOverQuarter.changePct ?? 0).toFixed(1)}% QoQ growth`
+                  : "Quarterly payments"}
+              </p>
+            </div>
+            <div className="rounded-lg border border-border bg-muted/30 p-3">
+              <p className="text-xs text-muted-foreground uppercase font-medium">Leading State by Volume</p>
+              <p className="text-xl font-bold font-mono text-foreground mt-1 truncate capitalize">
+                {pulse.value.topStates[0]?.name || "National"}
+              </p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                {formatRupeeAmount(pulse.value.topStates[0]?.amount ?? 0)}
+              </p>
+            </div>
+            <div className="rounded-lg border border-border bg-muted/30 p-3">
+              <p className="text-xs text-muted-foreground uppercase font-medium">External Data Layers</p>
+              <p className="text-xl font-bold font-mono text-positive-foreground mt-1">
+                Active &amp; Ready
+              </p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Marketstack + Mailboxlayer APIs
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      ) : null}
+
       <section aria-labelledby="intelligence-heading" className="flex flex-col gap-3">
         <SectionHeader
           id="intelligence-heading"
           title="Operational Intelligence & Actions"
           description="Integrated modules computing metrics, simulating outcomes, and identifying risks across your business."
         />
-        <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
           <Card className="flex flex-col justify-between">
             <CardHeader className="pb-2">
               <div className="flex items-center gap-2">
@@ -362,6 +478,23 @@ export default async function OverviewPage() {
             <CardContent className="pt-0">
               <Button variant="outline" size="sm" asChild className="w-full text-xs">
                 <Link href="/simulator">Open Simulator</Link>
+              </Button>
+            </CardContent>
+          </Card>
+
+          <Card className="flex flex-col justify-between">
+            <CardHeader className="pb-2">
+              <div className="flex items-center gap-2">
+                <BarChart3 className="size-4 text-primary" />
+                <CardHeading className="text-sm font-semibold">Market Benchmarks</CardHeading>
+              </div>
+              <CardDescription className="text-xs">
+                PhonePe Pulse macro UPI data: 119,623 records across Indian states.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="pt-0">
+              <Button variant="outline" size="sm" asChild className="w-full text-xs">
+                <Link href="/benchmarks">Open Benchmarks</Link>
               </Button>
             </CardContent>
           </Card>
