@@ -28,15 +28,7 @@ describe('Security regression — document authorization', () => {
     // This is a structural check: the routes that change document state must
     // import and call assertPermission. This test verifies the authorization
     // matrix aligns with route-level enforcement.
-    const routeSources = [
-      'app/api/businesses/[businessId]/documents/route.ts',
-      'app/api/businesses/[businessId]/documents/[id]/route.ts',
-      'app/api/businesses/[businessId]/documents/[id]/approve/route.ts',
-      'app/api/businesses/[businessId]/documents/[id]/reject/route.ts',
-      'app/api/businesses/[businessId]/documents/[id]/status/route.ts',
-    ];
-    // We do not attempt to parse TypeScript in a unit test; instead we verify
-    // the authorization matrix rules that the routes must enforce.
+    // We verify the authorization matrix rules that the routes must enforce.
     expect(allRoles.length).toBe(5);
   });
 });
