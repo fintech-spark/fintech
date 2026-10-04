@@ -49,7 +49,7 @@ export function SimulatorClient({
     const bps = Math.round(deltaNum * 100); // 5% -> 500 bps
 
     try {
-      const res = await fetch(`/api/businesses/${businessId}/scenarios`, {
+      const res = await fetch(`/api/businesses/${encodeURIComponent(businessId)}/simulator/scenarios`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
