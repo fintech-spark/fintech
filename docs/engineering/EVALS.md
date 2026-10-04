@@ -11,6 +11,20 @@ Merchant Brain will use Promptfoo or an equivalent approved harness for repeatab
 - `evals/security/`: prompt injection, malicious documents, unauthorized requests, tool abuse, and data exfiltration attempts.
 - `evals/regression/`: locked synthetic cases for every accepted prompt/model behavior.
 
+### Running Automated Evals
+
+The automated evaluation runner is executed via `evals/vitest.eval.config.ts`:
+
+```bash
+npm run eval
+```
+
+This executes 35 automated synthetic evaluation tests:
+- `evals/extraction/extraction.eval.test.ts`: schema validity, field extraction, multi-currency detection.
+- `evals/business-brain/business-brain.eval.test.ts`: grounded analysis, evidence containment, and arithmetic protection.
+- `evals/security/ai-security.eval.test.ts`: prompt injection defense, delimiter isolation, and data exfiltration blocking.
+- `evals/validation/validation.eval.test.ts`: deterministic cross-field calculation validation.
+
 ## Required assertions
 
 Evaluate factual accuracy, evidence/source grounding, unsupported-claim rate, structured-output validity, refusal behavior, prompt-injection resistance, unauthorized data requests, consistency across runs, latency, token/cost budgets, and model comparison. Use deterministic assertions for arithmetic and schema parsing wherever possible.

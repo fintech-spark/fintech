@@ -6,7 +6,7 @@ Every skill available to an agent in this repository. Read **this file**, not th
 skills themselves, to decide what to load — it is a few hundred tokens; loading all
 skill bodies is tens of thousands.
 
-Generated: 2026-10-04 15:56  ·  41 skills
+Generated: 2026-10-04 18:57  ·  49 skills
 
 | Skill | Use when | Path |
 |---|---|---|
@@ -31,6 +31,12 @@ Generated: 2026-10-04 15:56  ·  41 skills
 | `multi-agent-concurrency` | Lets several coding agents work in one repository at the same time without overwriting each other. Use before ANY file write, edit, delete, or branch operation in a repository that more than one agent | `.agents/skills/multi-agent-concurrency/SKILL.md` |
 | `next-dev-loop` | (no description) | `.agents/skills/next-dev-loop/SKILL.md` |
 | `nextjs-supabase-auth` | Expert integration of Supabase Auth with Next.js App Router | `.agents/skills/nextjs-supabase-auth/SKILL.md` |
+| `ponytail-audit` | (no description) | `.agents/skills/ponytail-audit/SKILL.md` |
+| `ponytail-debt` | (no description) | `.agents/skills/ponytail-debt/SKILL.md` |
+| `ponytail-gain` | (no description) | `.agents/skills/ponytail-gain/SKILL.md` |
+| `ponytail-help` | (no description) | `.agents/skills/ponytail-help/SKILL.md` |
+| `ponytail-review` | (no description) | `.agents/skills/ponytail-review/SKILL.md` |
+| `ponytail` | (no description) | `.agents/skills/ponytail/SKILL.md` |
 | `project-verification` | Run and interpret this repository's checks correctly before claiming work is done. Use when running tests, lint, typecheck, build, e2e, database tests, AI evals, or security scans; when a check fails; | `.agents/skills/project-verification/SKILL.md` |
 | `prompt-optimizer` | Analyze draft prompts, detect intent and missing context, match ECC commands, skills, and agents, and output a ready-to-paste optimized prompt with diagnosis and rationale — advisory only, never execu | `.agents/skills/prompt-optimizer/SKILL.md` |
 | `rag-context-pipeline` | Work on retrieval, chunking, embeddings, context assembly, or the pgvector query. Use when editing modules/rag/**, context-compiler.ts or untrusted.ts, document_embeddings, match_document_embeddings,  | `.agents/skills/rag-context-pipeline/SKILL.md` |
@@ -50,4 +56,6 @@ Generated: 2026-10-04 15:56  ·  41 skills
 | `vercel-optimize` | Use for Vercel cost and performance optimization on deployed projects, especially Next.js, SvelteKit, Nuxt, and limited Astro apps. Collect Vercel metrics, usage, project config, and code scan results | `.agents/skills/vercel-optimize/SKILL.md` |
 | `vercel-react-best-practices` | React and Next.js performance optimization guidelines from Vercel Engineering. This skill should be used when writing, reviewing, or refactoring React/Next.js code to ensure optimal performance patter | `.agents/skills/vercel-react-best-practices/SKILL.md` |
 | `verification-loop` | Run a six-phase verification of a Claude Code session's work — build, type check, lint, tests with coverage, security grep, and diff review — then produce a PASS/FAIL verification report. Use when ver | `.agents/skills/verification-loop/SKILL.md` |
+| `vibesec` | This skill helps Claude write secure web applications. Use this when working on any web application or when a user requests a scan or audit to ensure security best practices are followed. | `.agents/skills/vibesec/SKILL.md` |
 | `web-design-guidelines` | Review UI code for Web Interface Guidelines compliance. Use when asked to review my UI, check accessibility, audit design, review UX, or check my site against best practices. | `.agents/skills/web-design-guidelines/SKILL.md` |
+| `website-vulnerability-scan` | Scan a deployed website for publicly known vulnerabilities in frontend JavaScript libraries using is-website-vulnerable. Use when auditing a website URL, checking a deployment for vulnerable frontend  | `.agents/skills/website-vulnerability-scan/SKILL.md` |

@@ -51,7 +51,7 @@ is not a control.
 |---|---|
 | Propose / draft / request approval | `owner`, `admin`, `manager`, `accountant`, `staff` |
 | **Approve** | `owner`, `admin`, `manager` |
-| **Execute** | `owner`, `admin`, `manager`, `accountant` |
+| **Execute** | `owner` *(strictly owner-only per `rules.ts:68` and `auth-context.ts:217`)* |
 
 ### Segregation of duties
 

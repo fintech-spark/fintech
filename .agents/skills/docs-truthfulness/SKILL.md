@@ -31,10 +31,10 @@ which one you changed.
 
 | Claim | Reality |
 |---|---|
-| `README.md` "RAG context" | **Corrected.** `wireBusinessBrain` still passes no retriever, so `retrievalEnabled` is always `false`; the README now says so explicitly |
-| `DATABASE_SECURITY_AUDIT.md` auth/authz rows | **Corrected.** Now marked superseded, pointing at `lib/http/auth-context.ts` |
+| `README.md` "RAG context" | **Corrected.** `wireBusinessBrain` connects `PgChunkStore` + `DefaultRAGService` with `ProviderEmbeddingProvider` when an adapter is present, and the README reflects this |
+| `DATABASE_SECURITY_AUDIT.md` auth/authz rows | **Corrected.** Superseded, pointing at `lib/http/auth-context.ts` |
 | commit `144b8fa` / `WAVE1_REDO_REPORT.md:56` "structured output enforced" | Superseded: the adapter now routes a caller-supplied Zod schema to `Output.object({ schema })` and fails closed on empty output. The historical report still describes the old state — treat it as history, not documentation |
-| `AUTHORIZATION_MATRIX.md` | **Still stale.** Documents RLS only; says nothing about the app-layer matrix, and the `actions` role sets still contradict `hasPermission` on `actions:execute` for `admin` |
+| `AUTHORIZATION_MATRIX.md` | **Corrected.** Documents both the application-layer permission matrix (`lib/http/auth-context.ts`) and RLS policies, explicitly noting that `actions:execute` is owner-only |
 
 A stale claim gets fixed once, in the same change that makes it false. If you fix a defect and a
 document described it as broken, update that document too — a skill that reports a fixed bug as

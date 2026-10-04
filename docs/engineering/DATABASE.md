@@ -45,7 +45,9 @@ supabase/
 │   ├── 20261002000001_core_tables.sql       # All 26 tables (DDL, FKs, CHECKs)
 │   ├── 20261002000002_indexes.sql            # Secondary indexes
 │   ├── 20261002000003_triggers.sql           # updated_at auto-trigger
-│   └── ...
+│   ├── ...                                   # RLS policies, security hardening, red-team fixes
+│   ├── 20261002000011_intelligence_detail_columns.sql
+│   └── 20261002000012_audit_immutability_and_rag_search_path.sql
 └── seed.sql               # Development seed data (not a migration)
 ```
 
@@ -343,8 +345,11 @@ npm run db:seed
 ### Verification
 
 ```bash
-# Run database-specific tests
+# Run database structural and validation tests
 npm run test:db
+
+# Run live database tests against running PostgreSQL instance
+DATABASE_URL=postgresql://postgres:postgres@localhost:54322/postgres npm run test:db:live
 
 # Run full verification suite
 npm run verify:setup

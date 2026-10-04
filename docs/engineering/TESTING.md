@@ -30,8 +30,11 @@ Use only synthetic fixtures under `tests/fixtures/`. Mark them as test-only and 
 npm run lint
 npm run typecheck
 npm test
+npm run eval                 # runs 35 automated synthetic AI evals
 npm run build
-npm run test:e2e:install   # once per machine
+npm run test:db              # structural migration and Zod schema tests
+DATABASE_URL=... npm run test:db:live  # exercises real repositories against live PostgreSQL
+npm run test:e2e:install     # once per machine
 npm run test:e2e
 npm run security:audit
 ```
