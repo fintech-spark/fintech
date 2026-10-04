@@ -1,5 +1,5 @@
 import { withApi } from "@/lib/http/handler";
-import { resolveTenantContext } from "@/lib/http/auth-context";
+import { assertPermission, resolveTenantContext } from "@/lib/http/auth-context";
 import { parseJsonBody } from "@/lib/http/params";
 import { wireBusinessBrain } from "@/lib/ai/composition";
 import { z } from "zod";
@@ -20,6 +20,10 @@ const aiChatSchema = z.object({
  */
 export const POST = withApi(async (request: Request, route) => {
   const { ctx } = await resolveTenantContext(request, route.params.businessId);
+  // Business Brain answers questions from the merchant's own financial records,
+  // so it is an analytics capability: a role without analytics:read has no
+  // business seeing the aggregate figures behind the answer.
+  assertPermission(ctx, 'analytics:read');
   const body = await parseJsonBody(request, aiChatSchema);
   const { brain } = wireBusinessBrain(ctx.businessId);
 

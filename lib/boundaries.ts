@@ -36,6 +36,15 @@ export const MODULE_DEPENDENCIES: Record<string, readonly string[]> = {
   actions: [],
   notifications: [],
   audit: [],
+  // `evidence` and `validation` existed on disk but were absent from this map,
+  // which made `isAllowedImport` return false for EVERY edge out of them — a
+  // silent quarantine rather than a visible failure. Declared here with their
+  // real (currently empty) dependency sets so they are ordinary participants.
+  //
+  // `evidence` depends on nothing: it defines the claim envelope contract.
+  evidence: [],
+  // `validation` is pure Zod field validation over records; no module edges.
+  validation: [],
 } as const;
 
 export function isAllowedImport(fromModule: string, toModule: string): boolean {

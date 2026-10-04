@@ -10,7 +10,6 @@ import type { ContextAssembler, AssemblyResult } from "./context-assembler";
 import type { AIProviderAdapter, ModelConfig } from "@/lib/ai/providers/types";
 import type { Clock } from "@/lib/clock";
 import { systemClock } from "@/lib/clock";
-import { wrapUntrusted } from "./untrusted";
 
 export interface BusinessBrainService {
   query(ctx: TenantContext, query: BrainQuery): Promise<BrainResponse>;
@@ -37,7 +36,7 @@ export class DefaultBusinessBrainService implements BusinessBrainService {
 
   async query(ctx: TenantContext, query: BrainQuery): Promise<BrainResponse> {
     const start = this.clock.now().getTime();
-    const sessionId = query.sessionId || "default";
+    const sessionKey = this.sessionKey(ctx, query.sessionId);
 
     // 1. Sanitize user message
     const cleanMessage = query.message.trim();
@@ -79,12 +78,16 @@ export class DefaultBusinessBrainService implements BusinessBrainService {
     let answerText = "";
     let tokensUsed = 0;
     let modelUsed = "deterministic-grounding";
+    let degradedReason: string | undefined;
 
     if (this.adapter) {
       try {
         const defaultModel: ModelConfig = {
           provider: "google",
-          modelId: "gemini-1.5-pro",
+          // Empty means "resolve from the role's configuration". A hardcoded id
+          // here silently defeated AI_MODEL_REASONING for every Brain answer —
+          // the env override only applies when no explicit id is requested.
+          modelId: "",
           role: "reasoning",
         };
         const completion = await this.adapter.complete({
@@ -95,20 +98,32 @@ export class DefaultBusinessBrainService implements BusinessBrainService {
               role: m.role as "user" | "assistant",
               content: m.content,
             })),
-            {
-              role: "user",
-              content: wrapUntrusted(cleanMessage, {
-                id: "user-query",
-                sourceType: "message",
-              }),
-            },
+            // The evidence goes in the request. `assembly.prompt.user` carries
+            // trusted facts, deterministic metrics, retrieved evidence,
+            // uncertainties, conflicts, and the merchant's question already
+            // delimiter-wrapped. Sending only the bare question (as this did
+            // before) asked a financial question with no business data and let
+            // the model fill the gap from imagination — the exact failure the
+            // prompt's own rules exist to prevent.
+            { role: "user", content: assembly.prompt.user },
           ],
         });
         answerText = completion.content;
         tokensUsed = completion.usage.promptTokens + completion.usage.completionTokens;
-        modelUsed = defaultModel.modelId;
-      } catch {
+        // Record what the adapter actually used. When an adapter cannot report
+        // a resolved id, name the provider+role we asked for rather than
+        // echoing an empty string.
+        modelUsed =
+          completion.model ?? `${defaultModel.provider}:${defaultModel.role}`;
+      } catch (error) {
+        // Fall back to the grounded answer — it is real data, not filler — but
+        // never swallow the failure silently. `catch {}` used to hide provider
+        // outages, leaving the merchant with a mysteriously terse reply and the
+        // operator with no signal.
+        degradedReason =
+          error instanceof Error ? error.message : "Model provider unavailable";
         answerText = this.buildDeterministicAnswer(cleanMessage, assembly);
+        modelUsed = "deterministic-grounding";
       }
     } else {
       answerText = this.buildDeterministicAnswer(cleanMessage, assembly);
@@ -117,12 +132,12 @@ export class DefaultBusinessBrainService implements BusinessBrainService {
     const duration = this.clock.now().getTime() - start;
 
     // Record session messages
-    const history = this.sessions.get(sessionId) ?? [];
+    const history = this.sessions.get(sessionKey) ?? [];
     history.push(
       { role: "user", content: cleanMessage, timestamp: this.clock.now() },
       { role: "assistant", content: answerText, timestamp: this.clock.now() },
     );
-    this.sessions.set(sessionId, history);
+    this.sessions.set(sessionKey, history);
 
     const toolsUsed: ToolCallRecord[] = assembly.context.sourceReferences.map((s) => ({
       toolName: s.origin,
@@ -141,12 +156,24 @@ export class DefaultBusinessBrainService implements BusinessBrainService {
         modelUsed,
         tokensUsed,
         ragContextUsed: assembly.context.retrievedEvidence.length > 0,
+        ...(degradedReason ? { degradedReason } : {}),
       },
     };
   }
 
+  /**
+   * Namespaces a conversation by tenant AND user.
+   *
+   * The key used to be the bare `sessionId`, so two merchants who both sent
+   * "default" shared one history Map — one tenant could have seen another's
+   * conversation. The caller cannot choose a key that escapes its own scope.
+   */
+  private sessionKey(ctx: TenantContext, sessionId: string | undefined): string {
+    return `${ctx.businessId}:${ctx.userId}:${sessionId || "default"}`;
+  }
+
   async getSessionHistory(
-    _ctx: TenantContext,
+    ctx: TenantContext,
     sessionId: string,
   ): Promise<{
     readonly messages: readonly {
@@ -156,7 +183,7 @@ export class DefaultBusinessBrainService implements BusinessBrainService {
     }[];
   }> {
     return {
-      messages: this.sessions.get(sessionId) ?? [],
+      messages: this.sessions.get(this.sessionKey(ctx, sessionId)) ?? [],
     };
   }
 

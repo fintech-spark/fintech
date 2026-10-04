@@ -240,7 +240,15 @@ export class VercelAIProviderAdapter implements AIProviderAdapter {
           messages,
           maxOutputTokens: request.model.maxTokens ?? 4096,
           temperature: request.model.temperature ?? 0,
-          ...(request.responseFormat === 'json' ? { output: Output.json() } : {}),
+          // A schema means schema-CONSTRAINED generation, validated by the SDK
+          // before we ever see the text. Without one, `Output.json()` only asks
+          // for JSON syntax — a well-formed document that fails every business
+          // rule still parses. Callers that need a guarantee must pass a schema.
+          ...(request.schema
+            ? { output: Output.object({ schema: request.schema }) }
+            : request.responseFormat === 'json'
+              ? { output: Output.json() }
+              : {}),
         }),
       );
 
@@ -260,11 +268,24 @@ export class VercelAIProviderAdapter implements AIProviderAdapter {
             : JSON.stringify(result.output)
           : '');
 
+      // Fail closed. An empty completion used to return as a successful `stop`,
+      // which pushed a blank string downstream to be rendered as an answer or
+      // parsed as JSON. Empty is not a valid completion; it is a provider fault.
+      if (content.trim().length === 0) {
+        throw new AIProviderError(
+          'The model returned an empty response.',
+          this.provider,
+        );
+      }
+
       return {
         content,
         ...(toolCalls.length > 0 ? { toolCalls: toolCalls as NonNullable<CompletionResponse['toolCalls']> } : {}),
         usage: toTokenUsage(result.usage),
         finishReason,
+        // The RESOLVED id, not the requested one: resolveModelId may have
+        // overridden it from the role's configured value.
+        model: modelId,
       };
     });
   }

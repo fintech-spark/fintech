@@ -44,15 +44,31 @@ There is no database backstop there — only your SQL.
 
 ## Known gaps — do not treat as safe
 
-- **No role gate on the 11 `wireIntelligence` routes** (analytics, cash-flow, profit-leaks,
-  simulator, actions, notifications, ai/chat). A `staff` member can read all of them.
-- **`action_logs` UPDATE/DELETE policies exist** (`20261002000004:327-345`) and the
-  `business_id` immutability trigger list (`0004:128-136`) omits `action_logs`, while
-  `20261002000011:98` added a `business_id` column. Audit rows can currently be relabelled across
-  tenants or deleted.
+- **The `actions` routes still have no `hasPermission` gate.** Authorization there comes from the
+  module's own `EXECUTOR_ROLES` / `APPROVER_ROLES`, which contradicts `hasPermission` on one point:
+  the matrix denies `actions:execute` to `admin`, the module allows it. Reconciling the two is a
+  product decision, not a mechanical fix — do not silently pick one.
+- **`notifications` has no permission gate**, and deliberately so: RLS scopes every notification row
+  to `user_id = auth.uid()`, so a member can only ever read their own. Do not add a gate without a
+  permission string that already exists in the `Permission` union.
 - **`assertTenantSafe` is a substring heuristic** (`lib/database/postgres-client.ts:64-73`): a query
   passes if it contains `business_id`, `where id`, or `count(*)`. It is a typo net, not a guarantee.
-- **`assertPermission` is exported but never called** — repositories call `hasPermission` directly.
+  Run the bundled scanner rather than trusting it.
+- Repositories call `hasPermission` directly; `assertPermission` is the route-level helper. Both
+  exist — the difference is only where the check lives.
+
+## Fixed (do not reintroduce)
+
+- `action_logs` was mutable: 0004 granted member-level UPDATE/DELETE policies, and 0011 added a
+  `business_id` column with no policy validating it and no immutability trigger, so audit rows could
+  be relabelled across tenants, rewritten, or deleted. Migration
+  `20261002000012_audit_immutability_and_rag_search_path.sql` drops both policies, adds
+  `trg_action_logs_business_id_imm`, and tightens INSERT so a row cannot claim a tenant its parent
+  action does not belong to. Regression tests:
+  `tests/database-security-audit-immutability.test.ts` (live DB).
+- The analytics, cash-flow, profit-leak, simulator and AI chat routes now call
+  `assertPermission(ctx, 'analytics:read')`, so a `staff` member can no longer read financial
+  aggregates or drive the assistant.
 
 ## Gotchas
 

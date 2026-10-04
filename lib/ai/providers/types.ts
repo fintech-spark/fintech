@@ -5,6 +5,9 @@
  * Business modules never import Gemini / OpenAI / Anthropic SDKs directly.
  */
 
+// Type-only: erased at compile time, so this module stays dependency-free at runtime.
+import type { z } from 'zod';
+
 // ---------------------------------------------------------------------------
 // Model Configuration
 // ---------------------------------------------------------------------------
@@ -39,6 +42,16 @@ export interface CompletionRequest {
   readonly messages: AIMessage[];
   readonly tools?: AIToolDefinition[];
   readonly responseFormat?: 'text' | 'json';
+  /**
+   * Optional Zod schema for structured generation.
+   *
+   * When present, the adapter requests schema-constrained output from the
+   * provider and parses the result against this schema before returning, so a
+   * malformed or partial response fails here rather than three layers downstream.
+   * Without it, `responseFormat: 'json'` only asks for JSON *syntax* — which is
+   * not the same thing as a valid document.
+   */
+  readonly schema?: z.ZodType;
 }
 
 export interface AIMessage {
@@ -85,6 +98,14 @@ export interface CompletionResponse {
   readonly toolCalls?: AIToolCall[];
   readonly usage: TokenUsage;
   readonly finishReason: 'stop' | 'tool_calls' | 'length' | 'error';
+  /**
+   * The model id actually used, after role/env resolution.
+   *
+   * Callers must record this rather than the id they requested: `resolveModelId`
+   * overrides a requested id with the role's configured value, so echoing the
+   * request makes telemetry wrong by construction.
+   */
+  readonly model?: string;
 }
 
 export interface AIToolCall {

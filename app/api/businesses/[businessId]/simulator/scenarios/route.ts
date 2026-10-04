@@ -1,5 +1,5 @@
 import { withApi } from "@/lib/http/handler";
-import { resolveTenantContext } from "@/lib/http/auth-context";
+import { assertPermission, resolveTenantContext } from "@/lib/http/auth-context";
 import { parseJsonBody } from "@/lib/http/params";
 import { wireIntelligence } from "@/lib/http/wiring";
 import { runScenarioSchema } from "@/lib/validation/api-schemas";
@@ -9,6 +9,7 @@ import { runScenarioSchema } from "@/lib/validation/api-schemas";
  */
 export const GET = withApi(async (request: Request, route) => {
   const { ctx } = await resolveTenantContext(request, route.params.businessId);
+  assertPermission(ctx, 'analytics:read');
   const { simulator } = wireIntelligence(ctx.businessId);
   const scenarios = await simulator.list(ctx, {});
   return { data: scenarios };
@@ -19,6 +20,7 @@ export const GET = withApi(async (request: Request, route) => {
  */
 export const POST = withApi(async (request: Request, route) => {
   const { ctx } = await resolveTenantContext(request, route.params.businessId);
+  assertPermission(ctx, 'analytics:read');
   const { simulator } = wireIntelligence(ctx.businessId);
   const body = await parseJsonBody(request, runScenarioSchema);
   const now = new Date();

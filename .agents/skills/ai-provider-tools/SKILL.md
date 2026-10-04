@@ -21,25 +21,34 @@ to defaults; Anthropic has no embedding model and throws loudly if asked.
 Failures are normalised into 8 categories (`categoriseFailure`); only transient ones retry, with
 capped backoff.
 
-## Known gaps — check these before claiming AI correctness
+## Grounding contract (fixed; keep it fixed)
 
-- **Structured output is not actually enforced.** The adapter sends `Output.json()` (JSON *mode*,
-  no schema) at `vercel-ai-adapter.ts:243`. The SDK supports `Output.object({ schema })`; it is
-  unused. There is no Zod validation inside the adapter, and the `result.text || ''` fallback turns
-  empty output into a *successful* stop. Extraction fails closed downstream via `guardJSON` →
-  `AIValidationError`; **Business Brain has no such guard.**
-- **Business Brain drops the evidence.** `modules/business-brain/application/service.ts:90-106`
-  passes `systemPrompt: assembly.prompt.system` and a message list containing only conversation
-  history and the wrapped user question. `assembly.prompt.user` — every `<trusted_facts>`,
-  `<deterministic_metrics>`, `<retrieved_evidence>` block — is **never sent**. The model is asked a
-  financial question with no business data. If you touch this path, fix it before shipping.
-- `catch {}` at `service.ts:110` swallows every provider error, and the grounded
-  `buildDeterministicAnswer` path only runs when the adapter is absent.
-- `modelUsed` records the *requested* model id, not the resolved one after the env override, so
-  telemetry is wrong by construction.
-- Sessions are keyed by `sessionId` alone (`service.ts:40`) with no tenant component — cross-tenant
-  history bleed.
+These were live defects, repaired together with the skills that describe them. The regression tests
+are `tests/business-brain/grounding-contract.test.ts` and `tests/ai/provider-fail-closed.test.ts` —
+if you break any of this, those fail.
+
+- **The evidence region must reach the provider.** `service.ts` sends `assembly.prompt.user`, which
+  already contains `<trusted_facts>`, `<deterministic_metrics>`, `<retrieved_evidence>`,
+  `<uncertainties>`, `<conflicts>` and the delimiter-wrapped `<merchant_question>`. It previously
+  sent only the bare question, so a financial question was answered with no business data at all.
+  Do not "optimise" this back into a bare question.
+- **Sessions are namespaced** by `businessId:userId:sessionId` (`sessionKey()`). A bare `sessionId`
+  cross-contaminated tenants. Never key session state on caller-supplied input alone.
+- **Provider failures are surfaced, not swallowed.** The grounded deterministic answer is used as a
+  fallback and the reason is returned in `metadata.degradedReason`.
+- **`modelUsed` is the RESOLVED id** from `completion.model`, never the requested one. Pass
+  `modelId: ''` to mean "resolve from the role's configuration" — a hardcoded id silently defeats
+  `AI_MODEL_*`.
+- **The adapter fails closed on an empty completion** (`AIProviderError`), and supports real
+  schema-constrained output via `request.schema` → `Output.object({ schema })`. `responseFormat:
+  'json'` alone is JSON *syntax* only; pass a schema when the caller needs a guarantee.
+
+## Known gaps — still open
+
 - `lib/ai/router/` and `lib/ai/telemetry/` are dead code (no production callers).
+- RAG retrieval is unwired in production — see the `rag-context-pipeline` skill.
+- The ActionExecutorRegistry is never `register()`ed or `freeze()`d in production, so AI-proposed
+  actions cannot execute. Safe by incompleteness, not by design.
 
 ## AI tools — the read-only invariant
 

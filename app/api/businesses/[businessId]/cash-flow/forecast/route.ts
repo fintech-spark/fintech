@@ -1,5 +1,5 @@
 import { withApi } from "@/lib/http/handler";
-import { resolveTenantContext } from "@/lib/http/auth-context";
+import { assertPermission, resolveTenantContext } from "@/lib/http/auth-context";
 import { parseJsonBody } from "@/lib/http/params";
 import { wireIntelligence } from "@/lib/http/wiring";
 import { generateForecastSchema } from "@/lib/validation/api-schemas";
@@ -10,6 +10,7 @@ import type { DateRange } from "@/lib/types";
  */
 export const GET = withApi(async (request: Request, route) => {
   const { ctx } = await resolveTenantContext(request, route.params.businessId);
+  assertPermission(ctx, 'analytics:read');
   const { cashFlow } = wireIntelligence(ctx.businessId);
   const forecast = await cashFlow.getLatestForecast(ctx);
   return { data: forecast };
@@ -20,6 +21,7 @@ export const GET = withApi(async (request: Request, route) => {
  */
 export const POST = withApi(async (request: Request, route) => {
   const { ctx } = await resolveTenantContext(request, route.params.businessId);
+  assertPermission(ctx, 'analytics:read');
   const { cashFlow } = wireIntelligence(ctx.businessId);
   const body = await parseJsonBody(request, generateForecastSchema);
   const now = new Date();

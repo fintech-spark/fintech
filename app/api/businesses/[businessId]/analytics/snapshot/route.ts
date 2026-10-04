@@ -1,5 +1,5 @@
 import { withApi } from "@/lib/http/handler";
-import { resolveTenantContext } from "@/lib/http/auth-context";
+import { assertPermission, resolveTenantContext } from "@/lib/http/auth-context";
 import { wireIntelligence } from "@/lib/http/wiring";
 import { ValidationError } from "@/lib/errors";
 import type { DateRange } from "@/lib/types";
@@ -12,6 +12,7 @@ import type { DateRange } from "@/lib/types";
  */
 export const GET = withApi(async (request: Request, route) => {
   const { ctx } = await resolveTenantContext(request, route.params.businessId);
+  assertPermission(ctx, 'analytics:read');
   const { analytics } = wireIntelligence(ctx.businessId);
 
   const sp = new URL(request.url).searchParams;

@@ -63,6 +63,11 @@ connection string.
 - `REVOKE ALL ... FROM PUBLIC` and grant only to `authenticated`.
 - **Never accept a user-id parameter.** The subject must come from `auth.uid()`. A
   `SECURITY DEFINER` function taking a user id is a privilege-escalation primitive.
+- **If the body needs an operator from an extension, qualify it and keep the pin.**
+  `match_document_embeddings` was the one function pinned to `public, extensions` because its body
+  used a bare `<=>`. Migration 0012 fixed it by qualifying the operator — and *discovering* its schema
+  from the catalog, because hosted Supabase installs `vector` into `extensions` while a local stack
+  may use `public`. Hardcoding either schema applies in one environment and fails in the other.
 - Note: `REVOKE EXECUTE` on a *trigger* function does nothing — triggers fire regardless of
   `EXECUTE` privileges. Those revokes (`0007:95-98`, `0008:77-78`) are cosmetic.
 

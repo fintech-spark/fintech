@@ -31,10 +31,14 @@ which one you changed.
 
 | Claim | Reality |
 |---|---|
-| `README.md:73` "RAG context" | `wireBusinessBrain` passes **no retriever**; `retrievalEnabled` is always `false` |
-| `DATABASE_SECURITY_AUDIT.md:218` "authorization not implemented" | app-layer `hasPermission` exists in 7 repositories |
-| `WAVE1_REDO_REPORT.md:56`, commit `144b8fa` "structured output enforced" | adapter sends schema-less `Output.json()` |
-| `AUTHORIZATION_MATRIX.md` | documents RLS only; says nothing about the app-layer matrix, and three role definitions disagree |
+| `README.md` "RAG context" | **Corrected.** `wireBusinessBrain` still passes no retriever, so `retrievalEnabled` is always `false`; the README now says so explicitly |
+| `DATABASE_SECURITY_AUDIT.md` auth/authz rows | **Corrected.** Now marked superseded, pointing at `lib/http/auth-context.ts` |
+| commit `144b8fa` / `WAVE1_REDO_REPORT.md:56` "structured output enforced" | Superseded: the adapter now routes a caller-supplied Zod schema to `Output.object({ schema })` and fails closed on empty output. The historical report still describes the old state — treat it as history, not documentation |
+| `AUTHORIZATION_MATRIX.md` | **Still stale.** Documents RLS only; says nothing about the app-layer matrix, and the `actions` role sets still contradict `hasPermission` on `actions:execute` for `admin` |
+
+A stale claim gets fixed once, in the same change that makes it false. If you fix a defect and a
+document described it as broken, update that document too — a skill that reports a fixed bug as
+open is its own kind of lie.
 
 ## Generated files — do not hand-edit
 

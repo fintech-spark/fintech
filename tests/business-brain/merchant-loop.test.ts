@@ -107,6 +107,9 @@ describe('Business Brain — End-to-End Merchant Loop ("Why did my profit fall l
           content: 'Your net profit fell last month primarily because supplier procurement costs rose 15% as noted in the supplier notice, while rent (200.00 INR) and utility expenses (150.00 INR) remained fixed against 500.00 INR in sales.',
           usage: { promptTokens: 350, completionTokens: 60, totalTokens: 410 },
           finishReason: 'stop',
+          // The resolved id, as a real adapter reports it. The service must
+          // record THIS rather than the id it requested.
+          model: 'gemini-2.5-pro',
         };
       }),
       embed: vi.fn(),
@@ -139,7 +142,7 @@ describe('Business Brain — End-to-End Merchant Loop ("Why did my profit fall l
     expect(['high', 'medium', 'low']).toContain(result.confidence);
     expect(result.evidence.length).toBeGreaterThan(0);
     expect(result.metadata.tokensUsed).toBe(410);
-    expect(result.metadata.modelUsed).toBe('gemini-1.5-pro');
+    expect(result.metadata.modelUsed).toBe('gemini-2.5-pro');
     expect(mockProvider.complete).toHaveBeenCalledTimes(1);
     expect(mockRetriever.retrieve).toHaveBeenCalledTimes(1);
   });

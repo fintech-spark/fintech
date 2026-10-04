@@ -214,10 +214,10 @@ application — which would be a new vulnerability.
 
 | Layer | State |
 |---|---|
-| Authentication | **Not implemented.** `AuthService` is an interface (`modules/auth/application/service.ts`). No session verification, no middleware, no server actions. |
-| Authorization | **Not implemented.** `hasPermission` / `requirePermission` are interface methods. No enforcement anywhere. |
-| Tenant context | `TenantContext` type exists and is well-designed, but nothing populates or verifies it. |
-| DB-level auth | **None.** No `auth.uid()` usage because there is no auth to key on. |
+| Authentication | **Superseded — implemented after this audit.** Session verification now lives in `lib/http/auth-context.ts` (`requireRequestContext`: cookie/Bearer extraction → `getUser()` JWT revalidation → `auth_user_businesses()` RPC). `AuthService` in `modules/auth` remains an interface with no implementing class. |
+| Authorization | **Superseded — implemented after this audit.** `hasPermission(role, permission)` (`lib/http/auth-context.ts`) is enforced inside the seven PostgREST repositories and, since the Phase 4 hardening, via `assertPermission` on the analytics, cash-flow, profit-leak, simulator and AI chat routes. |
+| Tenant context | **Superseded — implemented after this audit.** `resolveTenantContext` populates `TenantContext` from the route param re-validated against the DB-derived membership set; tenant identity is never taken from a request body or query. |
+| DB-level auth | **Present.** `auth.uid()` is read by the `SECURITY DEFINER` membership helpers in migration 0004, with `search_path` pinned and `EXECUTE` revoked from `PUBLIC`. |
 
 **Consequence for Phase 2:** RLS policies need a stable way to identify the
 caller. In Supabase this is `auth.uid()` (from the verified JWT). Phase 2 must
