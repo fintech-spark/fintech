@@ -146,7 +146,10 @@ export const DEFAULT_ADAPTER_CONFIG: AdapterConfig = {
 function keyFor(provider: AIProvider): string {
   switch (provider) {
     case 'google':
-      return requireEnv('GEMINI_API_KEY', process.env.GEMINI_API_KEY);
+      return requireEnv(
+        'GEMINI_API_KEY',
+        process.env.GEMINI_API_KEY ?? process.env.GOOGLE_GENERATIVE_AI_API_KEY,
+      );
     case 'anthropic':
       return requireEnv('ANTHROPIC_API_KEY', process.env.ANTHROPIC_API_KEY);
     case 'openai':
