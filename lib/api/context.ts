@@ -15,6 +15,7 @@ import "server-only";
 
 import { cookies } from "next/headers";
 
+import { ACCESS_TOKEN_COOKIE } from "@/lib/auth/session";
 import { ApiError, CapabilityUnavailableError } from "./errors";
 import { getSession, listBusinesses, listMembers } from "./endpoints";
 import type { WireBusinessSummary, WireSession } from "./contracts";
@@ -72,7 +73,7 @@ export type MerchantContext =
  */
 export async function resolveMerchantContext(): Promise<MerchantContext> {
   const cookieJar = await cookies();
-  const hasAccessToken = cookieJar.has("sb-access-token");
+  const hasAccessToken = Boolean(cookieJar.get(ACCESS_TOKEN_COOKIE)?.value.trim());
   const hasScenario = cookieJar.has("mb_e2e_scenario");
 
   // Fast path: if the caller presents no session cookie (and is not exercising

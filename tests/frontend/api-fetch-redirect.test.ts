@@ -31,7 +31,10 @@ const originalVercelUrl = process.env.VERCEL_URL;
 function redirectResponse(
   status: 301 | 302 | 303 | 307 | 308 = 302,
 ): Response {
-  return new Response(null, { status });
+  return new Response(null, {
+    status,
+    headers: { location: "https://vercel.com/sso-api?url=%2Foverview" },
+  });
 }
 
 describe("apiFetch redirect handling", () => {
@@ -45,18 +48,21 @@ describe("apiFetch redirect handling", () => {
     vi.unstubAllGlobals();
   });
 
-  it("treats a Vercel Deployment Protection redirect on /api/auth/session as unauthenticated (401), not a backend outage", async () => {
-    vi.stubGlobal("fetch", vi.fn(async () => redirectResponse(302)));
+  it.each([302, 307] as const)(
+    "treats a Vercel Deployment Protection %s redirect on /api/auth/session as unauthenticated (401), not a backend outage",
+    async (status) => {
+      vi.stubGlobal("fetch", vi.fn(async () => redirectResponse(status)));
 
-    const failure = await apiFetch("/api/auth/session", z.any()).catch(
-      (e) => e,
-    );
+      const failure = await apiFetch("/api/auth/session", z.any()).catch(
+        (e) => e,
+      );
 
-    expect(failure).toBeInstanceOf(ApiError);
-    expect(failure.statusCode).toBe(401);
-    expect(failure.isUnauthenticated).toBe(true);
-    expect(failure.code).toBe("UNAUTHENTICATED");
-  });
+      expect(failure).toBeInstanceOf(ApiError);
+      expect(failure.statusCode).toBe(401);
+      expect(failure.isUnauthenticated).toBe(true);
+      expect(failure.code).toBe("UNAUTHENTICATED");
+    },
+  );
 
   it("does not treat a redirect on a data endpoint as unauthenticated — the session-only rule must not bleed out", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => redirectResponse(302)));

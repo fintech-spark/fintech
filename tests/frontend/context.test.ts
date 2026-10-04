@@ -42,6 +42,15 @@ describe("resolveMerchantContext", () => {
     expect(getSession).not.toHaveBeenCalled();
   });
 
+  it("treats an empty access-token cookie as unauthenticated without a network request", async () => {
+    mockCookieStore.set("sb-access-token", "");
+
+    const context = await resolveMerchantContext();
+
+    expect(context).toEqual({ status: "unauthenticated" });
+    expect(getSession).not.toHaveBeenCalled();
+  });
+
   it("attempts session resolution when sb-access-token cookie is present", async () => {
     mockCookieStore.set("sb-access-token", "valid-token");
     vi.mocked(getSession).mockResolvedValueOnce({
