@@ -71,6 +71,18 @@ export type MerchantContext =
  * session produces an honest screen instead of an error boundary.
  */
 export async function resolveMerchantContext(): Promise<MerchantContext> {
+  const cookieJar = await cookies();
+  const hasAccessToken = cookieJar.has("sb-access-token");
+  const hasScenario = cookieJar.has("mb_e2e_scenario");
+
+  // Fast path: if the caller presents no session cookie (and is not exercising
+  // a synthetic E2E scenario in tests), they are by definition unauthenticated.
+  // Skipping the HTTP round-trip prevents proxy/SSO loopback issues on deployment
+  // platforms (like Vercel preview protection) and eliminates an unnecessary hop.
+  if (!hasAccessToken && !hasScenario) {
+    return { status: "unauthenticated" };
+  }
+
   let session: WireSession;
   try {
     session = await getSession();
@@ -82,6 +94,11 @@ export async function resolveMerchantContext(): Promise<MerchantContext> {
       };
     }
     if (error instanceof ApiError && error.isUnauthenticated) {
+      return { status: "unauthenticated" };
+    }
+    // If the session check fails and there is no verified access token (and
+    // this is not an E2E scenario testing backend error), surface as unauthenticated.
+    if (!hasAccessToken && !hasScenario) {
       return { status: "unauthenticated" };
     }
     // A network or contract failure is not an auth state. Surface it as

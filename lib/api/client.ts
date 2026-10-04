@@ -206,12 +206,21 @@ export async function apiFetch<T>(
   const method = options.method ?? "GET";
 
   const requestHeaders = new Headers({ accept: "application/json" });
-  const cookieHeader = await sessionCookieHeader();
-  if (cookieHeader) requestHeaders.set("cookie", cookieHeader);
 
   const incoming = await headers();
   const correlationId = incoming.get("x-correlation-id");
   if (correlationId) requestHeaders.set("x-correlation-id", correlationId);
+
+  const bypassSecret =
+    process.env.VERCEL_AUTOMATION_BYPASS_SECRET ??
+    incoming.get("x-vercel-protection-bypass");
+  if (bypassSecret) {
+    requestHeaders.set("x-vercel-protection-bypass", bypassSecret);
+  }
+
+  const rawCookieHeader = incoming.get("cookie");
+  const cookieHeader = rawCookieHeader ?? (await sessionCookieHeader());
+  if (cookieHeader) requestHeaders.set("cookie", cookieHeader);
 
   if (options.body !== undefined) {
     requestHeaders.set("content-type", "application/json");
@@ -230,6 +239,7 @@ export async function apiFetch<T>(
       headers: requestHeaders,
       body: options.body === undefined ? undefined : JSON.stringify(options.body),
       cache: cacheMode,
+      redirect: "manual",
       ...(options.revalidateSeconds === undefined
         ? {}
         : { next: { revalidate: options.revalidateSeconds } }),
@@ -238,6 +248,25 @@ export async function apiFetch<T>(
     // We do not know whether the server received the request. Callers that
     // mutate must surface this as indeterminate, not failed.
     throw networkError(cause);
+  }
+
+  const isRedirect =
+    response.status === 301 ||
+    response.status === 302 ||
+    response.status === 303 ||
+    response.status === 307 ||
+    response.status === 308 ||
+    response.type === "opaqueredirect";
+
+  if (isRedirect && path.startsWith("/api/auth/session")) {
+    throw apiErrorFromBody(401, {
+      error: {
+        name: "AuthenticationError",
+        code: "UNAUTHENTICATED",
+        message: "Authentication required.",
+        statusCode: 401,
+      },
+    });
   }
 
   const body = await readBody(response);
