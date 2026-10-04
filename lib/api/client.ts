@@ -11,7 +11,7 @@
 //      explicitly by a named caller, never by accident.
 //   2. **No secret leakage.** No `NEXT_PUBLIC_` prefix, no token in a URL, no
 //      cookie forwarded to a third-party host. `assertInternalUrl` refuses to
-//      send the session anywhere but this origin.
+//      send the session to an origin this deployment did not name for itself.
 //   3. **Contract decoding.** Every response is validated with Zod. "Valid
 //      JSON is not trustworthy JSON" (AI_CONTEXT.md §10.4).
 
@@ -63,22 +63,82 @@ export interface RequestOptions {
 const ABSOLUTE_URL = /^[a-z][a-z0-9+.-]*:\/\//i;
 
 /**
+ * Normalises a base-URL environment value to `scheme://host[:port]`.
+ *
+ * `VERCEL_URL` arrives without a scheme, and an origin is all a base is used
+ * for here — the request path always wins in `new URL(path, base)`.
+ */
+function envOrigin(value: string | undefined): string | undefined {
+  const raw = value?.trim();
+  if (!raw) return undefined;
+  try {
+    return new URL(ABSOLUTE_URL.test(raw) ? raw : `https://${raw}`).origin;
+  } catch {
+    return undefined;
+  }
+}
+
+/** A loopback origin can only ever be the machine the process runs on. */
+function isLoopback(origin: string): boolean {
+  const host = new URL(origin).hostname;
+  return (
+    host === "localhost" ||
+    host === "127.0.0.1" ||
+    host === "::1" ||
+    host === "[::1]" ||
+    host === "0.0.0.0"
+  );
+}
+
+/**
+ * Every origin this deployment may forward the merchant's session to.
+ *
+ * Both are server-side configuration: the configured API base and the
+ * deployment URL Vercel injects for this build. Neither is read from a request,
+ * so a forged `Host` cannot move the cookie — which is the point of the check.
+ */
+export function allowedApiOrigins(
+  env: Readonly<Record<string, string | undefined>>,
+): readonly string[] {
+  const origins = [
+    envOrigin(env.API_INTERNAL_BASE_URL),
+    envOrigin(env.VERCEL_URL),
+  ];
+  return origins.filter((origin): origin is string => origin !== undefined);
+}
+
+/**
+ * Picks the origin the server-side fetcher calls.
+ *
+ * `API_INTERNAL_BASE_URL` wins when it can genuinely be this deployment's own
+ * origin. A loopback value never can be — on Vercel there is no local server to
+ * reach — so the injected deployment URL is used instead. With no configured
+ * base at all the client used to build a *relative* URL, which `fetch` cannot
+ * parse: every page then reported the data service as unreachable even though
+ * the API answered normally one path away.
+ */
+export function resolveApiOrigin(
+  env: Readonly<Record<string, string | undefined>>,
+): string | undefined {
+  const configured = envOrigin(env.API_INTERNAL_BASE_URL);
+  const deployment = envOrigin(env.VERCEL_URL);
+  if (configured && !(deployment !== undefined && isLoopback(configured))) {
+    return configured;
+  }
+  return deployment ?? configured;
+}
+
+/**
  * Refuses to forward the merchant's session cookie off-origin. A configurable
- * base URL is a genuine SSRF / session-leak vector, so it must be explicit.
+ * base URL is a genuine SSRF / session-leak vector, so only origins this
+ * deployment named for itself are acceptable.
  */
 function assertInternalUrl(url: string): void {
   if (!ABSOLUTE_URL.test(url)) return; // relative → same origin, safe
-  const configured = process.env.API_INTERNAL_BASE_URL;
-  if (!configured) {
+  const origin = new URL(url).origin;
+  if (!allowedApiOrigins(process.env).includes(origin)) {
     throw contractError(
-      "Refusing to call an absolute API URL: set API_INTERNAL_BASE_URL to this deployment's own origin.",
-    );
-  }
-  const target = new URL(url);
-  const allowed = new URL(configured);
-  if (target.origin !== allowed.origin) {
-    throw contractError(
-      `Refusing to forward the session cookie to ${target.origin}.`,
+      `Refusing to forward the session cookie to ${origin}. Set API_INTERNAL_BASE_URL to this deployment's own origin.`,
     );
   }
 }
@@ -94,25 +154,29 @@ async function sessionCookieHeader(): Promise<string> {
 function buildUrl(
   path: string,
   query: RequestOptions["query"],
-  baseUrl: string | undefined,
+  baseUrl: string,
 ): string {
   assertInternalUrl(path);
-  const url = new URL(path, baseUrl ?? "http://127.0.0.1");
+  const url = new URL(path, baseUrl);
   for (const [key, value] of Object.entries(query ?? {})) {
     if (value === undefined || value === "") continue;
     url.searchParams.set(key, String(value));
   }
-  return baseUrl ? url.toString() : `${url.pathname}${url.search}`;
+  return url.toString();
 }
 
-async function baseUrl(): Promise<string | undefined> {
-  // A same-origin relative fetch in a Server Component needs no base. When an
-  // internal base is configured we use it so the request leaves the server as
-  // a real HTTP call rather than a self-fetch.
-  const configured = process.env.API_INTERNAL_BASE_URL;
-  if (!configured) return undefined;
-  assertInternalUrl(configured);
-  return configured;
+async function baseUrl(): Promise<string> {
+  // A real origin is mandatory: `fetch` rejects a relative URL outright, so a
+  // missing base surfaces as an opaque network failure rather than a message
+  // that says what to configure.
+  const origin = resolveApiOrigin(process.env);
+  if (!origin) {
+    throw contractError(
+      "No API origin: set API_INTERNAL_BASE_URL to this deployment's own origin.",
+    );
+  }
+  assertInternalUrl(origin);
+  return origin;
 }
 
 async function readBody(response: Response): Promise<unknown> {

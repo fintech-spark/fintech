@@ -159,8 +159,10 @@ implement the one live review → approve → execute path. The rules:
   rejected, not stored. The cookie is a preference, not an authorisation.
 - Every read is `no-store`. There is no cached tenant fragment for a business
   switch to reveal.
-- `assertInternalUrl` refuses to forward the session cookie to any origin other
-  than `API_INTERNAL_BASE_URL`.
+- `assertInternalUrl` refuses to forward the session cookie to any origin the
+  deployment did not name for itself: `API_INTERNAL_BASE_URL`, or the
+  `VERCEL_URL` Vercel injects for the build. Neither is read from the request,
+  so a forged `Host` cannot move the cookie.
 - `tests/e2e/navigation.spec.ts` proves a `?businessId=` in the URL never
   reaches a request.
 
