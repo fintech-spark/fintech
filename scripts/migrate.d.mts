@@ -23,3 +23,8 @@ export interface DriftEntry {
 }
 
 export function findDrift(applied: AppliedMigration[], onDisk: MigrationFile[]): DriftEntry[];
+
+export function syncFromSupabaseMigrations(
+  client: { query: (sql: string, params?: unknown[]) => Promise<{ rows?: unknown[]; rowCount?: number | null }> },
+  allMigrations: MigrationFile[]
+): Promise<number>;

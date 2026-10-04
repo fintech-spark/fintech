@@ -82,6 +82,60 @@ async function getAppliedMigrations(client) {
   return result.rows;
 }
 
+/**
+ * Reconciles applied migrations from Supabase CLI's internal tracking table
+ * (supabase_migrations.schema_migrations) when migrations were applied by
+ * `supabase start` or `supabase db reset`. Prevents duplicate application.
+ */
+async function syncFromSupabaseMigrations(client, allMigrations) {
+  try {
+    const tableCheck = await client.query(`
+      SELECT 1 FROM information_schema.tables
+      WHERE table_schema = 'supabase_migrations' AND table_name = 'schema_migrations'
+    `);
+    if (!tableCheck.rows || tableCheck.rows.length === 0) {
+      return 0;
+    }
+
+    const { rows: supabaseRows } = await client.query(
+      'SELECT version FROM supabase_migrations.schema_migrations'
+    );
+    if (!supabaseRows || supabaseRows.length === 0) {
+      return 0;
+    }
+
+    const appliedVersions = new Set(supabaseRows.map((r) => String(r.version)));
+    let synced = 0;
+
+    for (const migration of allMigrations) {
+      const version = migration.filename.split('_')[0];
+      const matches =
+        appliedVersions.has(version) ||
+        appliedVersions.has(migration.filename) ||
+        appliedVersions.has(migration.filename.replace(/\.sql$/, ''));
+
+      if (matches) {
+        const result = await client.query(
+          `INSERT INTO _migrations (filename, checksum)
+           VALUES ($1, $2)
+           ON CONFLICT (filename) DO NOTHING`,
+          [migration.filename, migration.checksum]
+        );
+        if ((result.rowCount ?? 0) > 0) {
+          synced++;
+        }
+      }
+    }
+
+    if (synced > 0) {
+      console.log(`Synced ${synced} migration(s) from supabase_migrations history.`);
+    }
+    return synced;
+  } catch {
+    return 0;
+  }
+}
+
 async function getPendingMigrations() {
   const files = await readdir(MIGRATIONS_DIR);
   const sqlFiles = files.filter((f) => f.endsWith('.sql')).sort();
@@ -184,9 +238,10 @@ async function runMigrations(pool) {
 
   try {
     await ensureMigrationsTable(client);
+    const allMigrations = await getPendingMigrations();
+    await syncFromSupabaseMigrations(client, allMigrations);
     const applied = await getAppliedMigrations(client);
     const appliedSet = new Set(applied.map((r) => r.filename));
-    const allMigrations = await getPendingMigrations();
 
     const drift = findDrift(applied, allMigrations);
     reportDrift(drift);
@@ -235,9 +290,10 @@ async function showStatus(pool) {
 
   try {
     await ensureMigrationsTable(client);
+    const allMigrations = await getPendingMigrations();
+    await syncFromSupabaseMigrations(client, allMigrations);
     const applied = await getAppliedMigrations(client);
     const appliedSet = new Set(applied.map((r) => r.filename));
-    const allMigrations = await getPendingMigrations();
     const drift = findDrift(applied, allMigrations);
     const driftByName = new Map(drift.map((d) => [d.filename, d]));
 
@@ -275,7 +331,7 @@ async function showStatus(pool) {
 
 // Run the CLI only when executed directly, so tests can import the integrity
 // rules without opening a database connection.
-export { findDrift };
+export { findDrift, syncFromSupabaseMigrations };
 
 if (pathToFileURL(process.argv[1] ?? '').href === import.meta.url) {
   main().catch((error) => {

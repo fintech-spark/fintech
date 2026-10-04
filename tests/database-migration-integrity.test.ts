@@ -9,8 +9,8 @@
 // blocking (three migrations in this project are such rows).
 
 import { createHash } from 'node:crypto';
-import { describe, expect, it } from 'vitest';
-import { findDrift } from '../scripts/migrate.mjs';
+import { describe, expect, it, vi } from 'vitest';
+import { findDrift, syncFromSupabaseMigrations } from '../scripts/migrate.mjs';
 
 function file(name: string, contents: string) {
   return {
@@ -62,5 +62,52 @@ describe('findDrift', () => {
     const onDisk = [...applied, file('20261002000001_core_tables.sql', 'CREATE TABLE businesses ();')];
 
     expect(findDrift(applied, onDisk)).toEqual([]);
+  });
+});
+
+describe('syncFromSupabaseMigrations', () => {
+  it('synchronizes migrations when supabase_migrations.schema_migrations exists', async () => {
+    const inserted: [string, string][] = [];
+    const mockClient = {
+      query: vi.fn(async (sql: string, params?: unknown[]) => {
+        if (sql.includes('information_schema.tables')) {
+          return { rows: [{ '1': 1 }], rowCount: 1 };
+        }
+        if (sql.includes('supabase_migrations.schema_migrations')) {
+          return { rows: [{ version: '20261002000001' }], rowCount: 1 };
+        }
+        if (sql.includes('INSERT INTO _migrations')) {
+          inserted.push([params![0] as string, params![1] as string]);
+          return { rowCount: 1 };
+        }
+        return { rows: [], rowCount: 0 };
+      }),
+    };
+
+    const onDisk = [
+      file('20261002000001_core_tables.sql', 'CREATE TABLE businesses ();'),
+      file('20261002000002_indexes.sql', 'CREATE INDEX idx_1;'),
+    ];
+
+    const synced = await syncFromSupabaseMigrations(mockClient, onDisk);
+    expect(synced).toBe(1);
+    expect(inserted).toHaveLength(1);
+    expect(inserted[0][0]).toBe('20261002000001_core_tables.sql');
+    expect(inserted[0][1]).toBe(onDisk[0].checksum);
+  });
+
+  it('returns 0 safely when supabase_migrations table is absent', async () => {
+    const mockClient = {
+      query: vi.fn(async (sql: string) => {
+        if (sql.includes('information_schema.tables')) {
+          return { rows: [], rowCount: 0 };
+        }
+        return { rows: [], rowCount: 0 };
+      }),
+    };
+
+    const onDisk = [file('20261002000001_core_tables.sql', 'CREATE TABLE businesses ();')];
+    const synced = await syncFromSupabaseMigrations(mockClient, onDisk);
+    expect(synced).toBe(0);
   });
 });
