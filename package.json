@@ -73,5 +73,9 @@
   },
   "overrides": {
     "braces": "^3.0.3"
+  },
+  "allowScripts": {
+    "unrs-resolver@1.12.2": true,
+    "fsevents@2.3.3": true
   }
 }

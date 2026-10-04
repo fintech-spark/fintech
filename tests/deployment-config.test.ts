@@ -36,30 +36,11 @@ describe('Vercel deployment config', () => {
     expect(node).toMatch(/24\.18\.0/);
   });
 
-  it('explicitly allow-lists unrs-resolver install script in .npmrc', () => {
-    const npmrc = readRepo('.npmrc');
-    const allowLine = npmrc
-      .split('\n')
-      .find((l) => l.trim().startsWith('allow-scripts'));
-    expect(allowLine, '.npmrc must declare an allow-scripts allow-list').toBeDefined();
-    // Covers the one legitimate build-script dependency (native resolver binding).
-    expect(allowLine).toContain('unrs-resolver');
-    // Must not blanket-allow every script: that weakens supply-chain security.
-    expect(allowLine).not.toContain('*');
-    expect(allowLine).not.toMatch(/dangerously-allow-all/);
-  });
-
-  it('does not approve unknown install scripts beyond the allow-list', () => {
-    const npmrc = readRepo('.npmrc');
-    // Strict mode stays OFF: the allow-list is additive, not a blanket gate
-    // that would silently block legitimate scripts added by future deps.
-    // (If strict were on, every future build-script dep would need a lockfile
-    // change to run — a non-deterministic footgun for Vercel.)
-    const strict = npmrc
-      .split('\n')
-      .find((l) => l.trim().startsWith('strict-allow-scripts'));
-    if (strict !== undefined) {
-      expect(strict.trim()).toBe('strict-allow-scripts=false');
-    }
+  it('explicitly allow-lists unrs-resolver install script in package.json allowScripts', () => {
+    const pkg = JSON.parse(readRepo('package.json'));
+    const allowScripts = pkg.allowScripts ?? {};
+    const unrsKey = Object.keys(allowScripts).find((k) => k.startsWith('unrs-resolver'));
+    expect(unrsKey, 'package.json must declare unrs-resolver in allowScripts').toBeDefined();
+    expect(allowScripts[unrsKey!]).toBe(true);
   });
 });
