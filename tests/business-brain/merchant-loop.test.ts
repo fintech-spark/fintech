@@ -190,4 +190,49 @@ describe('Business Brain — End-to-End Merchant Loop ("Why did my profit fall l
     expect(result.message).toContain('Note:');
     expect(result.metadata.modelUsed).toBe('deterministic-grounding');
   });
+
+  it('wireBusinessBrain supports RAG retriever wiring and executes retrieval', async () => {
+    const { wireBusinessBrain } = await import('@/lib/ai/composition');
+    const mockRetriever = {
+      retrieve: vi.fn(async () => ({
+        chunks: [
+          {
+            chunk: {
+              id: 'doc-chunk-1',
+              businessId: BUSINESS_A,
+              documentId: 'doc-1' as never,
+              sourceId: 'doc-1',
+              sourceType: 'invoice' as const,
+              content: 'Supplier surcharge of 15% applied to delivery charges',
+              metadata: {
+                chunkIndex: 0,
+                totalChunks: 1,
+                chunkerVersion: 'v1',
+                charStart: 0,
+                charEnd: 54,
+              },
+              createdAt: new Date(),
+            },
+            score: 0.88,
+          },
+        ],
+        suppressed: { belowThreshold: 0, duplicates: 0, overBudget: 0 },
+        retrievedAt: new Date().toISOString(),
+      })),
+    };
+
+    const { brain } = wireBusinessBrain(BUSINESS_A, { retriever: mockRetriever as never });
+    const tenantCtx = tenantFor(BUSINESS_A);
+
+    const result = await brain.query(tenantCtx, {
+      businessId: BUSINESS_A,
+      userId: tenantCtx.userId,
+      sessionId: 'session-rag-test',
+      message: 'Why did my supplier charges increase?',
+    });
+
+    expect(mockRetriever.retrieve).toHaveBeenCalledTimes(1);
+    expect(result.evidence.some((e) => e.type === 'rag_document')).toBe(true);
+    expect(result.metadata.ragContextUsed).toBe(true);
+  });
 });

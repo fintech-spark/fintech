@@ -297,6 +297,11 @@ export interface DocumentEmbeddingRow {
   content: string;
   metadata: unknown;
   embedding: number[] | string | null;
+  chunk_index: number | null;
+  total_chunks: number | null;
+  chunker_version: string | null;
+  embedding_model: string | null;
+  content_hash: string | null;
   created_at: Date;
 }
 
@@ -316,6 +321,7 @@ export interface ProfitLeakRow {
   impact_period: string;
   evidence: unknown;
   status: string;
+  detail: unknown;
   detected_at: Date;
   resolved_at: Date | null;
   updated_at: Date;
@@ -344,6 +350,7 @@ export interface ScenarioRow {
   projected: unknown;
   comparison: unknown;
   status: string;
+  detail: unknown;
   created_at: Date;
 }
 
@@ -361,6 +368,8 @@ export interface ActionRow {
   source: string;
   parameters: unknown;
   result: unknown;
+  currency: string;
+  detail: unknown;
   idempotency_key: string | null;
   created_by: string;
   approved_by: string | null;
@@ -373,7 +382,18 @@ export interface ActionRow {
 export interface ActionLogRow {
   id: string;
   action_id: string;
-  status: string;
+  business_id: string;
+  from_status: string | null;
+  to_status: string;
+  outcome: string;
+  actor_id: string | null;
+  actor_role: string;
+  actor_is_machine: boolean;
+  reason: string | null;
+  parameters_hash: string;
+  executor_id: string | null;
+  idempotency_key: string | null;
+  correlation_id: string;
   message: string | null;
   metadata: unknown;
   created_at: Date;

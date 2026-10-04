@@ -313,6 +313,111 @@ describe('Database Schema — Money Representation', () => {
   });
 });
 
+describe('Database Row Type Synchronisation', () => {
+  it('defines synchronized ActionLogRow without legacy status column and with audit columns', () => {
+    const row: import('@/database/rows').ActionLogRow = {
+      id: 'id-1',
+      action_id: 'act-1',
+      business_id: 'biz-1',
+      from_status: null,
+      to_status: 'proposed',
+      outcome: 'allowed',
+      actor_id: null,
+      actor_role: 'owner',
+      actor_is_machine: false,
+      reason: null,
+      parameters_hash: 'hash-1',
+      executor_id: null,
+      idempotency_key: null,
+      correlation_id: 'corr-1',
+      message: null,
+      metadata: null,
+      created_at: new Date(),
+    };
+    expect(row.action_id).toBe('act-1');
+    expect(row.business_id).toBe('biz-1');
+    expect(row.parameters_hash).toBe('hash-1');
+  });
+
+  it('defines DocumentEmbeddingRow with chunk provenance columns', () => {
+    const row: import('@/database/rows').DocumentEmbeddingRow = {
+      id: 'id-1',
+      business_id: 'biz-1',
+      document_id: 'doc-1',
+      content: 'hello',
+      metadata: {},
+      embedding: null,
+      chunk_index: 0,
+      total_chunks: 1,
+      chunker_version: 'v1',
+      embedding_model: 'text-embedding-3-small',
+      content_hash: 'hash-1',
+      created_at: new Date(),
+    };
+    expect(row.chunk_index).toBe(0);
+    expect(row.content_hash).toBe('hash-1');
+  });
+
+  it('defines ProfitLeakRow, ScenarioRow, and ActionRow with detail and currency columns', () => {
+    const leak: import('@/database/rows').ProfitLeakRow = {
+      id: 'leak-1',
+      business_id: 'biz-1',
+      category: 'cogs',
+      severity: 'high',
+      title: 'Leak',
+      description: 'Desc',
+      impact_minor: 100,
+      currency: 'INR',
+      impact_period: 'monthly',
+      evidence: {},
+      status: 'active',
+      detail: { calculation: 'foo' },
+      detected_at: new Date(),
+      resolved_at: null,
+      updated_at: new Date(),
+    };
+    expect(leak.detail).toBeDefined();
+
+    const scenario: import('@/database/rows').ScenarioRow = {
+      id: 'sc-1',
+      business_id: 'biz-1',
+      name: 'Scenario',
+      description: null,
+      parameters: {},
+      baseline: {},
+      projected: {},
+      comparison: {},
+      status: 'completed',
+      detail: {},
+      created_at: new Date(),
+    };
+    expect(scenario.detail).toBeDefined();
+
+    const action: import('@/database/rows').ActionRow = {
+      id: 'act-1',
+      business_id: 'biz-1',
+      type: 'adjust_price',
+      title: 'Action',
+      description: 'Desc',
+      status: 'proposed',
+      source: 'manual',
+      parameters: {},
+      result: null,
+      currency: 'INR',
+      detail: {},
+      idempotency_key: null,
+      created_by: 'usr-1',
+      approved_by: null,
+      approved_at: null,
+      executed_at: null,
+      created_at: new Date(),
+      updated_at: new Date(),
+    };
+    expect(action.currency).toBe('INR');
+    expect(action.detail).toBeDefined();
+  });
+});
+
 // ---------------------------------------------------------------------------
 // Helper: extract the CREATE TABLE ... ); block for a given table name
 // ---------------------------------------------------------------------------

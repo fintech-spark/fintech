@@ -312,10 +312,15 @@ export class DefaultExtractionService implements ExtractionService {
     document: Document,
     file: ValidatedFile,
     bytes: Buffer,
-    _family: ExtractionSchemaFamily,
+    family: ExtractionSchemaFamily,
   ): CompletionRequest {
-    void _family;
     const systemPrompt = buildExtractionSystemPrompt(document.sourceType);
+    const schema =
+      family === 'invoice'
+        ? InvoiceExtractionSchema
+        : family === 'expense'
+          ? ExpenseExtractionSchema
+          : OrderExtractionSchema;
 
     // Text-like inputs go as text; images and PDFs go to the multimodal path so
     // visual documents are not degraded through lossy OCR. The attachment is
@@ -343,7 +348,7 @@ export class DefaultExtractionService implements ExtractionService {
       model: this.config.model,
       systemPrompt,
       messages: [{ role: 'user', content: userContent }],
-      // No tools. The extraction model has no side-effect surface.
+      schema,
       responseFormat: 'json',
     };
   }

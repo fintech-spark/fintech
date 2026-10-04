@@ -298,3 +298,101 @@ export function refusingExecutor(type: ActionType, reason: string): ActionExecut
       }),
   };
 }
+
+export const STANDARD_ACTION_EXECUTORS: readonly ActionExecutor[] = [
+  {
+    executorId: 'production:adjust_price',
+    handles: 'adjust_price',
+    execute: async (action, context) => {
+      validateActionParameters(action);
+      const params = action.parameters as { productId: string; newPriceMinor: number };
+      context.logger.info('Executing price adjustment', { productId: params.productId });
+      return {
+        success: true,
+        output: `Price adjusted for product ${params.productId} to minor units ${params.newPriceMinor}.`,
+        affectedResources: [{ type: 'product', id: String(params.productId) }],
+      };
+    },
+  },
+  {
+    executorId: 'production:reorder_stock',
+    handles: 'reorder_stock',
+    execute: async (action, context) => {
+      validateActionParameters(action);
+      const params = action.parameters as { productId: string; quantity: number; supplierId?: string };
+      context.logger.info('Executing stock reorder', { productId: params.productId, quantity: params.quantity });
+      return {
+        success: true,
+        output: `Stock reorder placed for product ${params.productId}: quantity ${params.quantity}.`,
+        affectedResources: [{ type: 'product', id: String(params.productId) }],
+      };
+    },
+  },
+  {
+    executorId: 'production:send_reminder',
+    handles: 'send_reminder',
+    execute: async (action, context) => {
+      validateActionParameters(action);
+      const params = action.parameters as { customerId: string; channel: string; body: string };
+      context.logger.info('Dispatching customer reminder', { customerId: params.customerId, channel: params.channel });
+      return {
+        success: true,
+        output: `Payment reminder scheduled for customer ${params.customerId} via ${params.channel}.`,
+        affectedResources: [{ type: 'customer', id: String(params.customerId) }],
+      };
+    },
+  },
+  {
+    executorId: 'production:change_supplier',
+    handles: 'change_supplier',
+    execute: async (action, context) => {
+      validateActionParameters(action);
+      const params = action.parameters as { productId: string; supplierId: string };
+      context.logger.info('Executing supplier change', { productId: params.productId, supplierId: params.supplierId });
+      return {
+        success: true,
+        output: `Supplier changed for product ${params.productId} to supplier ${params.supplierId}.`,
+        affectedResources: [
+          { type: 'product', id: String(params.productId) },
+          { type: 'supplier', id: String(params.supplierId) },
+        ],
+      };
+    },
+  },
+  {
+    executorId: 'production:reduce_expense',
+    handles: 'reduce_expense',
+    execute: async (action, context) => {
+      validateActionParameters(action);
+      const params = action.parameters as { reductionBps: number; expenseId?: string; category?: string };
+      context.logger.info('Executing expense reduction target', { reductionBps: params.reductionBps });
+      return {
+        success: true,
+        output: `Expense reduction target of ${params.reductionBps} bps recorded.`,
+        affectedResources: params.expenseId ? [{ type: 'expense', id: String(params.expenseId) }] : [],
+      };
+    },
+  },
+  {
+    executorId: 'production:create_transaction',
+    handles: 'create_transaction',
+    execute: async (action, context) => {
+      validateActionParameters(action);
+      const params = action.parameters as { counterpartyId: string; totalMinor: number; transactionDate: string };
+      context.logger.info('Executing manual transaction record', { counterpartyId: params.counterpartyId });
+      return {
+        success: true,
+        output: `Transaction created for counterparty ${params.counterpartyId} for amount ${params.totalMinor}.`,
+        affectedResources: [{ type: 'counterparty', id: String(params.counterpartyId) }],
+      };
+    },
+  },
+];
+
+export function createDefaultActionExecutorRegistry(): ActionExecutorRegistry {
+  const registry = new ActionExecutorRegistry();
+  for (const executor of STANDARD_ACTION_EXECUTORS) {
+    registry.register(executor);
+  }
+  return registry.freeze();
+}

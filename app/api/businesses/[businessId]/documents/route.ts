@@ -1,7 +1,7 @@
 import { withApi } from '@/lib/http/handler';
 import { parseJsonBody, parsePagination, parseEnum, parseSearch } from '@/lib/http/params';
 import { createDocumentSchema } from '@/lib/validation/api-schemas';
-import { resolveTenantContext } from '@/lib/http/auth-context';
+import { assertPermission, resolveTenantContext } from '@/lib/http/auth-context';
 import { wireClient } from '@/lib/http/wiring';
 
 /**
@@ -15,6 +15,7 @@ segment is the authenticated business id.
  */
 export const POST = withApi(async (request: Request, route) => {
   const { ctx, db } = await resolveTenantContext(request, route.params.businessId);
+  assertPermission(ctx, 'documents:write');
   const services = wireClient(db);
   const body = await parseJsonBody(request, createDocumentSchema);
   return {
@@ -38,6 +39,7 @@ export const POST = withApi(async (request: Request, route) => {
  */
 export const GET = withApi(async (request: Request, route) => {
   const { ctx, db } = await resolveTenantContext(request, route.params.businessId);
+  assertPermission(ctx, 'documents:read');
   const services = wireClient(db);
   const sp = new URL(request.url).searchParams;
   const pagination = parsePagination(sp);

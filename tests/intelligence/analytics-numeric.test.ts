@@ -4,6 +4,8 @@ import {
   applyBpsToMinorUnits,
   assertMinorUnits,
   bpsToPercent,
+  calculateChangeBps,
+  calculateMarginBps,
   changeBps,
   clamp,
   endOfReportingDay,
@@ -71,17 +73,47 @@ describe('rates and ratios', () => {
     expect(ratioBps(0, 0)).toBeUndefined();
     expect(ratioBps(500, 0)).toBeUndefined();
     expect(marginBps(0, 0)).toBeUndefined();
+    expect(marginBps(500, 0)).toBeUndefined();
+    expect(calculateMarginBps(500, 0)).toBe(0);
+    expect(calculateMarginBps(0, 0)).toBe(0);
+  });
+
+  it('handles negative profit and revenue explicitly in margin calculations', () => {
+    // Loss on positive revenue: 200 loss on 1000 revenue = -2000 bps (-20%)
+    expect(marginBps(-200, 1_000)).toBe(-2_000);
+    expect(calculateMarginBps(-200, 1_000)).toBe(-2_000);
+
+    // Zero profit on positive revenue = 0 bps (0%)
+    expect(marginBps(0, 1_000)).toBe(0);
+    expect(calculateMarginBps(0, 1_000)).toBe(0);
+
+    // Positive profit on negative revenue (returns negative ratio)
+    expect(marginBps(200, -1_000)).toBe(-2_000);
+    expect(calculateMarginBps(200, -1_000)).toBe(-2_000);
+
+    // Negative profit on negative revenue (double negative = positive ratio)
+    expect(marginBps(-200, -1_000)).toBe(2_000);
+    expect(calculateMarginBps(-200, -1_000)).toBe(2_000);
+
+    // Non-finite cases return undefined
+    expect(marginBps(Number.NaN, 1_000)).toBeUndefined();
+    expect(marginBps(100, Number.POSITIVE_INFINITY)).toBeUndefined();
+    expect(calculateMarginBps(Number.NaN, 1_000)).toBe(0);
   });
 
   it('reports a signed change against the magnitude of the baseline', () => {
     expect(changeBps(120, 100)).toBe(2_000);
     expect(changeBps(80, 100)).toBe(-2_000);
     expect(changeBps(50, -100)).toBe(15_000);
+    expect(calculateChangeBps(120, 100)).toBe(2_000);
+    expect(calculateChangeBps(80, 100)).toBe(-2_000);
   });
 
-  it('leaves a change from a zero baseline undefined', () => {
+  it('leaves a change from a zero baseline undefined in changeBps and defined in calculateChangeBps', () => {
     expect(changeBps(500, 0)).toBeUndefined();
     expect(changeBps(0, 0)).toBeUndefined();
+    expect(calculateChangeBps(500, 0)).toBe(10_000);
+    expect(calculateChangeBps(0, 0)).toBe(0);
   });
 
   it('converts between percentages and bps without drift', () => {

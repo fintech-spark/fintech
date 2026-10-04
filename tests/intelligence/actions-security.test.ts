@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import { hasPermission } from '@/lib/http/auth-context';
+import type { UserRole } from '@/lib/types';
 import {
   ACTION_PARAMETER_SPECS,
   ACTION_STATUS_TRANSITIONS,
@@ -96,9 +98,12 @@ describe('approval authority', () => {
     expect(canApprove('staff')).toBe(false);
   });
 
-  it('does not let staff execute', () => {
+  it('lets only owner execute', () => {
+    expect(canExecute('owner')).toBe(true);
+    expect(canExecute('admin')).toBe(false);
+    expect(canExecute('manager')).toBe(false);
+    expect(canExecute('accountant')).toBe(false);
     expect(canExecute('staff')).toBe(false);
-    expect(canExecute('accountant')).toBe(true);
   });
 
   it('classifies action types by risk', () => {
@@ -322,6 +327,75 @@ describe('action parameter validation', () => {
   it('declares a schema for every action type', () => {
     for (const type of Object.keys(ACTION_PARAMETER_SPECS) as ActionType[]) {
       expect(ACTION_PARAMETER_SPECS[type]).toBeDefined();
+    }
+  });
+});
+
+describe('createDefaultActionExecutorRegistry', () => {
+  it('registers all standard action types and freezes the registry', async () => {
+    const { createDefaultActionExecutorRegistry, STANDARD_ACTION_EXECUTORS } = await import('@/modules/actions');
+    const registry = createDefaultActionExecutorRegistry();
+
+    expect(STANDARD_ACTION_EXECUTORS.length).toBe(6);
+    expect(registry.size).toBe(6);
+    expect(registry.has('adjust_price')).toBe(true);
+    expect(registry.has('reorder_stock')).toBe(true);
+    expect(registry.has('send_reminder')).toBe(true);
+    expect(registry.has('change_supplier')).toBe(true);
+    expect(registry.has('reduce_expense')).toBe(true);
+    expect(registry.has('create_transaction')).toBe(true);
+
+    // Verify it is frozen against runtime mutation
+    expect(() =>
+      registry.register({
+        executorId: 'malicious:runtime_injected',
+        handles: 'adjust_price',
+        execute: async () => ({ success: true, output: 'hacked' }),
+      }),
+    ).toThrow(/frozen/i);
+
+    // Verify execution for an executor
+    const reminderExecutor = registry.resolve('send_reminder');
+    expect(reminderExecutor).toBeDefined();
+    const outcome = await reminderExecutor!.execute(
+      {
+        id: 'act-1' as never,
+        businessId: 'biz-1' as never,
+        type: 'send_reminder',
+        title: 'Send reminder',
+        description: 'Overdue invoice reminder',
+        status: 'approved',
+        source: 'manual',
+        createdBy: 'usr-1' as never,
+        currency: 'INR',
+        parameters: { customerId: 'cust-1', channel: 'email', body: 'Please pay invoice' },
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+      {
+        tenant: { businessId: 'biz-1' as never, userId: 'usr-1' as never, role: 'owner', correlationId: 'c1' },
+        correlationId: 'c1',
+        logger: { debug: () => {}, info: () => {}, warn: () => {} },
+        machineProposed: false,
+      },
+    );
+    expect(outcome.success).toBe(true);
+    expect(outcome.output).toContain('Payment reminder');
+  });
+});
+
+describe('role matrix consistency', () => {
+  const allRoles: UserRole[] = ['owner', 'admin', 'manager', 'accountant', 'staff'];
+
+  it('aligns canExecute with auth-context actions:execute permission', () => {
+    for (const role of allRoles) {
+      expect(canExecute(role)).toBe(hasPermission(role, 'actions:execute'));
+    }
+  });
+
+  it('aligns canApprove with auth-context actions:approve permission', () => {
+    for (const role of allRoles) {
+      expect(canApprove(role)).toBe(hasPermission(role, 'actions:approve'));
     }
   });
 });

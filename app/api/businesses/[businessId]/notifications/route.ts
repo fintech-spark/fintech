@@ -1,6 +1,6 @@
 import { withApi } from '@/lib/http/handler';
 import { parseEnum, parsePagination } from '@/lib/http/params';
-import { resolveTenantContext } from '@/lib/http/auth-context';
+import { assertPermission, resolveTenantContext } from '@/lib/http/auth-context';
 import { wireIntelligence } from '@/lib/http/wiring';
 
 const NOTIFICATION_TYPES = [
@@ -22,6 +22,7 @@ const NOTIFICATION_STATUSES = ['unread', 'read', 'dismissed'] as const;
  */
 export const GET = withApi(async (request: Request, route) => {
   const { ctx } = await resolveTenantContext(request, route.params.businessId);
+  assertPermission(ctx, 'actions:read');
   const { notifications } = wireIntelligence(ctx.businessId);
   const sp = new URL(request.url).searchParams;
   const pagination = parsePagination(sp);
@@ -52,6 +53,7 @@ export const GET = withApi(async (request: Request, route) => {
  */
 export const POST = withApi(async (request: Request, route) => {
   const { ctx } = await resolveTenantContext(request, route.params.businessId);
+  assertPermission(ctx, 'actions:read');
   const { notifications } = wireIntelligence(ctx.businessId);
   await notifications.markAllAsRead(ctx);
   return { status: 200, data: { success: true } };

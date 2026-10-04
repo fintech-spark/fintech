@@ -1,4 +1,4 @@
-import type { BusinessId } from '@/lib/types';
+import type { BusinessId, UserId } from '@/lib/types';
 import { getDatabaseClient } from '@/lib/database';
 import { PostgresAnalyticsService } from '@/modules/analytics/application/postgres-analytics-service';
 import { PostgresAnalyticsRepository } from '@/modules/analytics/infrastructure/postgres-analytics-repository';
@@ -11,8 +11,14 @@ import { PostgresSimulatorService } from '@/modules/simulator/application/postgr
 import { PostgresScenarioRepository } from '@/modules/simulator/infrastructure/postgres-scenario-repository';
 import { PostgresActionService } from '@/modules/actions/application/postgres-action-service';
 import { PostgresActionRepository } from '@/modules/actions/infrastructure/postgres-action-repository';
-import { ActionExecutorRegistry } from '@/modules/actions/domain/executors';
-import { PostgresNotificationService, PostgresNotificationRepository } from '@/modules/notifications';
+import { createDefaultActionExecutorRegistry } from '@/modules/actions';
+import {
+  PostgresNotificationService,
+  PostgresNotificationRepository,
+  subscribeIntelligenceAlerts,
+  type AlertSink,
+  type AlertRecipientResolver,
+} from '@/modules/notifications';
 import { systemClock } from '@/lib/clock';
 import { eventBus } from '@/lib/events';
 
@@ -112,7 +118,7 @@ export function wireIntelligence(businessId: BusinessId): WiredIntelligence {
     analytics,
     systemClock,
   );
-  const registry = new ActionExecutorRegistry();
+  const registry = createDefaultActionExecutorRegistry();
   const actions = new PostgresActionService(
     new PostgresActionRepository(tenantDb),
     registry,
@@ -122,6 +128,52 @@ export function wireIntelligence(businessId: BusinessId): WiredIntelligence {
   const notifications = new PostgresNotificationService(
     new PostgresNotificationRepository(tenantDb),
   );
+
+  const alertSink: AlertSink = {
+    deliver: async (alert) => {
+      await notifications.send(
+        {
+          businessId,
+          userId: alert.userId,
+          role: 'owner',
+          correlationId: alert.dedupeKey,
+        },
+        {
+          userId: alert.userId,
+          type: alert.type,
+          title: alert.title,
+          message: alert.message,
+          severity: alert.severity,
+          actionUrl: alert.actionUrl,
+          metadata: {
+            referenceId: alert.referenceId,
+            dedupeKey: alert.dedupeKey,
+          },
+        },
+      );
+    },
+  };
+
+  const recipientResolver: AlertRecipientResolver = {
+    resolveRecipients: async (bizId) => {
+      try {
+        const rows = await tenantDb.query<{ user_id: string }>(
+          'SELECT user_id FROM business_members WHERE business_id = $1 AND role IN ($2, $3, $4)',
+          [bizId, 'owner', 'admin', 'manager'],
+        );
+        return rows.map((r) => r.user_id as UserId);
+      } catch {
+        return [];
+      }
+    },
+  };
+
+  subscribeIntelligenceAlerts({
+    bus: eventBus,
+    sink: alertSink,
+    recipients: recipientResolver,
+    now: () => systemClock.now(),
+  });
 
   return {
     analytics,

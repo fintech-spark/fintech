@@ -6,6 +6,8 @@ const BIZ_B = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
 const USER_ID = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
 const ACTION_ID = "11111111-1111-4111-8111-111111111111";
 
+let currentMemberRole = "owner";
+
 vi.mock("@/lib/supabase/server-client", () => ({
   createServerClient: vi.fn(() => ({
     auth: {
@@ -30,20 +32,20 @@ vi.mock("@/lib/supabase/server-client", () => ({
       }
       builder.single = vi.fn(async () => ({
         data: table === "business_members"
-          ? { business_id: BIZ_A, user_id: USER_ID, role: "owner", status: "active" }
+          ? { business_id: BIZ_A, user_id: USER_ID, role: currentMemberRole, status: "active" }
           : null,
         error: null,
       }));
       builder.maybeSingle = vi.fn(async () => ({
         data: table === "business_members"
-          ? { business_id: BIZ_A, user_id: USER_ID, role: "owner", status: "active" }
+          ? { business_id: BIZ_A, user_id: USER_ID, role: currentMemberRole, status: "active" }
           : null,
         error: null,
       }));
       builder.then = (resolve: (v: unknown) => unknown) =>
         Promise.resolve({
           data: table === "business_members"
-            ? [{ business_id: BIZ_A, user_id: USER_ID, role: "owner", status: "active" }]
+            ? [{ business_id: BIZ_A, user_id: USER_ID, role: currentMemberRole, status: "active" }]
             : [],
           error: null,
         }).then(resolve);
@@ -85,6 +87,12 @@ const mockActions = {
   execute: vi.fn(async (_ctx, input) => ({ action: { id: input.id, status: "completed" }, executed: true })),
 };
 
+const mockNotifications = {
+  list: vi.fn(async () => ({ items: [], total: 0, page: 1, limit: 50, hasMore: false })),
+  markAllAsRead: vi.fn(async () => {}),
+  markAsRead: vi.fn(async () => {}),
+};
+
 vi.mock("@/lib/http/wiring", () => ({
   wireIntelligence: vi.fn(() => ({
     analytics: mockAnalytics,
@@ -92,6 +100,7 @@ vi.mock("@/lib/http/wiring", () => ({
     profitLeaks: mockProfitLeaks,
     simulator: mockSimulator,
     actions: mockActions,
+    notifications: mockNotifications,
   })),
 }));
 
@@ -104,6 +113,8 @@ import { GET as getActions } from "@/app/api/businesses/[businessId]/actions/rou
 import { POST as postActionPropose } from "@/app/api/businesses/[businessId]/actions/propose/route";
 import { POST as postActionApprove } from "@/app/api/businesses/[businessId]/actions/[id]/approve/route";
 import { POST as postActionExecute } from "@/app/api/businesses/[businessId]/actions/[id]/execute/route";
+import { GET as getNotifications, POST as postNotificationsReadAll } from "@/app/api/businesses/[businessId]/notifications/route";
+import { PATCH as patchNotification } from "@/app/api/businesses/[businessId]/notifications/[id]/route";
 
 function makeReq(url: string, options: { method?: string; token?: string | null; body?: unknown; headers?: Record<string, string> } = {}) {
   const headers = new Headers(options.headers || {});
@@ -129,6 +140,7 @@ function params(businessId: string | undefined, extra: Record<string, string> = 
 
 describe("Intelligence API Routes", () => {
   beforeEach(() => {
+    currentMemberRole = "owner";
     vi.clearAllMocks();
   });
 
@@ -298,6 +310,92 @@ describe("Intelligence API Routes", () => {
         expect.anything(),
         expect.objectContaining({ id: ACTION_ID, idempotencyKey: "exec-key-123" })
       );
+    });
+  });
+
+  describe("Notifications Lifecycle", () => {
+    it("GET /notifications returns 200 with list", async () => {
+      const res = await getNotifications(
+        makeReq("http://localhost/api/businesses/" + BIZ_A + "/notifications"),
+        params(BIZ_A)
+      );
+      expect(res.status).toBe(200);
+      expect(mockNotifications.list).toHaveBeenCalled();
+    });
+
+    it("POST /notifications/read-all returns 200", async () => {
+      const res = await postNotificationsReadAll(
+        makeReq("http://localhost/api/businesses/" + BIZ_A + "/notifications/read-all", {
+          method: "POST",
+        }),
+        params(BIZ_A)
+      );
+      expect(res.status).toBe(200);
+      expect(mockNotifications.markAllAsRead).toHaveBeenCalled();
+    });
+
+    it("PATCH /notifications/:id returns 200", async () => {
+      const res = await patchNotification(
+        makeReq("http://localhost/api/businesses/" + BIZ_A + "/notifications/notif-1", {
+          method: "PATCH",
+        }),
+        params(BIZ_A, { id: "notif-1" })
+      );
+      expect(res.status).toBe(200);
+      expect(mockNotifications.markAsRead).toHaveBeenCalledWith(expect.anything(), "notif-1");
+    });
+  });
+
+  describe("Role-based Authorization & Negative Tests", () => {
+    it("denies admin from executing actions (403)", async () => {
+      currentMemberRole = "admin";
+      const res = await postActionExecute(
+        makeReq("http://localhost/api/businesses/" + BIZ_A + "/actions/" + ACTION_ID + "/execute", {
+          method: "POST",
+        }),
+        params(BIZ_A, { id: ACTION_ID })
+      );
+      expect(res.status).toBe(403);
+    });
+
+    it("denies staff from executing actions (403)", async () => {
+      currentMemberRole = "staff";
+      const res = await postActionExecute(
+        makeReq("http://localhost/api/businesses/" + BIZ_A + "/actions/" + ACTION_ID + "/execute", {
+          method: "POST",
+        }),
+        params(BIZ_A, { id: ACTION_ID })
+      );
+      expect(res.status).toBe(403);
+    });
+
+    it("denies staff from approving actions (403)", async () => {
+      currentMemberRole = "staff";
+      const res = await postActionApprove(
+        makeReq("http://localhost/api/businesses/" + BIZ_A + "/actions/" + ACTION_ID + "/approve", {
+          method: "POST",
+        }),
+        params(BIZ_A, { id: ACTION_ID })
+      );
+      expect(res.status).toBe(403);
+    });
+
+    it("denies staff from reading analytics snapshot (403)", async () => {
+      currentMemberRole = "staff";
+      const res = await getAnalyticsSnapshot(
+        makeReq("http://localhost/api/businesses/" + BIZ_A + "/analytics/snapshot"),
+        params(BIZ_A)
+      );
+      expect(res.status).toBe(403);
+    });
+
+    it("denies staff from reading profit leaks (403)", async () => {
+      currentMemberRole = "staff";
+      const res = await getProfitLeaks(
+        makeReq("http://localhost/api/businesses/" + BIZ_A + "/profit-leaks"),
+        params(BIZ_A)
+      );
+      expect(res.status).toBe(403);
     });
   });
 });

@@ -258,7 +258,7 @@ describe('action red team', () => {
     await service.requestApproval(owner, action.id);
     const approved = await service.approve(manager, action.id);
 
-    const outcome = await service.execute(manager, { id: approved.id });
+    const outcome = await service.execute(otherOwner, { id: approved.id });
     expect(outcome.executed).toBe(false);
     expect(outcome.denialReason).toBe('no_registered_executor');
   });
@@ -276,7 +276,7 @@ describe('action red team', () => {
     await isolated.draft(owner, action.id);
     await isolated.requestApproval(owner, action.id);
     const approved = await isolated.approve(manager, action.id);
-    const outcome: ExecutionOutcome = await isolated.execute(manager, { id: approved.id });
+    const outcome: ExecutionOutcome = await isolated.execute(otherOwner, { id: approved.id });
     expect(outcome.executed).toBe(false);
     expect(outcome.denialReason).toBe('no_registered_executor');
   });
@@ -495,6 +495,7 @@ describe('action audit trail', () => {
   let executor: CountingExecutor;
   let service: PostgresActionService;
   const owner = tenantFor(TENANT_A, 'owner', 'user-owner');
+  const otherOwner = tenantFor(TENANT_A, 'owner', 'user-other-owner');
   const approver = tenantFor(TENANT_A, 'manager', 'user-manager');
 
   beforeEach(() => {
@@ -522,7 +523,7 @@ describe('action audit trail', () => {
     await service.draft(owner, action.id);
     await service.requestApproval(owner, action.id);
     await service.approve(approver, action.id);
-    await service.execute(approver, { id: action.id });
+    await service.execute(otherOwner, { id: action.id });
     return action.id;
   }
 
@@ -561,7 +562,7 @@ describe('action audit trail', () => {
       source: 'manual',
       parameters: reminderParameters(),
     });
-    await service.execute(approver, { id: action.id });
+    await service.execute(otherOwner, { id: action.id });
     const entries = await service.listAudit(owner, action.id);
     const denial = entries.find((entry) => entry.outcome === 'denied');
     expect(denial?.reason).toBe('invalid_state_transition');

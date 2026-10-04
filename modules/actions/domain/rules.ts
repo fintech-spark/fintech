@@ -64,8 +64,8 @@ export const APPROVAL_TTL_MS = 15 * 60 * 1000;
 /** Roles permitted to approve an action. */
 export const APPROVER_ROLES: readonly string[] = ['owner', 'admin', 'manager'];
 
-/** Roles permitted to execute an approved action. */
-export const EXECUTOR_ROLES: readonly string[] = ['owner', 'admin', 'manager', 'accountant'];
+/** Roles permitted to execute an approved action. Aligned with auth-context actions:execute. */
+export const EXECUTOR_ROLES: readonly string[] = ['owner'];
 
 /** Roles permitted to propose or draft an action. Proposing has no effect. */
 export const PROPOSER_ROLES: readonly string[] = [

@@ -1,7 +1,7 @@
 import { withApi } from '@/lib/http/handler';
 import { parseUuid, parseJsonBody } from '@/lib/http/params';
 import { updateDocumentStatusSchema } from '@/lib/validation/api-schemas';
-import { resolveTenantContext } from '@/lib/http/auth-context';
+import { assertPermission, resolveTenantContext } from '@/lib/http/auth-context';
 import { wireClient } from '@/lib/http/wiring';
 
 /**
@@ -9,6 +9,7 @@ import { wireClient } from '@/lib/http/wiring';
  */
 export const PATCH = withApi(async (request: Request, route) => {
   const { ctx, db } = await resolveTenantContext(request, route.params.businessId);
+  assertPermission(ctx, 'documents:write');
   const services = wireClient(db);
   const id = parseUuid(route.params.id, 'id') as never;
   const body = await parseJsonBody(request, updateDocumentStatusSchema);

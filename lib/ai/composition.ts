@@ -11,9 +11,20 @@ import {
 } from "@/modules/business-brain/application/service";
 import { VercelAIProviderAdapter } from "./providers/vercel-ai-adapter";
 import { systemClock } from "@/lib/clock";
+import {
+  DefaultRAGService,
+  type RagRetriever,
+  ProviderEmbeddingProvider,
+  PgChunkStore,
+} from "@/modules/rag";
 
 export interface ComposedBusinessBrain {
   readonly brain: BusinessBrainService;
+}
+
+export interface WireBusinessBrainOptions {
+  readonly retriever?: RagRetriever;
+  readonly adapter?: VercelAIProviderAdapter;
 }
 
 /**
@@ -21,8 +32,12 @@ export interface ComposedBusinessBrain {
  *
  * Scopes database queries through the TenantDatabaseClient.
  * Registers all read-only allowlisted tools and assembles the context.
+ * Connects tenant-scoped RAG retrieval over document_embeddings.
  */
-export function wireBusinessBrain(businessId: BusinessId): ComposedBusinessBrain {
+export function wireBusinessBrain(
+  businessId: BusinessId,
+  options?: WireBusinessBrainOptions,
+): ComposedBusinessBrain {
   const rootDb = getDatabaseClient();
   const tenantDb = rootDb.forTenant(businessId);
 
@@ -36,22 +51,58 @@ export function wireBusinessBrain(businessId: BusinessId): ComposedBusinessBrain
     },
   });
 
+  let adapter: VercelAIProviderAdapter | undefined = options?.adapter;
+  if (!adapter) {
+    try {
+      const provider = process.env.AI_PROVIDER === "anthropic"
+        ? "anthropic"
+        : process.env.AI_PROVIDER === "openai"
+          ? "openai"
+          : "google";
+      adapter = new VercelAIProviderAdapter(provider);
+    } catch {
+      adapter = undefined;
+    }
+  }
+
+  let retriever: RagRetriever | undefined = options?.retriever;
+  if (!retriever && adapter) {
+    try {
+      const embeddingProviderName =
+        adapter.provider === "anthropic"
+          ? (process.env.OPENAI_API_KEY ? "openai" : "google")
+          : adapter.provider;
+      const embeddingAdapter =
+        adapter.provider === embeddingProviderName
+          ? adapter
+          : new VercelAIProviderAdapter(embeddingProviderName);
+
+      const embeddingProvider = new ProviderEmbeddingProvider({
+        provider: embeddingAdapter,
+        model: {
+          provider: embeddingAdapter.provider,
+          modelId:
+            embeddingAdapter.provider === "openai"
+              ? "text-embedding-3-small"
+              : "gemini-embedding-001",
+          role: "embedding",
+        },
+      });
+      const store = new PgChunkStore({ database: rootDb });
+      retriever = new DefaultRAGService({
+        store,
+        embeddings: embeddingProvider,
+      });
+    } catch {
+      retriever = undefined;
+    }
+  }
+
   const assembler = new ContextAssembler({
     registry,
+    retriever,
     now: () => systemClock.now(),
   });
-
-  let adapter: VercelAIProviderAdapter | undefined;
-  try {
-    const provider = process.env.AI_PROVIDER === "anthropic"
-      ? "anthropic"
-      : process.env.AI_PROVIDER === "openai"
-        ? "openai"
-        : "google";
-    adapter = new VercelAIProviderAdapter(provider);
-  } catch {
-    adapter = undefined;
-  }
 
   const brain = new DefaultBusinessBrainService(assembler, adapter, systemClock);
 

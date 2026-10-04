@@ -1,5 +1,5 @@
 import { withApi } from "@/lib/http/handler";
-import { resolveTenantContext } from "@/lib/http/auth-context";
+import { assertPermission, resolveTenantContext } from "@/lib/http/auth-context";
 import { wireIntelligence } from "@/lib/http/wiring";
 
 /**
@@ -7,6 +7,7 @@ import { wireIntelligence } from "@/lib/http/wiring";
  */
 export const POST = withApi(async (request: Request, route) => {
   const { ctx } = await resolveTenantContext(request, route.params.businessId);
+  assertPermission(ctx, 'actions:execute');
   const { actions } = wireIntelligence(ctx.businessId);
   const idempotencyKey = request.headers.get("idempotency-key") ?? undefined;
   const outcome = await actions.execute(ctx, {

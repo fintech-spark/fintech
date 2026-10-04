@@ -79,7 +79,9 @@ export {
 export {
   ACTION_PARAMETER_SPECS,
   ActionExecutorRegistry,
+  createDefaultActionExecutorRegistry,
   refusingExecutor,
+  STANDARD_ACTION_EXECUTORS,
   validateActionParameters,
   type ActionExecutor,
   type ActionLogger,

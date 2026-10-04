@@ -54,6 +54,7 @@ const JANUARY = period('2026-01-01T00:00:00.000Z', '2026-02-01T00:00:00.000Z');
 const DECEMBER = period('2025-12-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z');
 
 const OWNER = tenantFor(TENANT_A, 'owner', 'user-owner');
+const EXECUTOR = tenantFor(TENANT_A, 'owner', 'user-executor');
 const MANAGER = tenantFor(TENANT_A, 'manager', 'user-manager');
 const INTRUDER = tenantFor(TENANT_B, 'owner', 'user-intruder');
 
@@ -443,7 +444,7 @@ describe('scenario 6: approved action executes and is audited', () => {
     expect(approved.status).toBe('approved');
     expect(approved.approvedBy).toBe('user-manager');
 
-    const outcome = await harness.actions.execute(MANAGER, { id: approved.id });
+    const outcome = await harness.actions.execute(EXECUTOR, { id: approved.id });
     expect(outcome.executed).toBe(true);
     expect(outcome.action?.status).toBe('completed');
     expect(harness.executor.invocations).toBe(1);
@@ -479,9 +480,9 @@ describe('scenario 7: action replay', () => {
     const approved = await harness.actions.approve(MANAGER, proposed.id);
 
     const attempts = await Promise.all([
-      harness.actions.execute(MANAGER, { id: approved.id }),
-      harness.actions.execute(MANAGER, { id: approved.id }),
-      harness.actions.execute(MANAGER, { id: approved.id, idempotencyKey: 'retry-1' }),
+      harness.actions.execute(EXECUTOR, { id: approved.id }),
+      harness.actions.execute(EXECUTOR, { id: approved.id }),
+      harness.actions.execute(EXECUTOR, { id: approved.id, idempotencyKey: 'retry-1' }),
     ]);
 
     expect(attempts.filter((attempt) => attempt.executed)).toHaveLength(1);
@@ -594,7 +595,7 @@ describe('demo scenario: how is my business doing and what should I fix?', () =>
     await harness.actions.draft(OWNER, proposed.id);
     await harness.actions.requestApproval(OWNER, proposed.id);
     const approved = await harness.actions.approve(MANAGER, proposed.id);
-    const outcome = await harness.actions.execute(MANAGER, { id: approved.id });
+    const outcome = await harness.actions.execute(EXECUTOR, { id: approved.id });
     expect(outcome.executed).toBe(true);
 
     // 7. And it is audited.

@@ -18,15 +18,12 @@ export function calculateNetProfit(grossProfit: number, operatingExpenses: numbe
 }
 
 /**
- * Margin in bps, reporting `0` when revenue is zero.
+ * Margin in bps, reporting `0` when revenue is zero or undefined.
  *
- * Kept for contract compatibility. New code should read `grossMarginBps` from a
- * `FinancialSnapshot` together with `unavailableMetrics`, because a `0` here
- * cannot distinguish "no revenue" from "revenue but zero profit".
+ * Authoritative delegate to `marginBps(profit, revenue)`.
  */
 export function calculateMarginBps(profit: number, revenue: number): number {
-  if (revenue === 0) return 0;
-  return Math.round((profit / revenue) * 10_000);
+  return marginBps(profit, revenue) ?? 0;
 }
 
 /**
@@ -46,13 +43,12 @@ export function calculateCashPosition(
 /**
  * Period-over-period change in bps.
  *
- * Legacy contract: a zero baseline yields 10_000 for any positive current value
- * and `0` otherwise. New code should use `periodChangeBps`, which returns
- * `undefined` for a zero baseline because no growth rate is defined there.
+ * Authoritative delegate to `changeBps(current, previous)`.
+ * A zero baseline yields 10_000 for any positive current value and `0` otherwise.
  */
 export function calculateChangeBps(current: number, previous: number): number {
   if (previous === 0) return current > 0 ? 10_000 : 0;
-  return Math.round(((current - previous) / Math.abs(previous)) * 10_000);
+  return changeBps(current, previous) ?? 0;
 }
 
 // ---------------------------------------------------------------------------
