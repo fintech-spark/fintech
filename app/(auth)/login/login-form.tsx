@@ -53,7 +53,9 @@ export function LoginForm() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-xl">Sign in</CardTitle>
+        <CardTitle className="text-xl">
+          <h2>Sign in</h2>
+        </CardTitle>
         <CardDescription>
           Use the email address registered with {APP_NAME}.
         </CardDescription>

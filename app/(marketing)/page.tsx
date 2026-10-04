@@ -17,6 +17,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardDescription, CardHeader } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
+import { isAuthenticated, resolveMerchantContext } from "@/lib/api/context";
 
 export const metadata: Metadata = {
   title: "Merchant Brain — your business, understood",
@@ -62,7 +63,12 @@ const LOOP = [
   },
 ] as const;
 
-export default function Home() {
+export default async function Home() {
+  const context = await resolveMerchantContext();
+  const authenticated = isAuthenticated(context);
+  const primaryHref = authenticated ? "/overview" : "/login";
+  const secondaryHref = authenticated ? "/documents" : "/signup";
+
   return (
     <div className="min-h-dvh bg-background">
       <a
@@ -75,12 +81,28 @@ export default function Home() {
       <header className="border-b border-border">
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-4 px-4 md:px-6">
           <p className="text-sm font-semibold tracking-tight">{APP_NAME}</p>
-          <Button asChild size="sm">
-            <Link href="/overview">
-              Open the app
-              <ArrowRight data-icon="inline-end" />
-            </Link>
-          </Button>
+          <div className="flex items-center gap-2">
+            {authenticated ? (
+              <Button asChild size="sm">
+                <Link href="/overview">
+                  Open the app
+                  <ArrowRight data-icon="inline-end" />
+                </Link>
+              </Button>
+            ) : (
+              <>
+                <Button asChild variant="ghost" size="sm">
+                  <Link href="/login">Sign in</Link>
+                </Button>
+                <Button asChild size="sm">
+                  <Link href="/signup">
+                    Create account
+                    <ArrowRight data-icon="inline-end" />
+                  </Link>
+                </Button>
+              </>
+            )}
+          </div>
         </div>
       </header>
 
@@ -105,13 +127,15 @@ export default function Home() {
           </p>
           <div className="flex flex-wrap gap-2">
             <Button asChild>
-              <Link href="/overview">
+              <Link href={primaryHref}>
                 Open Merchant Brain
                 <ArrowRight data-icon="inline-end" />
               </Link>
             </Button>
             <Button asChild variant="outline">
-              <Link href="/documents">See what works today</Link>
+              <Link href={secondaryHref}>
+                {authenticated ? "See what works today" : "Create account"}
+              </Link>
             </Button>
           </div>
         </section>

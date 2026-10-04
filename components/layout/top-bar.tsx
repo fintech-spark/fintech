@@ -24,6 +24,9 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { initials } from "@/lib/format/labels";
 
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+
 export function TopBar({
   accountName,
   businessName,
@@ -34,6 +37,18 @@ export function TopBar({
   /** `null` means the notification service is not connected — shown honestly. */
   readonly unreadNotifications: number | null;
 }) {
+  const router = useRouter();
+  const [isSigningOut, setIsSigningOut] = useState(false);
+
+  async function handleSignOut() {
+    setIsSigningOut(true);
+    try {
+      await fetch("/api/auth/logout", { method: "POST" });
+    } finally {
+      router.push("/login");
+      router.refresh();
+    }
+  }
   return (
     <header className="sticky top-0 z-30 border-b border-border bg-background/95 backdrop-blur-sm supports-[backdrop-filter]:bg-background/80">
       <div className="flex h-14 items-center gap-2 px-4 md:h-16 md:px-6">
@@ -97,11 +112,15 @@ export function TopBar({
                 </DropdownMenuItem>
               </DropdownMenuGroup>
               <DropdownMenuSeparator />
-              <DropdownMenuItem disabled>
-                {/* Signing out is owned by the auth backend. Rendering a control
-                    that does nothing would be a fake affordance. */}
+              <DropdownMenuItem
+                disabled={isSigningOut}
+                onSelect={(event) => {
+                  event.preventDefault();
+                  void handleSignOut();
+                }}
+              >
                 <LogOut aria-hidden="true" />
-                Sign out
+                {isSigningOut ? "Signing out…" : "Sign out"}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>

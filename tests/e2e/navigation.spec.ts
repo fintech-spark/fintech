@@ -7,7 +7,7 @@
 
 import { expect, test } from "@playwright/test";
 
-import { BUSINESS_ID } from "./fixtures/data";
+import { BUSINESS_ID, SCENARIO_COOKIE } from "./fixtures/data";
 import { useScenario } from "./helpers";
 import { STUB_ORIGIN } from "./fixtures/stub-server";
 
@@ -39,6 +39,93 @@ test.describe("public entry point", () => {
     await expect(
       page.getByText(/not connected yet, and the app says so/i),
     ).toBeVisible();
+  });
+
+  test("unauthenticated user clicking Open Merchant Brain is routed to /login, not automatically authenticated", async ({
+    page,
+  }) => {
+    await useScenario(page.context(), "unauthenticated");
+    await page.goto("/");
+
+    const cta = page.getByRole("link", { name: "Open Merchant Brain" });
+    await expect(cta).toBeVisible();
+    await cta.click();
+
+    await expect(page).toHaveURL(/\/login/);
+    await expect(page.getByRole("heading", { name: /Sign in/i })).toBeVisible();
+  });
+
+  test("authenticated user clicking Open Merchant Brain enters /overview", async ({
+    page,
+  }) => {
+    await useScenario(page.context(), "default");
+    await page.goto("/");
+
+    const cta = page.getByRole("link", { name: "Open Merchant Brain" });
+    await expect(cta).toBeVisible();
+    await cta.click();
+
+    await expect(page).toHaveURL(/\/overview/);
+  });
+
+  test("the public CTA creates no session for an unauthenticated visitor", async ({
+    page,
+    context,
+  }) => {
+    await useScenario(page.context(), "unauthenticated");
+    await page.goto("/");
+
+    await page.getByRole("link", { name: "Open Merchant Brain" }).click();
+    await expect(page).toHaveURL(/\/login/);
+
+    // The acceptance criterion: clicking the CTA must not authenticate anyone.
+    // Both httpOnly session cookies are absent, and no authenticated merchant
+    // surface is rendered.
+    const cookies = await context.cookies();
+    const names = cookies.map((cookie) => cookie.name);
+    expect(names).not.toContain("sb-access-token");
+    expect(names).not.toContain("sb-refresh-token");
+
+    // Server-side truth, not just the absence of a cookie.
+    const session = await page.request.get("/api/auth/session");
+    expect(session.status()).toBe(401);
+
+    // And no merchant data leaked into the DOM or browser storage.
+    await expect(page.getByText(/Signed in as/i)).toHaveCount(0);
+    const storage = await page.evaluate(() => ({
+      local: Object.keys(window.localStorage),
+      session: Object.keys(window.sessionStorage),
+    }));
+    expect(storage.local).toEqual([]);
+    expect(storage.session).toEqual([]);
+  });
+
+  test("signing out clears the session cookies and returns to /login", async ({
+    page,
+    context,
+  }) => {
+    // `localhost`, not `127.0.0.1`: the auth origin check compares the browser's
+    // `Origin` against the origin the Next production server reports for itself,
+    // and it reports `localhost` regardless of the Host header. A cross-origin
+    // rejection here would be the CSRF guard working, not a sign-out failure.
+    const origin = "http://localhost:3000";
+    await context.addCookies([
+      { name: SCENARIO_COOKIE, value: "default", domain: "localhost", path: "/" },
+      { name: "sb-access-token", value: "e2e-access-token", domain: "localhost", path: "/" },
+      { name: "sb-refresh-token", value: "e2e-refresh-token", domain: "localhost", path: "/" },
+    ]);
+
+    await page.goto(`${origin}/overview`);
+    await expect(page.getByText(/Signed in as/i)).toBeVisible();
+
+    await page.getByRole("button", { name: "Account menu" }).click();
+    await page.getByRole("menuitem", { name: "Sign out" }).click();
+
+    await expect(page).toHaveURL(/\/login/);
+
+    const names = (await context.cookies()).map((cookie) => cookie.name);
+    expect(names).not.toContain("sb-access-token");
+    expect(names).not.toContain("sb-refresh-token");
   });
 });
 
