@@ -52,7 +52,7 @@ export function LoginForm() {
 
   return (
     <Card>
-      <CardHeader>
+      <CardHeader className="border-b border-border/70 pb-4">
         <CardTitle className="text-xl">
           <h2>Sign in</h2>
         </CardTitle>
@@ -61,7 +61,7 @@ export function LoginForm() {
         </CardDescription>
       </CardHeader>
 
-      <CardContent>
+      <CardContent className="pt-5">
         <form
           onSubmit={handleSubmit(onSubmit)}
           noValidate

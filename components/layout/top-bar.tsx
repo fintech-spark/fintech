@@ -11,6 +11,7 @@ import Link from "next/link";
 
 import { CommandMenu } from "./command-menu";
 import { MobileNav } from "./mobile-nav";
+import { ThemeSwitcher } from "./theme-switcher";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -63,6 +64,8 @@ export function TopBar({
 
         <div className="flex shrink-0 items-center gap-1 md:gap-2">
           <CommandMenu />
+
+          <ThemeSwitcher />
 
           <Button variant="ghost" size="icon" asChild>
             <Link href="/notifications" aria-label="Notifications">

@@ -9,7 +9,6 @@ import {
   FileText,
   Sparkles,
   TrendingDown,
-  TrendingUp,
   Users,
   Wallet,
 } from "lucide-react";
@@ -145,8 +144,8 @@ export default async function OverviewPage() {
 
       {/* Live Business Analytics or Guided Status */}
       {analytics.ok && (analytics.value.revenueMinor > 0 || analytics.value.quality === "complete") ? (
-        <Card className="border-primary/20 bg-primary/5 shadow-xs">
-          <CardHeader className="flex flex-row items-start justify-between pb-3">
+         <Card className="border-primary/20 bg-primary/5 shadow-sm">
+           <CardHeader className="flex flex-col gap-3 border-b border-primary/10 pb-4 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <div className="flex items-center gap-2">
                 <BrainCircuit className="size-5 text-primary" />
@@ -165,15 +164,15 @@ export default async function OverviewPage() {
               </Link>
             </Button>
           </CardHeader>
-          <CardContent className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 pt-1">
-            <div className="rounded-lg border border-border bg-card p-3">
+           <CardContent className="grid gap-3 pt-1 sm:grid-cols-2 lg:grid-cols-4">
+             <div className="rounded-lg border border-border/80 bg-card/80 p-4 shadow-xs">
               <p className="text-xs text-muted-foreground uppercase font-medium">Gross Revenue</p>
               <p className="text-xl font-bold font-mono text-foreground mt-1">
                 {formatMinorUnits(analytics.value.revenueMinor, (analytics.value.currency as CurrencyCode) || "INR")}
               </p>
               <p className="text-xs text-muted-foreground mt-0.5">30-day recognized sales</p>
             </div>
-            <div className="rounded-lg border border-border bg-card p-3">
+             <div className="rounded-lg border border-border/80 bg-card/80 p-4 shadow-xs">
               <p className="text-xs text-muted-foreground uppercase font-medium">Gross Profit</p>
               <p className="text-xl font-bold font-mono text-positive-foreground mt-1">
                 {formatMinorUnits(analytics.value.grossProfitMinor, (analytics.value.currency as CurrencyCode) || "INR")}
@@ -182,14 +181,14 @@ export default async function OverviewPage() {
                 {(analytics.value.grossMarginBasisPoints / 100).toFixed(1)}% gross margin
               </p>
             </div>
-            <div className="rounded-lg border border-border bg-card p-3">
+             <div className="rounded-lg border border-border/80 bg-card/80 p-4 shadow-xs">
               <p className="text-xs text-muted-foreground uppercase font-medium">Operating Expenses</p>
               <p className="text-xl font-bold font-mono text-destructive mt-1">
                 {formatMinorUnits(analytics.value.operatingExpensesMinor, (analytics.value.currency as CurrencyCode) || "INR")}
               </p>
               <p className="text-xs text-muted-foreground mt-0.5">Recognized running costs</p>
             </div>
-            <div className="rounded-lg border border-border bg-card p-3">
+             <div className="rounded-lg border border-border/80 bg-card/80 p-4 shadow-xs">
               <p className="text-xs text-muted-foreground uppercase font-medium">Net Operating Income</p>
               <p className="text-xl font-bold font-mono text-foreground mt-1">
                 {formatMinorUnits(analytics.value.netProfitMinor, (analytics.value.currency as CurrencyCode) || "INR")}

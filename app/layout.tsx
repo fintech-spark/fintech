@@ -13,6 +13,16 @@ const geist = Geist({ subsets: ["latin"], variable: "--font-sans" });
 // `font-mono` usage silently fell back to the sans face.
 const geistMono = Geist_Mono({ subsets: ["latin"], variable: "--font-geist-mono" });
 
+const themeBootstrap = `(() => {
+  try {
+    const saved = localStorage.getItem("merchant-brain-theme");
+    const theme = saved === "light" || saved === "dark" || saved === "system" ? saved : "system";
+    const dark = theme === "dark" || (theme === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
+    document.documentElement.classList.toggle("dark", dark);
+    document.documentElement.style.colorScheme = dark ? "dark" : "light";
+  } catch {}
+})();`;
+
 export const metadata: Metadata = {
   title: {
     default: "Merchant Brain",
@@ -44,7 +54,11 @@ export default function RootLayout({
       lang="en"
       data-scroll-behavior="smooth"
       className={cn(geist.variable, geistMono.variable)}
+      suppressHydrationWarning
     >
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: themeBootstrap }} />
+      </head>
       <body className="font-sans antialiased">
         <AppProviders>{children}</AppProviders>
       </body>

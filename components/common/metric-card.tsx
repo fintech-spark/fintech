@@ -70,7 +70,7 @@ export function MetricCard({
   className,
 }: MetricCardProps) {
   const body = (
-    <>
+    <div className="flex flex-col gap-2 px-(--card-spacing)">
       <div className="flex items-center gap-2">
         {icon}
         <p className="text-sm font-medium text-muted-foreground">{label}</p>
@@ -95,12 +95,12 @@ export function MetricCard({
           <ArrowRight aria-hidden="true" className="size-4" />
         </p>
       ) : null}
-    </>
+    </div>
   );
 
   const classes = cn(
-    "h-full gap-2 transition-colors",
-    href && "group hover:bg-muted/40",
+    "h-full gap-2 shadow-xs transition-colors",
+    href && "group hover:-translate-y-px hover:bg-muted/40 hover:shadow-sm",
     className,
   );
 
@@ -110,7 +110,7 @@ export function MetricCard({
       <Card size="sm" className={classes}>
         <Link
           href={href}
-          className="flex flex-col gap-2 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          className="flex h-full flex-col gap-2 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
         >
           {body}
         </Link>
