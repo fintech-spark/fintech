@@ -21,10 +21,10 @@ export const DEMO_BUSINESS_ID: BusinessId = asBusinessId(
 );
 
 export const DEMO_USER_ID: UserId = asUserId(
-  process.env.DEMO_USER_ID || '8d3aa805-7a15-4a74-bb26-cb140121c44f',
+  process.env.DEMO_USER_ID || 'ec3071b0-b4b7-48d6-95a7-e3737a5a0bf2',
 );
 
-export const DEMO_USER_EMAIL = process.env.DEMO_USER_EMAIL || 'demo@merchantbrain.internal';
+export const DEMO_USER_EMAIL = process.env.DEMO_USER_EMAIL || 'spec.priyanshu@gmail.com';
 export const DEMO_USER_PASSWORD = process.env.DEMO_USER_PASSWORD || 'DemoPassword123!';
 export const DEMO_BUSINESS_NAME = 'Sharma General Store';
 
@@ -75,9 +75,11 @@ export async function getDemoAccessToken(): Promise<string | null> {
 
   try {
     const client = createServerClient();
+    const authEmail = process.env.DEMO_AUTH_EMAIL || 'demo@merchantbrain.internal';
+    const authPassword = process.env.DEMO_AUTH_PASSWORD || 'DemoPassword123!';
     const { data, error } = await client.auth.signInWithPassword({
-      email: DEMO_USER_EMAIL,
-      password: DEMO_USER_PASSWORD,
+      email: authEmail,
+      password: authPassword,
     });
 
     if (error || !data.session?.access_token) {

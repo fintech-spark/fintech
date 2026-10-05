@@ -103,6 +103,7 @@ export function allowedApiOrigins(
 ): readonly string[] {
   const origins = [
     envOrigin(env.API_INTERNAL_BASE_URL),
+    envOrigin(env.VERCEL_PROJECT_PRODUCTION_URL),
     envOrigin(env.VERCEL_URL),
   ];
   return origins.filter((origin): origin is string => origin !== undefined);
@@ -122,11 +123,12 @@ export function resolveApiOrigin(
   env: Readonly<Record<string, string | undefined>>,
 ): string | undefined {
   const configured = envOrigin(env.API_INTERNAL_BASE_URL);
+  const production = envOrigin(env.VERCEL_PROJECT_PRODUCTION_URL);
   const deployment = envOrigin(env.VERCEL_URL);
   if (configured && !(deployment !== undefined && isLoopback(configured))) {
     return configured;
   }
-  return deployment ?? configured;
+  return production ?? deployment ?? configured;
 }
 
 /**
