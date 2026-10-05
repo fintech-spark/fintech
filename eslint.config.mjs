@@ -46,6 +46,7 @@ export default defineConfig([
     ".agents/**",
     ".kilo/**",
     ".next/**",
+    ".next-production/**",
     "out/**",
     "build/**",
     "coverage/**",

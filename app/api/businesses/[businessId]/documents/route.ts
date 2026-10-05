@@ -1,33 +1,21 @@
 import { withApi } from '@/lib/http/handler';
-import { parseJsonBody, parsePagination, parseEnum, parseSearch } from '@/lib/http/params';
-import { createDocumentSchema } from '@/lib/validation/api-schemas';
+import { parsePagination, parseEnum, parseSearch } from '@/lib/http/params';
+import { assertTrustedOrigin } from '@/lib/auth/http';
+import { parseDocumentUpload } from '@/modules/documents/application/multipart';
+import { wireProductionDocuments } from '@/lib/http/documents';
 import { assertPermission, resolveTenantContext } from '@/lib/http/auth-context';
 import { wireClient } from '@/lib/http/wiring';
 
-/**
- * POST /api/documents — registers metadata for an already-stored object.
-
-The binary is written by a separate upload step; this records the pointer.
-The schema rejects absolute paths, traversal segments, backslashes and empty
-segments. It cannot check the tenant prefix — it has no tenant to compare
-against — so `DefaultDocumentService.upload` enforces that the leading path
-segment is the authenticated business id.
- */
+/** Multipart bytes -> private storage -> verified metadata -> reviewable candidate. */
 export const POST = withApi(async (request: Request, route) => {
+  assertTrustedOrigin(request);
   const { ctx, db } = await resolveTenantContext(request, route.params.businessId);
   assertPermission(ctx, 'documents:write');
-  const services = wireClient(db);
-  const body = await parseJsonBody(request, createDocumentSchema);
+  const body = await parseDocumentUpload(request);
+  const services = wireProductionDocuments(db);
   return {
     status: 201,
-    data: await services.documents.upload(ctx, {
-      fileName: body.fileName,
-      mimeType: body.mimeType,
-      fileSize: body.fileSize,
-      sourceType: body.sourceType,
-      storagePath: body.storagePath,
-      tags: body.tags,
-    }),
+    data: await services.documents.uploadBytes(ctx, body),
   };
 });
 
@@ -57,3 +45,4 @@ export const GET = withApi(async (request: Request, route) => {
     meta: { total: result.total, page: result.page, limit: result.limit, hasMore: result.hasMore },
   };
 });
+export const maxDuration = 120;

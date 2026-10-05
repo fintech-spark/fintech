@@ -15,6 +15,8 @@
 // chainable stub that records the filters a repository applied.
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { createHash, randomUUID } from 'node:crypto';
+import type { DatabaseTransaction } from '@/lib/database';
 import { MAX_PAGE_NUMBER, MAX_PAGE_SIZE } from '@/lib/http/params';
 import { POSTGREST_MAX_ROWS } from '@/lib/bounded-scan';
 import {
@@ -34,6 +36,9 @@ const USER_ID = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
 const TXN_ID = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
 const CUSTOMER_ID = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee';
 const PRODUCT_ID = 'ffffffff-ffff-4fff-8fff-ffffffffffff';
+const DOCUMENT_BYTES = Buffer.from('%PDF-1.7 synthetic route fixture');
+const REVIEW = { kind: 'invoice', reviewed: true, extractionId: CUSTOMER_ID, date: '2026-10-05', reference: 'SYN-ROUTE', currency: 'INR', direction: 'sale', counterpartyId: CUSTOMER_ID,
+  items: [{ description: 'Synthetic item', quantity: 1, unitPriceMinor: 1000, discountMinor: 0, taxMinor: 0, totalMinor: 1000 }], totalMinor: 1000 };
 
 /**
  * A product owned by BIZ_A. POST /transactions rejects a line item whose
@@ -203,15 +208,42 @@ function makeClient() {
       if (fn === 'auth_user_businesses') {
         return { data: [BIZ_A], error: null };
       }
+      if (fn === 'promote_reviewed_document') {
+        const row = rowsByTable.documents?.[0] as Record<string, unknown>;
+        row.status = 'approved';
+        return { data: { resourceType: 'transaction', resourceId: TXN_ID }, error: null };
+      }
       return { data: null, error: null };
     }),
     from: vi.fn((table: string) => makeQuery(table)),
+    storage: { from: () => ({ download: async () => ({ data: new Blob([DOCUMENT_BYTES]), error: null }) }) },
   };
 }
 
 vi.mock('@/lib/supabase/server-client', () => ({
   createServerClient: vi.fn(() => makeClient()),
 }));
+vi.mock('@/lib/database', () => ({ getDatabaseClient: () => ({
+  transaction: async (fn: (tx: DatabaseTransaction) => Promise<unknown>) => {
+    const tx = {
+      id: 'synthetic-route-transaction', commit: async () => {}, rollback: async () => {},
+      query: async (sql: string, values: readonly unknown[] = []) => {
+        if (sql.startsWith('SELECT id FROM auth.users')) return [{ id: USER_ID }];
+        if (sql.includes('INSERT INTO public.businesses')) {
+          const row = { ...BUSINESS_ROW, id: randomUUID(), name: values[0], type: values[1] };
+          writes.push({ table: 'businesses', operation: 'insert', payload: row });
+          return [row];
+        }
+        throw new Error('Unexpected provisioning query');
+      },
+      execute: async (sql: string, values: readonly unknown[] = []) => {
+        if (sql.includes('INSERT INTO public.business_members')) writes.push({ table: 'business_members', operation: 'insert', payload: { business_id: values[0], user_id: values[1], role: 'owner', status: 'active' } });
+        return 1;
+      },
+    } as DatabaseTransaction;
+    return fn(tx);
+  },
+}) }));
 
 // ---------------------------------------------------------------------------
 // Request helpers
@@ -661,11 +693,11 @@ describe('state transition routes', () => {
         source_type: 'invoice',
         file_name: 'a.pdf',
         mime_type: 'application/pdf',
-        file_size: 1000,
+        file_size: DOCUMENT_BYTES.length,
         storage_path: `${BIZ_A}/u/a.pdf`,
         status,
         original_name: 'a.pdf',
-        content_hash: null,
+        content_hash: createHash('sha256').update(DOCUMENT_BYTES).digest('hex'),
         page_count: null,
         language: null,
         extraction_id: null,
@@ -724,7 +756,7 @@ describe('state transition routes', () => {
     seedDocument('review_required');
     const { POST } = await import('@/app/api/businesses/[businessId]/documents/[id]/approve/route');
     const res = await POST(
-      request(`https://api.test/api/businesses/${BIZ_A}/documents/${TXN_ID}/approve`, { method: 'POST' }),
+      request(`https://api.test/api/businesses/${BIZ_A}/documents/${TXN_ID}/approve`, { method: 'POST', body: REVIEW }),
       params(BIZ_A, { id: TXN_ID }),
     );
     expect(res.status).toBe(200);
@@ -734,7 +766,7 @@ describe('state transition routes', () => {
     seedDocument('rejected');
     const { POST } = await import('@/app/api/businesses/[businessId]/documents/[id]/approve/route');
     const res = await POST(
-      request(`https://api.test/api/businesses/${BIZ_A}/documents/${TXN_ID}/approve`, { method: 'POST' }),
+      request(`https://api.test/api/businesses/${BIZ_A}/documents/${TXN_ID}/approve`, { method: 'POST', body: REVIEW }),
       params(BIZ_A, { id: TXN_ID }),
     );
     expect(res.status).toBe(422);
@@ -768,7 +800,7 @@ describe('state transition routes', () => {
     rowsByTable.documents = [{ ...(rowsByTable.documents[0] as Record<string, unknown>), business_id: BIZ_B }];
     const { POST } = await import('@/app/api/businesses/[businessId]/documents/[id]/approve/route');
     const res = await POST(
-      request(`https://api.test/api/businesses/${BIZ_A}/documents/${TXN_ID}/approve`, { method: 'POST' }),
+      request(`https://api.test/api/businesses/${BIZ_A}/documents/${TXN_ID}/approve`, { method: 'POST', body: REVIEW }),
       params(BIZ_A, { id: TXN_ID }),
     );
     expect(res.status).toBe(404);

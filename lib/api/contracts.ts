@@ -411,6 +411,9 @@ export const documentSchema = z.object({
     pageCount: z.number().optional(),
     language: z.string().optional(),
     extractionId: z.string().optional(),
+    ragIndexingStatus: z.enum(['pending','indexed','insufficient_evidence','failed']).optional(),
+    ragChunkCount: z.number().int().nonnegative().optional(),
+    ragIndexingError: z.string().optional(),
     rejectionReason: z.string().optional(),
     tags: z.array(z.string()).optional(),
   }),
@@ -490,6 +493,12 @@ export const actionWireSchema = z.object({
   description: z.string(),
   status: z.string(),
   source: z.string(),
+  result: z.object({
+    success: z.boolean(),
+    output: z.string(),
+    data: z.record(z.string(), z.unknown()).optional(),
+    executorId: z.string().optional(),
+  }).passthrough().optional(),
 });
 
 export type WireAction = z.infer<typeof actionWireSchema>;
@@ -504,6 +513,8 @@ export const aiChatResponseSchema = z.object({
     modelUsed: z.string(),
     tokensUsed: z.number(),
     ragContextUsed: z.boolean(),
+    sessionId: z.string().optional(),
+    degradedReason: z.string().optional(),
   }),
 });
 
@@ -688,5 +699,3 @@ export const pulseBenchmarkSchema = z.object({
 });
 
 export type WirePulseBenchmark = z.infer<typeof pulseBenchmarkSchema>;
-
-

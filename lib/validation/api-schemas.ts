@@ -287,6 +287,7 @@ export const runScenarioSchema = z.object({
 export const proposeActionSchema = z.object({
   type: z.enum([
     'adjust_price',
+    'generate_report',
     'reorder_stock',
     'send_reminder',
     'change_supplier',

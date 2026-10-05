@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef } from "react";
+import { useRouter } from 'next/navigation';
 import { UploadCloud, FileText, CheckCircle2, AlertCircle, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -12,18 +13,16 @@ const ALLOWED_MIME_TYPES = new Set([
   "image/png",
   "image/jpeg",
   "image/webp",
-  "text/csv",
-  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-  "text/plain",
 ]);
 
-const MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024; // 50MB
+const MAX_FILE_SIZE_BYTES = 4 * 1024 * 1024;
 
 export function DocumentUploadZone({
   businessId,
 }: {
   readonly businessId: string;
 }) {
+  const router = useRouter();
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [sourceType, setSourceType] = useState<string>("invoice");
   const [uploading, setUploading] = useState(false);
@@ -34,15 +33,16 @@ export function DocumentUploadZone({
   const handleFileChange = (file: File | null) => {
     setErrorMsg(null);
     setSuccessMsg(null);
+    setSelectedFile(null);
     if (!file) return;
 
     if (file.size > MAX_FILE_SIZE_BYTES) {
-      setErrorMsg("File exceeds the maximum 50MB size limit.");
+      setErrorMsg("File exceeds the maximum 4MB size limit.");
       return;
     }
 
     if (file.type && !ALLOWED_MIME_TYPES.has(file.type)) {
-      setErrorMsg("Unsupported file format. Please upload a PDF, image, CSV, or spreadsheet.");
+      setErrorMsg("Upload an invoice or receipt as PDF, PNG, JPEG or WebP.");
       return;
     }
 
@@ -51,10 +51,6 @@ export function DocumentUploadZone({
       setSourceType("receipt");
     } else if (file.name.toLowerCase().includes("invoice")) {
       setSourceType("invoice");
-    } else if (file.type.startsWith("image/")) {
-      setSourceType("upi_screenshot");
-    } else if (file.name.endsWith(".csv") || file.name.endsWith(".xlsx")) {
-      setSourceType("csv");
     }
 
     setSelectedFile(file);
@@ -75,34 +71,28 @@ export function DocumentUploadZone({
     setErrorMsg(null);
     setSuccessMsg(null);
 
-    const safeName = selectedFile.name.replace(/[^a-zA-Z0-9._-]/g, "_");
-    const storagePath = `${businessId}/documents/${Date.now()}_${safeName}`;
+    const form = new FormData();
+    form.set("file", selectedFile);
+    form.set("sourceType", sourceType);
 
     try {
       const res = await fetch(`/api/businesses/${businessId}/documents`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          fileName: safeName,
-          mimeType: selectedFile.type || "application/octet-stream",
-          fileSize: selectedFile.size,
-          sourceType,
-          storagePath,
-          tags: ["upload", sourceType],
-        }),
+        body: form,
       });
 
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.message || data.error || `Upload failed with status ${res.status}`);
-      }
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error?.message || `Upload could not be confirmed (${res.status}).`);
 
-      setSuccessMsg(`Document "${safeName}" uploaded and queued for extraction.`);
+      setSuccessMsg(data.data.status === "failed"
+        ? "File saved privately. Extraction failed; open the document to retry."
+        : "File saved privately. Open the document to review extracted candidates before approval.");
       setSelectedFile(null);
       if (fileInputRef.current) fileInputRef.current.value = "";
-      setTimeout(() => window.location.reload(), 1200);
+      router.push(`/documents/${data.data.id}`);
+      router.refresh();
     } catch (err: unknown) {
-      setErrorMsg(err instanceof Error ? err.message : "Failed to upload document");
+      setErrorMsg(err instanceof Error ? err.message : "Upload could not be confirmed. Refresh the documents list before retrying.");
     } finally {
       setUploading(false);
     }
@@ -113,7 +103,7 @@ export function DocumentUploadZone({
       <CardHeader className="pb-3">
         <CardTitle className="text-base font-semibold flex items-center gap-2">
           <UploadCloud className="size-4 text-primary" aria-hidden="true" />
-          <span>Upload Invoices, Receipts & Business Records</span>
+          <span>Upload Invoices & Receipts</span>
         </CardTitle>
         <CardDescription className="text-xs">
           Files are ingested into the processing pipeline for OCR and structured data extraction.
@@ -122,7 +112,7 @@ export function DocumentUploadZone({
       <CardContent>
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           {errorMsg && (
-            <div className="flex items-center gap-2 rounded border border-destructive/50 bg-destructive/10 p-2.5 text-xs text-destructive">
+            <div role="alert" className="flex items-center gap-2 rounded border border-destructive/50 bg-destructive/10 p-2.5 text-xs text-destructive">
               <AlertCircle className="size-4 shrink-0" />
               <span>{errorMsg}</span>
             </div>
@@ -144,7 +134,7 @@ export function DocumentUploadZone({
               type="file"
               ref={fileInputRef}
               onChange={(e) => handleFileChange(e.target.files?.[0] ?? null)}
-              accept=".pdf,.png,.jpg,.jpeg,.webp,.csv,.xlsx,.txt"
+               accept=".pdf,.png,.jpg,.jpeg,.webp"
               className="hidden"
               id="file-upload"
             />
@@ -153,7 +143,7 @@ export function DocumentUploadZone({
               {selectedFile ? selectedFile.name : "Drag and drop your file here, or browse"}
             </p>
             <p className="text-xs text-muted-foreground mt-1">
-              Supports PDF, PNG, JPEG, CSV, Excel (up to 50MB)
+              Invoice or receipt: PDF, PNG, JPEG, WebP (up to 4MB)
             </p>
             {!selectedFile ? (
               <Button
@@ -172,7 +162,8 @@ export function DocumentUploadZone({
                 </span>
                 <Button
                   type="button"
-                  variant="ghost"
+                   variant="ghost"
+                   aria-label="Remove selected file"
                   size="sm"
                   onClick={() => {
                     setSelectedFile(null);
@@ -197,11 +188,6 @@ export function DocumentUploadZone({
                   <SelectContent>
                     <SelectItem value="invoice">Invoice</SelectItem>
                     <SelectItem value="receipt">Receipt</SelectItem>
-                    <SelectItem value="upi_screenshot">UPI / Payment Screenshot</SelectItem>
-                    <SelectItem value="pdf">General PDF Document</SelectItem>
-                    <SelectItem value="csv">CSV Spreadsheet</SelectItem>
-                    <SelectItem value="excel">Excel Sheet</SelectItem>
-                    <SelectItem value="other">Other Unstructured Data</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

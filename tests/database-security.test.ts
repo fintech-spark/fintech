@@ -166,11 +166,22 @@ describe('RLS - direct tenant tables', () => {
   });
 
   it('rejects ownership mutation (business_id escape) even for dual members', async () => {
-    await expect(
-      asUser(USER_AB, () =>
-        client.query(`UPDATE transactions SET business_id = '${BIZ_B}' WHERE id = '${TX_A}'`),
-      ),
-    ).rejects.toThrow(/tenant boundary violation/i);
+    // A dual WRITER reaches the immutability trigger. Staff is denied earlier by
+    // the new role-aware UPDATE policy, and must not be used to test the trigger.
+    await client.query('UPDATE business_members SET role=$1 WHERE user_id=$2',['manager',USER_AB]);
+    try {
+      await expect(asUser(USER_AB, () => client.query(`UPDATE transactions SET business_id = '${BIZ_B}' WHERE id = '${TX_A}'`))).rejects.toThrow(/tenant boundary violation/i);
+    } finally { await client.query('UPDATE business_members SET role=$1 WHERE user_id=$2',['staff',USER_AB]); }
+  });
+  it('denies staff ledger writes even inside an authorized tenant', async () => {
+    const result = await asUser(USER_AB, () => client.query(`UPDATE transactions SET notes = 'unauthorized' WHERE id = '${TX_A}' RETURNING id`)) as pg.QueryResult;
+    expect(result.rowCount).toBe(0);
+    expect((await client.query(`SELECT notes FROM transactions WHERE id = '${TX_A}'`)).rows[0].notes).not.toBe('unauthorized');
+    const item = await asUser(USER_AB,() => client.query(`UPDATE transaction_items SET product_name='unauthorized' WHERE id='${TX_ITEM_A}' RETURNING id`)) as pg.QueryResult;
+    expect(item.rowCount).toBe(0);
+    const removed = await asUser(USER_AB,() => client.query(`DELETE FROM transaction_items WHERE id='${TX_ITEM_A}' RETURNING id`)) as pg.QueryResult;
+    expect(removed.rowCount).toBe(0);
+    expect((await client.query(`SELECT product_name FROM transaction_items WHERE id='${TX_ITEM_A}'`)).rows[0].product_name).toBe('Fixture Item A');
   });
 
   it('rejects unauthorized business_members insertion', async () => {
@@ -219,7 +230,7 @@ describe('RLS - indirect/child tables', () => {
           `INSERT INTO action_logs (action_id, business_id, to_status, outcome, actor_role, parameters_hash, correlation_id) VALUES ('${ACTION_B}', '${BIZ_B}', 'proposed', 'allowed', 'owner', 'hash-b', 'corr-b')`,
         ),
       ),
-    ).rejects.toThrow(/row-level security/i);
+    ).rejects.toThrow(/permission denied/i); // 0021 reserves action writes for the HTTP lifecycle.
   });
 
   it('denies cross-tenant SELECT on chat_messages', async () => {

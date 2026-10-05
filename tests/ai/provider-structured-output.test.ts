@@ -42,6 +42,8 @@ describe("VercelAIProviderAdapter structured output & responseFormat", () => {
     expect(mockGenerateText).toHaveBeenCalledTimes(1);
     const callArgs = mockGenerateText.mock.calls[0][0];
     expect(callArgs).toHaveProperty("output");
+    expect(callArgs.abortSignal).toBeInstanceOf(AbortSignal);
+    expect(callArgs.maxRetries).toBe(0);
     expect(response.content).toBe('{"status":"ok","extracted":true}');
     expect(response.finishReason).toBe("stop");
     expect(response.usage.totalTokens).toBe(15);

@@ -95,6 +95,7 @@ function makeService(options: {
   delayMs?: number;
   throwError?: Error;
   document?: Document;
+  persistError?: Error;
 } = {}) {
   const statuses: DocumentStatus[] = [];
 
@@ -120,6 +121,7 @@ function makeService(options: {
   const repository: ExtractionRepository = {
     findByDocument: vi.fn(async () => saved),
     save: vi.fn(async (result) => {
+      if (options.persistError) throw options.persistError;
       saved = result;
       return result;
     }),
@@ -151,6 +153,38 @@ function makeService(options: {
 // ===========================================================================
 // FILE SECURITY
 // ===========================================================================
+
+describe('production persistence ordering', () => {
+  it('rejects a PNG disguised as a JPEG by both MIME and extension', () => {
+    expect(() => validateExtractionInput({ bytes: PNG_BYTES, fileName: 'invoice.jpg', declaredMimeType: 'image/jpeg' })).toThrow();
+    expect(() => validateExtractionInput({ bytes: PNG_BYTES, fileName: 'invoice.png', declaredMimeType: 'image/jpeg' })).toThrow();
+  });
+  it('does not mark extracted or retry the provider when candidate persistence fails', async () => {
+    const f = makeService({ persistError: new Error('synthetic database outage') });
+    await expect(f.service.extract(makeCtx(), DOC_ID)).rejects.toThrow('database outage');
+    expect(f.provider.complete).toHaveBeenCalledTimes(1);
+    expect(f.statuses).toEqual(['processing', 'failed']);
+  });
+  it('requires merchant review even for a successful candidate', async () => {
+    const f = makeService(); await f.service.extract(makeCtx(), DOC_ID);
+    expect(f.statuses).toEqual(['processing', 'extracted', 'review_required']);
+  });
+  it('rejects staff before retrieval or provider invocation', async () => {
+    const f = makeService();
+    await expect(f.service.extract({ ...makeCtx(), role: 'staff' }, DOC_ID)).rejects.toThrow('permission');
+    expect(f.documents.findById).not.toHaveBeenCalled(); expect(f.provider.complete).not.toHaveBeenCalled();
+  });
+  it('never revives a rejected document by extracting it again', async () => {
+    const f = makeService({ document: makeDocument({status:'rejected'}) });
+    await expect(f.service.extract(makeCtx(), DOC_ID)).rejects.toThrow('rejected document');
+    expect(f.provider.complete).not.toHaveBeenCalled();
+  });
+  it('rejects unknown model authority fields rather than silently stripping them', async () => {
+    const f = makeService({ content: JSON.stringify({ ...JSON.parse(VALID_INVOICE_JSON), businessId: BUSINESS_B }) });
+    await expect(f.service.extract(makeCtx(), DOC_ID)).rejects.toThrow();
+    expect(f.repository.save).not.toHaveBeenCalled(); expect(f.statuses).toEqual(['processing','failed']);
+  });
+});
 
 describe('extraction file validation', () => {
   it('detects PDF by magic bytes', () => {
@@ -280,7 +314,7 @@ describe('prompt injection defence', () => {
 
     const { service, provider, repository } = makeService({
       bytes: Buffer.from(injectionText, 'utf8'),
-      document: makeDocument({ fileName: 'invoice.txt', mimeType: 'text/plain', storagePath: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/doc-1/invoice.txt' }),
+      document: makeDocument({ fileSize: Buffer.byteLength(injectionText), fileName: 'invoice.txt', mimeType: 'text/plain', storagePath: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/doc-1/invoice.txt' }),
     });
 
     const result = await service.extract(makeCtx(), DOC_ID);

@@ -108,9 +108,8 @@ export default async function DocumentPage({
             <p className="mt-4 flex items-start gap-2 rounded-lg border border-border bg-surface-sunken p-3 text-xs text-muted-foreground">
               <FileText aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
               <span>
-                The original file is not shown in this app yet — only what was
-                read out of it. You will be able to compare the two before
-                confirming once document storage is connected.
+                Open the private original from the review panel and compare it
+                with the saved candidates. Only explicitly reviewed values reach your records.
               </span>
             </p>
           </CardContent>
@@ -147,7 +146,7 @@ export default async function DocumentPage({
             </CardHeader>
             <CardContent>
               <p className="text-sm text-muted-foreground">
-                Every confirmed invoice or receipt creates an append-only ledger transaction with full actor provenance and timestamp.
+                Reviewed approval records the ledger entry, source document and audit together. A failed write rolls the approval back.
               </p>
             </CardContent>
           </Card>

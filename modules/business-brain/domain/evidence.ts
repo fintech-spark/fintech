@@ -14,6 +14,8 @@ import type { DeterministicMetricRecord, SourceReference } from './context';
 export type EvidenceType = 'tool_fact' | 'deterministic_metric' | 'retrieved_document';
 
 export interface EvidenceItem {
+  readonly snapshotId?: string;
+  readonly provenance?: unknown;
   readonly id: string;
   readonly type: EvidenceType;
   readonly source: SourceReference;
@@ -113,7 +115,7 @@ export function metricFromRecord(record: DeterministicMetricRecord): EvidenceIte
     type: 'deterministic_metric',
     source: record.source,
     label: `${record.metric} (${record.currency}, minor units)`,
-    observedAt: `${record.periodStart}/${record.periodEnd}`,
+    observedAt: record.source.observedAt ?? record.periodEnd,
     confidence: 'high',
     untrusted: false,
   };

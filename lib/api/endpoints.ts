@@ -499,12 +499,14 @@ export function getDocument(
 export function approveDocument(
   businessId: string,
   documentId: string,
+  review: import('@/modules/documents').DocumentReviewInput,
 ): Promise<WireDocument> {
   return apiFetch(
     `/api/businesses/${encodeURIComponent(businessId)}/documents/${encodeURIComponent(documentId)}/approve`,
     documentSchema,
     {
       method: "POST",
+      body: review,
       idempotencyKey: `approve-document:${documentId}`,
       capability: "Confirming a document",
     },
@@ -640,6 +642,11 @@ export async function getActions(
 }
 
 /** POST /api/businesses/[businessId]/actions/[id]/approve */
+export async function transitionAction(businessId: string, actionId: string, transition: 'draft' | 'submit' | 'reject' | 'cancel' | 'expire', reason?: string): Promise<WireAction> {
+  return apiFetch(`/api/businesses/${encodeURIComponent(businessId)}/actions/${encodeURIComponent(actionId)}/${transition}`,
+    actionWireSchema, { method: 'POST', body: reason ? { reason } : {}, capability: `Action ${transition}` }).then((result) => result.data);
+}
+
 export async function approveAction(
   businessId: string,
   actionId: string,
@@ -1038,5 +1045,3 @@ export async function getPulseBenchmarks(
   );
   return result.data;
 }
-
-

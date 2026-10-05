@@ -20,7 +20,6 @@ import "server-only";
 import { cookies, headers } from "next/headers";
 import { z } from "zod";
 
-import { isDemoMode, getDemoAccessToken } from "@/lib/demo";
 import {
   ApiError,
   CapabilityUnavailableError,
@@ -100,13 +99,11 @@ function isLoopback(origin: string): boolean {
  */
 export function allowedApiOrigins(
   env: Readonly<Record<string, string | undefined>>,
-  requestOrigin?: string,
 ): readonly string[] {
   const origins = [
     envOrigin(env.API_INTERNAL_BASE_URL),
     envOrigin(env.VERCEL_PROJECT_PRODUCTION_URL),
     envOrigin(env.VERCEL_URL),
-    requestOrigin ? envOrigin(requestOrigin) : undefined,
   ];
   return origins.filter((origin): origin is string => origin !== undefined);
 }
@@ -133,7 +130,7 @@ export function resolveApiOrigin(
   }
   // When handling a request on Vercel, prefer the actual host from headers
   // (e.g. fintech-ten-xi.vercel.app) to prevent loopback hitting protected preview URLs.
-  if (requestOrigin && !isLoopback(requestOrigin)) {
+  if (requestOrigin && allowedApiOrigins(env).includes(envOrigin(requestOrigin) ?? '') && !isLoopback(requestOrigin)) {
     return requestOrigin;
   }
   return production ?? deployment ?? configured;
@@ -144,10 +141,10 @@ export function resolveApiOrigin(
  * base URL is a genuine SSRF / session-leak vector, so only origins this
  * deployment named for itself are acceptable.
  */
-function assertInternalUrl(url: string, requestOrigin?: string): void {
+function assertInternalUrl(url: string): void {
   if (!ABSOLUTE_URL.test(url)) return; // relative → same origin, safe
   const origin = new URL(url).origin;
-  if (!allowedApiOrigins(process.env, requestOrigin).includes(origin)) {
+  if (!allowedApiOrigins(process.env).includes(origin)) {
     throw contractError(
       `Refusing to forward the session cookie to ${origin}. Set API_INTERNAL_BASE_URL to this deployment's own origin.`,
     );
@@ -185,7 +182,7 @@ async function baseUrl(requestOrigin?: string): Promise<string> {
       "No API origin: set API_INTERNAL_BASE_URL to this deployment's own origin.",
     );
   }
-  assertInternalUrl(origin, requestOrigin);
+  assertInternalUrl(origin);
   return origin;
 }
 
@@ -242,16 +239,9 @@ export async function apiFetch<T>(
   const cookieHeader = rawCookieHeader ?? (await sessionCookieHeader());
   if (cookieHeader) requestHeaders.set("cookie", cookieHeader);
 
-  if (
-    isDemoMode() &&
-    !requestHeaders.has("authorization") &&
-    (!cookieHeader || !cookieHeader.includes("sb-access-token"))
-  ) {
-    const demoToken = await getDemoAccessToken();
-    if (demoToken) {
-      requestHeaders.set("authorization", `Bearer ${demoToken}`);
-    }
-  }
+  // Anonymous demo requests remain anonymous; tenant resolution permits GET
+  // only. Never forward a shared account token to state-changing endpoints.
+  if (method !== 'GET') requestHeaders.set('origin', origin);
 
   if (options.body !== undefined) {
     requestHeaders.set("content-type", "application/json");

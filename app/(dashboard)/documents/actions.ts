@@ -20,6 +20,7 @@ import { revalidatePath } from "next/cache";
 import { approveDocument, rejectDocument } from "@/lib/api/endpoints";
 import { toApiError, type Settled } from "@/lib/api/settle";
 import type { WireDocument } from "@/lib/api/contracts";
+import type { DocumentReviewInput } from '@/modules/documents';
 
 export type ReviewResult =
   | {
@@ -40,12 +41,13 @@ export type ReviewResult =
 export async function approveDocumentForMerchant(
   businessId: string,
   documentId: string,
+  review: DocumentReviewInput,
 ): Promise<ReviewResult> {
   let result: Settled<WireDocument>;
   try {
     result = {
       ok: true,
-      value: await approveDocument(businessId, documentId),
+      value: await approveDocument(businessId, documentId, review),
     };
   } catch (error) {
     return toReviewFailure(error);

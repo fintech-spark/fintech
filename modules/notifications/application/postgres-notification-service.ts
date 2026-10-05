@@ -34,18 +34,18 @@ export class PostgresNotificationService implements NotificationService {
     ctx: TenantContext,
     filters: NotificationFilters,
   ): Promise<PaginatedResult<Notification>> {
-    return this.repository.list(ctx.businessId, filters);
+    return this.repository.list(ctx.businessId, ctx.userId, filters);
   }
 
   async markAsRead(ctx: TenantContext, notificationId: string): Promise<void> {
-    await this.repository.markAsRead(ctx.businessId, notificationId);
+    await this.repository.markAsRead(ctx.businessId, ctx.userId, notificationId);
   }
 
   async markAllAsRead(ctx: TenantContext): Promise<void> {
-    await this.repository.markAllAsRead(ctx.businessId);
+    await this.repository.markAllAsRead(ctx.businessId, ctx.userId);
   }
 
   async getUnreadCount(ctx: TenantContext): Promise<number> {
-    return this.repository.getUnreadCount(ctx.businessId);
+    return this.repository.getUnreadCount(ctx.businessId, ctx.userId);
   }
 }

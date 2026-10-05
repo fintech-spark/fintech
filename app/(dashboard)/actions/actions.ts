@@ -6,7 +6,8 @@
 // Server actions run in server-only context and call authoritative endpoints.
 
 import { revalidatePath } from "next/cache";
-import { approveAction, executeAction } from "@/lib/api/endpoints";
+import { approveAction, executeAction, transitionAction } from "@/lib/api/endpoints";
+import { z } from 'zod';
 import { toApiError } from "@/lib/api/settle";
 import type { WireAction } from "@/lib/api/contracts";
 
@@ -20,6 +21,18 @@ export type ActionExecutionResult =
       readonly message: string;
       readonly indeterminate: boolean;
     };
+
+export async function transitionActionForMerchant(businessId: string, actionId: string, transition: 'draft' | 'submit' | 'reject' | 'cancel' | 'expire', reason?: string): Promise<ActionExecutionResult> {
+  try {
+    const parsed = z.enum(['draft','submit','reject','cancel','expire']).parse(transition);
+    const action = await transitionAction(businessId,actionId,parsed,reason);
+    revalidatePath('/actions');
+    return {outcome:'confirmed',action};
+  } catch (error) {
+    const err = toApiError(error);
+    return {outcome:'rejected',message:err.userMessage,indeterminate:err.isIndeterminate};
+  }
+}
 
 export async function approveActionForMerchant(
   businessId: string,
@@ -50,6 +63,9 @@ export async function executeActionForMerchant(
   try {
     const result = await executeAction(businessId, actionId);
     revalidatePath("/actions");
+    if (!result.executed || result.action.status !== 'completed') {
+      return { outcome: 'rejected', message: 'Execution was not confirmed. Check the action status before trying again.', indeterminate: result.action.status === 'executing' };
+    }
     return { outcome: "confirmed", action: result.action };
   } catch (error) {
     const apiErr = toApiError(error);

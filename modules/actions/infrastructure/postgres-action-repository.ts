@@ -1,4 +1,4 @@
-import { NotFoundError } from '@/lib/errors';
+import { ConflictError, NotFoundError } from '@/lib/errors';
 import {
   asActionId,
   asBusinessId,
@@ -14,7 +14,7 @@ import type {
   ActionStatus,
   ActionType,
 } from '../domain/types';
-import { canonicalize } from '../domain/rules';
+import { APPROVAL_TTL_MS, canonicalize, hashActionParameters } from '../domain/rules';
 import type { ActionFilters, ActionRepository } from './repository';
 
 /**
@@ -47,46 +47,45 @@ export class PostgresActionRepository implements ActionRepository {
    * Inserts an action, or returns the existing one for a repeated idempotency key.
    *
    * The partial unique index `(business_id, idempotency_key) WHERE idempotency_key
-   * IS NOT NULL` is the authority here. `ON CONFLICT` is not usable against a
-   * partial index, so the insert is attempted and a unique violation is translated
-   * into a read of the existing row. That keeps one key to one action per tenant.
+   * IS NOT NULL` is the authority. The ON CONFLICT predicate matches that index;
+   * a replay must have the same proposer and request content.
    */
-  async save(action: Action): Promise<Action> {
-    try {
-      await this.db.execute(INSERT_SQL, [
-        action.id,
-        action.businessId,
-        action.type,
-        action.title,
-        action.description,
-        action.status,
-        action.source,
-        JSON.stringify(action.parameters),
-        action.result === undefined ? null : JSON.stringify(action.result),
-        idempotencyKeyOf(action),
-        action.createdBy,
-        action.approvedBy ?? null,
-        action.approvedAt ?? null,
-        action.executedAt ?? null,
-        action.currency,
-        JSON.stringify({
-          relatedLeakId: action.relatedLeakId ?? null,
-          relatedRiskId: action.relatedRiskId ?? null,
-        }),
-        action.createdAt,
-      ]);
+  async save(action: Action, audit?: ActionAuditEntry): Promise<Action> {
+    const params = [
+      action.id,
+      action.businessId,
+      action.type,
+      action.title,
+      action.description,
+      action.status,
+      action.source,
+      JSON.stringify(action.parameters),
+      action.result === undefined ? null : JSON.stringify(action.result),
+      idempotencyKeyOf(action),
+      action.createdBy,
+      action.approvedBy ?? null,
+      action.approvedAt ?? null,
+      action.executedAt ?? null,
+      action.currency,
+      JSON.stringify({
+        relatedLeakId: action.relatedLeakId ?? null,
+        relatedRiskId: action.relatedRiskId ?? null,
+      }),
+      action.createdAt,
+    ];
+    return this.db.transaction(async (tx) => {
+      const affected = await tx.execute(INSERT_SQL, params);
+      if (affected === 0) {
+        const rows = await tx.query<ActionSqlRow>(SELECT_BY_KEY_SQL, [action.businessId, idempotencyKeyOf(action)]);
+        const existing = rows[0] === undefined ? null : toDomain(rows[0]);
+        if (existing === null || !sameProposal(existing, action)) {
+          throw new ConflictError('Proposal idempotency key is bound to a different request.');
+        }
+        return existing;
+      }
+      if (audit !== undefined) await appendAuditInTransaction(tx, audit);
       return action;
-    } catch (error) {
-      if (!isUniqueViolation(error)) throw error;
-      const existing = await this.findById(action.businessId, action.id);
-      if (existing !== null) return existing;
-      const byKey = await this.db.query<ActionSqlRow>(SELECT_BY_KEY_SQL, [
-        action.businessId,
-        idempotencyKeyOf(action),
-      ]);
-      if (byKey[0] !== undefined) return toDomain(byKey[0]);
-      throw error;
-    }
+    });
   }
 
   async update(action: Action): Promise<Action> {
@@ -103,6 +102,24 @@ export class PostgresActionRepository implements ActionRepository {
     ]);
     if (affected === 0) throw new NotFoundError('Action', action.id);
     return action;
+  }
+
+  async persistTransition(action: Action, expected: Action, entry: ActionAuditEntry): Promise<boolean> {
+    return this.db.transaction(async (tx) => {
+      await tx.execute("SET LOCAL lock_timeout = '5s'");
+      await tx.execute("SET LOCAL statement_timeout = '10s'");
+      const affected = await tx.execute(PERSIST_TRANSITION_SQL, [
+        action.businessId, action.id, expected.status, JSON.stringify(expected.parameters),
+        action.status, action.updatedAt, action.approvedBy ?? null, action.approvedAt ?? null,
+        action.executedAt ?? null, action.result === undefined ? null : JSON.stringify(action.result),
+        action.approvedBy === undefined ? '{}' : JSON.stringify({ parametersHash: hashActionParameters(action) }),
+        expected.type, expected.approvedAt ?? null, expected.createdBy, expected.source,
+      ]);
+      if (affected !== 1) return false;
+      await applyInternalActionEffect(tx, action, entry.actorId ?? '');
+      await appendAuditInTransaction(tx, entry);
+      return true;
+    });
   }
 
   async list(businessId: BusinessId, filters: ActionFilters): Promise<PaginatedResult<Action>> {
@@ -141,7 +158,20 @@ export class PostgresActionRepository implements ActionRepository {
     businessId: BusinessId,
     id: ActionId,
     now: Date,
+    guard?: Parameters<ActionRepository['claimForExecution']>[3],
   ): Promise<boolean> {
+    if (guard !== undefined) {
+      return this.db.transaction(async (tx) => {
+        const affected = await tx.execute(GUARDED_CLAIM_SQL, [
+          businessId, id, now, JSON.stringify(guard.action.parameters), guard.parametersHash,
+          guard.action.approvedBy, guard.action.approvedAt, guard.executionKey, APPROVAL_TTL_MS,
+          guard.action.type, guard.action.createdBy, guard.action.source, guard.actorId,
+        ]);
+        if (affected !== 1) return false;
+        await appendAuditInTransaction(tx, guard.audit);
+        return true;
+      });
+    }
     const affected = await this.db.execute(CLAIM_SQL, [businessId, id, now]);
     return affected === 1;
   }
@@ -151,8 +181,9 @@ export class PostgresActionRepository implements ActionRepository {
     id: ActionId,
     status: Extract<ActionStatus, 'completed' | 'failed'>,
     now: Date,
+    result?: Action['result'],
   ): Promise<boolean> {
-    const affected = await this.db.execute(COMPLETE_SQL, [status, businessId, id, now]);
+    const affected = await this.db.execute(COMPLETE_SQL, [status, businessId, id, now, JSON.stringify(result ?? null)]);
     return affected === 1;
   }
 
@@ -297,12 +328,11 @@ function idempotencyKeyOf(action: Action): string | null {
   return typeof key === 'string' && key.length > 0 ? key : null;
 }
 
-function isUniqueViolation(error: unknown): boolean {
-  return (
-    typeof error === 'object' &&
-    error !== null &&
-    (error as { code?: string }).code === '23505'
-  );
+function sameProposal(existing: Action, action: Action): boolean {
+  return hashActionParameters(existing) === hashActionParameters(action)
+    && existing.createdBy === action.createdBy && existing.title === action.title
+    && existing.description === action.description && existing.source === action.source
+    && existing.relatedLeakId === action.relatedLeakId && existing.relatedRiskId === action.relatedRiskId;
 }
 
 interface ActionSqlRow {
@@ -417,6 +447,7 @@ INSERT INTO actions (
 VALUES (
   $1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9::jsonb, $10, $11, $12, $13, $14, $15, $16::jsonb, $17
 )
+ON CONFLICT (business_id, idempotency_key) WHERE idempotency_key IS NOT NULL DO NOTHING
 `;
 
 const UPDATE_SQL = `
@@ -472,7 +503,7 @@ WHERE business_id = $1 AND id = $2 AND status = 'approved'
 
 const COMPLETE_SQL = `
 UPDATE actions
-SET status = $1, updated_at = $4
+SET status = $1, updated_at = $4, executed_at = $4, result = $5::jsonb
 WHERE business_id = $2 AND id = $3 AND status = 'executing'
 `;
 
@@ -520,7 +551,31 @@ WHERE business_id = $1 AND id = $2
 LIMIT 1
 `;
 
-const IDEMPOTENCY_OWNER_SQL = `SELECT id FROM actions WHERE business_id = $1 AND idempotency_key = $2 LIMIT 1`;
+const IDEMPOTENCY_OWNER_SQL = `SELECT id FROM actions WHERE business_id = $1 AND detail->>'executionKey' = $2 LIMIT 1`;
+
+const PERSIST_TRANSITION_SQL = `
+UPDATE actions SET status = $5, updated_at = $6, approved_by = $7, approved_at = $8,
+  executed_at = $9, result = $10::jsonb,
+  detail = (COALESCE(detail, '{}'::jsonb) - 'parametersHash') || $11::jsonb
+WHERE business_id = $1 AND id = $2 AND status = $3 AND parameters = $4::jsonb
+  AND type = $12 AND approved_at IS NOT DISTINCT FROM $13::timestamptz
+  AND created_by = $14 AND source = $15
+`;
+
+const GUARDED_CLAIM_SQL = `
+UPDATE actions SET status = 'executing', updated_at = $3,
+  detail = detail || jsonb_build_object('executionKey', $8::text)
+WHERE business_id = $1 AND id = $2 AND status = 'approved' AND parameters = $4::jsonb
+  AND detail->>'parametersHash' = $5 AND approved_by = $6 AND approved_at = $7
+  AND approved_at <= $3 AND approved_at >= $3::timestamptz - ($9 * interval '1 millisecond')
+  AND type = $10 AND executed_at IS NULL AND NOT (detail ? 'executionKey')
+  AND created_by = $11 AND source = $12
+  AND EXISTS (SELECT 1 FROM business_members m WHERE m.business_id = $1
+    AND m.user_id = $13 AND m.role = 'owner' AND m.status = 'active' LIMIT 1)
+  AND EXISTS (SELECT 1 FROM business_members m WHERE m.business_id = $1
+    AND m.user_id = $6 AND m.role IN ('owner', 'admin', 'manager') AND m.status = 'active' LIMIT 1)
+`;
 
 /** Exported for the SQL-safety test suite. */
 export const __testing = { canonicalize };
+import { applyInternalActionEffect } from './internal-action-capabilities';

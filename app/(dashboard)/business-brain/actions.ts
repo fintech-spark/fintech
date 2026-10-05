@@ -5,12 +5,19 @@
 // Grounded AI: Models never access the database directly. They reason
 // over deterministic intelligence outputs and retrieved evidence.
 
-import { sendAiChatMessage } from "@/lib/api/endpoints";
+import { cookies } from "next/headers";
 import { toApiError } from "@/lib/api/settle";
 import type { WireAiChatResponse } from "@/lib/api/contracts";
-import { resolveMerchantContext, isAuthenticated } from "@/lib/api/context";
 import { wireBusinessBrain } from "@/lib/ai/composition";
-import { asBusinessId, asUserId } from "@/lib/types";
+import { ACCESS_TOKEN_COOKIE } from "@/lib/auth/session";
+import { assertPermission, resolveTenantContext } from "@/lib/http/auth-context";
+import { AuthenticationError } from "@/lib/errors";
+import { z } from "zod";
+
+const querySchema = z.object({
+  message: z.string().trim().min(1).max(4000),
+  sessionId: z.string().uuid().optional(),
+}).strict();
 
 export type AiChatResult =
   | {
@@ -27,42 +34,26 @@ export async function askBusinessBrain(
   message: string,
   sessionId?: string,
 ): Promise<AiChatResult> {
-  // Try via API endpoint first
+  // In-process execution avoids loopback protection and, critically, does not
+  // retry a query whose API response was lost after the turn was persisted.
   try {
-    const response = await sendAiChatMessage(businessId, { message, sessionId });
-    return { outcome: "success", response };
+    const token = (await cookies()).get(ACCESS_TOKEN_COOKIE)?.value;
+    if (!token) throw new AuthenticationError("Authentication required.");
+    const { ctx } = await resolveTenantContext(new Request("http://localhost", {
+      headers: { authorization: `Bearer ${token}` },
+    }), businessId);
+    assertPermission(ctx, "analytics:read");
+    const input = querySchema.parse({ message, sessionId });
+    const { brain } = wireBusinessBrain(ctx.businessId);
+    const response = await brain.query(ctx, {
+      businessId: ctx.businessId,
+      userId: ctx.userId,
+      message: input.message,
+      sessionId: input.sessionId ?? crypto.randomUUID(),
+    });
+    return { outcome: "success", response: { ...response, toolsUsed: [...response.toolsUsed], evidence: [...response.evidence] } };
   } catch (err) {
-    // In-process fallback: avoid network loopback and Vercel preview deployment protection blocks
-    try {
-      const context = await resolveMerchantContext();
-      if (!isAuthenticated(context)) {
-        return {
-          outcome: "error",
-          message: "Authentication required to query Business Brain.",
-        };
-      }
-      const bizId = asBusinessId(businessId);
-      const { brain } = wireBusinessBrain(bizId);
-      const activeMember = context.members.find((m) => m.businessId === businessId);
-      const tenantCtx = {
-        businessId: bizId,
-        userId: asUserId(context.session.userId),
-        role: activeMember?.role ?? "owner",
-        correlationId: crypto.randomUUID(),
-      };
-      const response = await brain.query(tenantCtx, {
-        businessId: bizId,
-        userId: tenantCtx.userId,
-        sessionId: sessionId ?? crypto.randomUUID(),
-        message,
-      });
-      return { outcome: "success", response: response as unknown as WireAiChatResponse };
-    } catch (fallbackError) {
-      const apiErr = toApiError(fallbackError || err);
-      return {
-        outcome: "error",
-        message: apiErr.userMessage || apiErr.message || "Failed to retrieve reasoning from Business Brain.",
-      };
-    }
+    const apiErr = toApiError(err);
+    return { outcome: "error", message: apiErr.userMessage || "Failed to retrieve reasoning from Business Brain." };
   }
 }

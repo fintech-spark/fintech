@@ -178,6 +178,7 @@ export interface InventoryMovementRow {
 
 export interface TransactionRow {
   id: string;
+  source_document_id: string | null;
   business_id: string;
   type: string;
   status: string;
@@ -218,6 +219,7 @@ export interface TransactionItemRow {
 
 export interface ExpenseRow {
   id: string;
+  source_document_id: string | null;
   business_id: string;
   category: string;
   amount_minor: number;
@@ -252,6 +254,14 @@ export interface DocumentRow {
   status: string;
   original_name: string | null;
   content_hash: string | null;
+  reviewed_values: unknown;
+  reviewed_by: string | null;
+  reviewed_at: Date | null;
+  promoted_resource_type: 'transaction' | 'expense' | null;
+  promoted_resource_id: string | null;
+  rag_indexing_status: 'pending'|'indexed'|'insufficient_evidence'|'failed';
+  rag_chunk_count: number;
+  rag_indexing_error: string | null;
   page_count: number | null;
   language: string | null;
   extraction_id: string | null;
@@ -283,6 +293,7 @@ export interface DocumentExtractionRow {
   document_id: string;
   status: string;
   fields: unknown;
+  evidence: unknown;
   overall_confidence: string | null;
   model_used: string;
   raw_output: string | null;
@@ -413,6 +424,7 @@ export interface ChatSessionRow {
 
 export interface ChatMessageRow {
   id: string;
+  position: number;
   session_id: string;
   role: string;
   content: string;

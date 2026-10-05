@@ -34,5 +34,7 @@ export function storageTenantPrefix(storagePath: string): string | null {
 export function isOwnTenantStoragePath(storagePath: string, businessId: string): boolean {
   if (typeof storagePath !== 'string' || storagePath.length === 0) return false;
   if (storagePath.includes('\\')) return false;
+  if (/[\x00-\x1f\x7f%?#]/.test(storagePath)) return false;
+  if (storagePath.split('/').some((segment) => !segment || segment === '.' || segment === '..')) return false;
   return storageTenantPrefix(storagePath) === businessId;
 }

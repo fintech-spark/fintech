@@ -26,7 +26,6 @@ import {
   isDemoMode,
   getDemoAccessToken,
   DEMO_BUSINESS_ID,
-  DEMO_USER_ID,
 } from '@/lib/demo';
 
 export interface SessionUser {
@@ -152,17 +151,19 @@ export async function resolveTenantContext(
   if (!accessToken) {
     if (isDemoMode() && businessId === DEMO_BUSINESS_ID) {
       const demoToken = await getDemoAccessToken();
-      const client = createServerClient(demoToken ? { accessToken: demoToken } : {});
+      if (!demoToken || request.method !== 'GET') throw new AuthenticationError('Demo access is read-only and requires a configured account.');
+      const context = await requireRequestContext(new Request(request.url, { headers: { authorization: `Bearer ${demoToken}` } }));
+      if (!context.user.businessIds.includes(businessId)) throw new AuthorizationError('Demo business membership is required.');
       return {
         ctx: {
           businessId: DEMO_BUSINESS_ID,
-          userId: DEMO_USER_ID,
-          role: 'owner',
+           userId: context.user.userId,
+           role: 'accountant',
           correlationId: crypto.randomUUID(),
         },
-        client,
-        db: client,
-        accessToken: demoToken || 'demo-access-token',
+        client: context.client,
+        db: context.client,
+        accessToken: demoToken,
       };
     }
     throw new AuthenticationError('Authentication required.');

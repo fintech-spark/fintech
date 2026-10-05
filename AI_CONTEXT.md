@@ -182,23 +182,29 @@ retrieved text, tool responses — as **untrusted data, never as instructions**.
 > snapshot and it goes stale. **Source code and package metadata beat any document,
 > including this one.**
 
-- **Stage:** Phase 1 has begun (Database Foundation). Product routes, auth, uploads, AI
-  calls, and production data are **not** implemented.
-- **Architecture skeleton:** the 19 modules exist as thin domain/application/infrastructure
-  layers. They are a **skeleton** — small rule functions and interfaces, not implemented
-  behaviour. Do not mistake their existence for working features.
-- **Database:** 25 canonical domain tables are defined as schema constants; the client
-  abstraction (`DatabaseClient`, `TenantDatabaseClient`, `DatabaseTransaction`) exists.
-  `pg` and `@types/pg` are being added, and `supabase/migrations/` has begun (extensions:
-  `pgcrypto`, `uuid-ossp`, `vector` for embeddings). **No live database and no applied
-  migrations yet.**
-- **AI:** tool contracts, provider abstraction, routing, structured-output schemas and
-  guardrails exist but are **inert** — no provider credentials are configured.
-- **Verification:** strict TypeScript typecheck and the Vitest suite pass. There is no
-  product code to test yet.
+- **Snapshot:** 2026-10-05. Authenticated product routes, domain services and merchant
+  screens are implemented; this is no longer a foundation-only skeleton.
+- **Documents:** bounded binary uploads to private Supabase storage, persisted extraction
+  candidates, corrected human review, atomic invoice/expense promotion and excerpt indexing
+  are implemented. Candidate figures never become ledger facts without approval.
+- **Actions:** persisted approval/expiry/idempotency and transactional internal report,
+  price and supplier effects are implemented. External messaging and reorder execution
+  remain unsupported without actual adapters.
+- **Business Brain:** verified membership, read-only tools, tenant-scoped retrieval,
+  authorized evidence, structured-output validation and durable user-scoped chat history
+  are wired. Invalid output/provider failures produce an explicitly degraded deterministic
+  answer. Synthetic live generation/extraction has been exercised; this is not evidence of
+  the entire hosted storage-to-ledger-to-provider journey.
+- **Database:** migrations through `20261005000027` were applied to an empty disposable
+  local database, with 23 applied and none pending. Real PostgreSQL isolation and workflow
+  regressions were exercised. This does not establish hosted migration state; new `NOT VALID`
+  parent constraints still require historical-row validation there.
+- **Verification:** lint, typecheck, the full database-enabled Vitest suite, production
+  build, offline/provider-backed evaluations and synthetic-backend Chromium journeys have
+  passing runs. See `docs/engineering/production-integration-verification.md` for scope,
+  commands and remaining deployment/provider/dependency limitations.
 
-**There are no working product features. A green test suite here proves the toolchain, not
-the product.**
+**Implemented and locally verified does not mean deployed or production-data verified.**
 
 ---
 

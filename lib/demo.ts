@@ -24,13 +24,11 @@ export const DEMO_USER_ID: UserId = asUserId(
   process.env.DEMO_USER_ID || 'ec3071b0-b4b7-48d6-95a7-e3737a5a0bf2',
 );
 
-export const DEMO_USER_EMAIL = process.env.DEMO_USER_EMAIL || 'spec.priyanshu@gmail.com';
-export const DEMO_USER_PASSWORD = process.env.DEMO_USER_PASSWORD || 'DemoPassword123!';
+export const DEMO_USER_EMAIL = process.env.DEMO_USER_EMAIL || 'demo@example.invalid';
 export const DEMO_BUSINESS_NAME = 'Sharma General Store';
 
 export function isDemoMode(): boolean {
-  // Enabled by default for hackathon demo unless explicitly set to 'false'
-  return process.env.DEMO_MODE !== 'false';
+  return process.env.DEMO_MODE === 'true';
 }
 
 export const DEMO_BUSINESS_SUMMARY: WireBusinessSummary = {
@@ -57,7 +55,7 @@ export function getDemoMerchantContext(): AuthenticatedMerchantContext {
       {
         businessId: DEMO_BUSINESS_ID,
         userId: DEMO_USER_ID,
-        role: 'owner',
+        role: 'accountant',
         joinedAt: '2026-10-04T19:18:02.866Z',
         status: 'active',
       },
@@ -76,18 +74,12 @@ export async function getDemoAccessToken(): Promise<string | null> {
   try {
     const client = createServerClient();
     const authEmail = process.env.DEMO_AUTH_EMAIL || DEMO_USER_EMAIL;
-    const authPassword = process.env.DEMO_AUTH_PASSWORD || DEMO_USER_PASSWORD;
-    let res = await client.auth.signInWithPassword({
+    const authPassword = process.env.DEMO_AUTH_PASSWORD || process.env.DEMO_USER_PASSWORD;
+    if (!authPassword) return null;
+    const res = await client.auth.signInWithPassword({
       email: authEmail,
       password: authPassword,
     });
-
-    if (res.error || !res.data.session?.access_token) {
-      res = await client.auth.signInWithPassword({
-        email: 'demo@merchantbrain.internal',
-        password: 'DemoPassword123!',
-      });
-    }
 
     if (res.error || !res.data.session?.access_token) {
       return null;
@@ -103,4 +95,3 @@ export async function getDemoAccessToken(): Promise<string | null> {
     return null;
   }
 }
-

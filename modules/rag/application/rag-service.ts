@@ -126,8 +126,12 @@ export class DefaultRAGService implements RAGService {
       };
     }
 
-    await this.store.deleteByDocument(ctx.businessId, source.documentId);
-    const written = await this.store.save(ctx.businessId, embeddable);
+    let written: number;
+    if (this.store.replaceByDocument) written = await this.store.replaceByDocument(ctx.businessId,source.documentId,embeddable);
+    else {
+      await this.store.deleteByDocument(ctx.businessId, source.documentId);
+      written = await this.store.save(ctx.businessId, embeddable);
+    }
 
     return {
       documentId: source.documentId,

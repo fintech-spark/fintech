@@ -12,7 +12,7 @@ import type {
   UserId,
 } from '@/lib/types';
 import { asBusinessId } from '@/lib/types';
-import { AuthorizationError, NotFoundError } from '@/lib/errors';
+import { AuthenticationError, AuthorizationError, DatabaseError, NotFoundError } from '@/lib/errors';
 import { MAX_MEMBERSHIP_SCAN, assertScanWithinLimit } from '@/lib/bounded-scan';
 import {
   type Db,
@@ -23,8 +23,7 @@ import {
   unwrap,
 } from '@/lib/database/query-helpers';
 import { hasPermission } from '@/lib/http/auth-context';
-import { randomUUID } from 'node:crypto';
-import { getDatabaseClient } from '@/lib/database';
+import { getDatabaseClient, type DatabaseClient } from '@/lib/database';
 import type { Business, BusinessMembership, BusinessProfile, BusinessSettings } from '../domain/types';
 import type { BusinessService, CreateBusinessInput } from '../application/service';
 
@@ -75,7 +74,10 @@ function toBusiness(row: BusinessRow): Business {
 }
 
 export class PostgrestBusinessRepository {
-  constructor(private readonly db: Db) {}
+  constructor(
+    private readonly db: Db,
+    private readonly provisioningDb?: Pick<DatabaseClient, 'transaction'>,
+  ) {}
 
   async findById(id: BusinessId): Promise<Business | null> {
     const row = firstOrNull<BusinessRow>(
@@ -167,118 +169,44 @@ export class PostgrestBusinessRepository {
    * Provisions a new business and assigns the caller as active owner.
    */
   async create(userId: UserId, input: CreateBusinessInput): Promise<Business> {
-    const nowIso = toIso(new Date());
     const profile = input.profile ?? {};
     const settings = input.settings ?? {};
-    const businessId = randomUUID();
-
-    const insertPayload: Record<string, unknown> = {
-      id: businessId,
-      name: input.name,
-      type: input.type,
-      status: 'active',
-      display_name: profile.displayName ?? input.name,
-      industry: profile.industry ?? null,
-      address: profile.address ?? null,
-      phone: profile.phone ?? null,
-      email: profile.email ?? null,
-      gstin: profile.gstin ?? null,
-      pan: profile.pan ?? null,
-      currency: settings.currency ?? 'INR',
-      fiscal_year_start: settings.fiscalYearStart ?? 1,
-      timezone: settings.timezone ?? 'Asia/Kolkata',
-      low_stock_threshold: settings.lowStockThreshold ?? 5,
-      overdue_threshold_days: settings.overdueThresholdDays ?? 30,
-      created_at: nowIso,
-      updated_at: nowIso,
-    };
-
-    // In mock/test environments, record write through this.db
-    try {
-      await this.db.from('businesses').insert(insertPayload);
-      await this.db.from('business_members').insert({
-        id: randomUUID(),
-        business_id: businessId,
-        user_id: userId,
-        role: 'owner',
-        status: 'active',
-        joined_at: nowIso,
-        created_at: nowIso,
-        updated_at: nowIso,
-      });
-    } catch {
-      // In live environment, PostgREST client may be blocked by role escalation trigger
-    }
-
-    // In live environments with PostgreSQL connection available, ensure database persistence
-    try {
-      const rootDb = getDatabaseClient();
-      await rootDb.query(
-        `INSERT INTO businesses (
-          id, name, type, status, display_name, industry, address, phone, email,
-          gstin, pan, currency, fiscal_year_start, timezone, low_stock_threshold,
-          overdue_threshold_days, created_at, updated_at
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
-        ON CONFLICT (id) DO NOTHING`,
-        [
-          businessId,
-          input.name,
-          input.type,
-          'active',
-          profile.displayName ?? input.name,
-          profile.industry ?? null,
-          profile.address ?? null,
-          profile.phone ?? null,
-          profile.email ?? null,
-          profile.gstin ?? null,
-          profile.pan ?? null,
-          settings.currency ?? 'INR',
-          settings.fiscalYearStart ?? 1,
-          settings.timezone ?? 'Asia/Kolkata',
-          settings.lowStockThreshold ?? 5,
-          settings.overdueThresholdDays ?? 30,
-          nowIso,
-          nowIso,
-        ],
+    // Privileged bootstrap only: userId comes from requireRequestContext, never
+    // the request body. PostgREST cannot create the first owner under existing RLS.
+    return (this.provisioningDb ?? getDatabaseClient()).transaction(async (tx) => {
+      const subjects = await tx.query<{ id: string }>(
+        'SELECT id FROM auth.users WHERE id = $1 AND deleted_at IS NULL FOR SHARE',
+        [userId],
       );
-
-      await rootDb.query(
-        `INSERT INTO users (id, email, name)
+      if (subjects.length !== 1) throw new AuthenticationError();
+      await tx.execute(
+        `INSERT INTO public.users (id, email, name)
          SELECT id, email, COALESCE(raw_user_meta_data->>'name', split_part(email, '@', 1))
          FROM auth.users WHERE id = $1
          ON CONFLICT (id) DO NOTHING`,
         [userId],
       );
-      await rootDb.query(
-        `INSERT INTO users (id, email, name)
-         VALUES ($1, $2, $3)
-         ON CONFLICT (id) DO NOTHING`,
-        [userId, `${userId}@merchant.local`, input.name],
+      const [row] = await tx.query<BusinessRow>(
+        `INSERT INTO public.businesses (
+          name, type, display_name, industry, address, phone, email, gstin, pan,
+          currency, fiscal_year_start, timezone, low_stock_threshold, overdue_threshold_days
+        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
+        RETURNING ${BUSINESS_COLUMNS}`,
+        [input.name, input.type, profile.displayName ?? input.name, profile.industry ?? null,
+          profile.address ?? null, profile.phone ?? null, profile.email ?? null,
+          profile.gstin ?? null, profile.pan ?? null, settings.currency ?? 'INR',
+          settings.fiscalYearStart ?? 1, settings.timezone ?? 'Asia/Kolkata',
+          settings.lowStockThreshold ?? 5, settings.overdueThresholdDays ?? 30],
       );
-
-      const memberId = randomUUID();
-      await rootDb.query(
-        `INSERT INTO business_members (
-          id, business_id, user_id, role, status, joined_at, created_at, updated_at
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-        ON CONFLICT (business_id, user_id) DO NOTHING`,
-        [
-          memberId,
-          businessId,
-          userId,
-          'owner',
-          'active',
-          nowIso,
-          nowIso,
-          nowIso,
-        ],
+      if (!row) throw new DatabaseError('Business provisioning failed.');
+      const affected = await tx.execute(
+        `INSERT INTO public.business_members (business_id, user_id, role, status)
+         VALUES ($1, $2, 'owner', 'active')`,
+        [row.id, userId],
       );
-    } catch {
-      // In isolated unit tests with mock DB, rootDb connection is expectedly absent
-    }
-
-    const row = insertPayload as unknown as BusinessRow;
-    return toBusiness(row);
+      if (affected !== 1) throw new DatabaseError('Owner membership provisioning failed.');
+      return toBusiness(row);
+    });
   }
 }
 

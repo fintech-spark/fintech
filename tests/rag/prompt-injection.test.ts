@@ -139,8 +139,9 @@ describe('prompt assembly preserves the instruction hierarchy', () => {
 
     const prompt = assembleContextPrompt(compiled.context, compiled.evidence);
 
-    // 1. The injection text IS present: the model must be able to read it.
-    expect(prompt.user).toContain(hostile.split('\n')[0]!.slice(0, 20));
+    // The text remains readable as escaped data, without creating trusted tags.
+    expect(prompt.user).toContain(neutraliseDelimiters(hostile).split('\n')[0]!.slice(0, 20));
+    expect(prompt.user.match(/<trusted_facts>/g)).toHaveLength(1);
 
     // 2. It sits inside the untrusted region, after the trusted facts.
     expect(prompt.user.indexOf('<trusted_facts>')).toBeLessThan(prompt.user.indexOf('<retrieved_evidence>'));

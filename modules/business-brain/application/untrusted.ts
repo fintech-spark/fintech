@@ -51,7 +51,10 @@ export function neutraliseDelimiters(content: string): string {
     .split(UNTRUSTED_CLOSE)
     .join(ESCAPED_CLOSE)
     .split(UNTRUSTED_OPEN)
-    .join(ESCAPED_OPEN);
+    .join(ESCAPED_OPEN)
+    // History, questions and registry boundaries are just as untrusted.
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
 }
 
 /**

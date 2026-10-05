@@ -36,6 +36,7 @@ export interface ExecutorContext {
   readonly logger: ActionLogger;
   /** True when the action originated from a machine proposal. */
   readonly machineProposed: boolean;
+  readonly signal?: AbortSignal;
 }
 
 export interface ActionLogger {
@@ -45,6 +46,7 @@ export interface ActionLogger {
 }
 
 export interface ExecutorOutcome {
+  readonly data?: Readonly<Record<string, unknown>>;
   readonly success: boolean;
   /** Safe, user-presentable summary. Never contains secrets or raw payloads. */
   readonly output: string;
@@ -77,6 +79,9 @@ export class ActionExecutorRegistry {
       throw new Error(
         `Executor registry is frozen; "${executor.executorId}" cannot be registered at runtime.`,
       );
+    }
+    if (!Object.hasOwn(ACTION_PARAMETER_SPECS, executor.handles)) {
+      throw new ValidationError('Executor action type is not supported.');
     }
     if (executor.handles === 'custom') {
       throw new Error(
@@ -181,6 +186,11 @@ export const ACTION_PARAMETER_SPECS: Readonly<Record<ActionType, Readonly<Record
     totalMinor: { kind: 'money', required: true },
     transactionDate: { kind: 'date', required: true },
   },
+  generate_report: {
+    idempotencyKey: { kind: 'string', maxLength: 255 },
+    from: { kind: 'date', required: true },
+    to: { kind: 'date', required: true },
+  },
   custom: {},
 };
 
@@ -192,6 +202,9 @@ export const ACTION_PARAMETER_SPECS: Readonly<Record<ActionType, Readonly<Record
  * Throws `ValidationError` on the first violation so nothing partial is passed on.
  */
 export function validateActionParameters(action: Pick<Action, 'type' | 'parameters'>): void {
+  if (!Object.hasOwn(ACTION_PARAMETER_SPECS, action.type)) {
+    throw new ValidationError(`Unsupported action type "${action.type}".`);
+  }
   const spec = ACTION_PARAMETER_SPECS[action.type];
   if (spec === undefined) {
     throw new ValidationError(`Unsupported action type "${action.type}".`);
@@ -205,20 +218,23 @@ export function validateActionParameters(action: Pick<Action, 'type' | 'paramete
     if (key === '__proto__' || key === 'constructor' || key === 'prototype') {
       throw new ValidationError(`Action parameter "${key}" is not permitted.`);
     }
-    if (!(key in spec)) {
+    if (!Object.hasOwn(spec, key)) {
       throw new ValidationError(`Action parameter "${key}" is not declared for type "${action.type}".`);
     }
   }
 
   for (const [key, declared] of Object.entries(spec)) {
     const value = parameters[key];
-    if (value === undefined || value === null) {
+    if (value === undefined) {
       if (declared.required === true) {
         throw new ValidationError(`Action parameter "${key}" is required for type "${action.type}".`);
       }
       continue;
     }
     assertParamKind(key, value, declared);
+  }
+  if (action.type === 'generate_report' && new Date(parameters.from as string) >= new Date(parameters.to as string)) {
+    throw new ValidationError('Report start must precede its end.');
   }
 }
 
@@ -256,8 +272,11 @@ function assertParamKind(key: string, value: unknown, spec: ParamSpec): void {
       return;
     }
     case 'date': {
+      if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z$/.test(value)) {
+        throw new ValidationError(`Action parameter "${key}" must be a valid timestamp in UTC.`);
+      }
       const parsed = new Date(value as string);
-      if (Number.isNaN(parsed.getTime())) {
+      if (Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 19) !== value.slice(0, 19)) {
         throw new ValidationError(`Action parameter "${key}" must be a valid timestamp.`);
       }
       return;

@@ -51,10 +51,12 @@ describe("Demo Mode /overview Regression Tests", () => {
     mockCookieStore.clear();
     vi.clearAllMocks();
     process.env.DEMO_MODE = "true";
+    vi.stubEnv('DEMO_AUTH_PASSWORD', 'synthetic-test-only-password');
   });
 
   afterEach(() => {
     process.env.DEMO_MODE = originalDemoMode;
+    vi.unstubAllEnvs();
   });
 
   it("proves unauthenticated /overview with DEMO_MODE enabled resolves to demo dashboard context and NOT unauthenticated", async () => {
@@ -98,7 +100,12 @@ describe("Demo Mode /overview Regression Tests", () => {
 
     const tenant = await resolveTenantContext(fakeRequest, DEMO_BUSINESS_ID);
     expect(tenant.ctx.businessId).toBe(DEMO_BUSINESS_ID);
-    expect(tenant.ctx.userId).toBe(DEMO_USER_ID);
+    expect(tenant.ctx.userId).toBe('user-1');
+    expect(tenant.ctx.role).toBe('accountant');
+  });
+  it('denies every anonymous demo mutation even with a configured read-only account', async () => {
+    const fakeRequest = new Request(`http://localhost:3000/api/businesses/${DEMO_BUSINESS_ID}/actions`, {method:'POST'});
+    await expect(resolveTenantContext(fakeRequest,DEMO_BUSINESS_ID)).rejects.toThrow(AuthenticationError);
   });
 
   it("proves when DEMO_MODE is disabled, unauthenticated access fails closed", async () => {

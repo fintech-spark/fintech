@@ -31,7 +31,7 @@ export class PostgresProfitLeakRepository implements ProfitLeakRepository {
   }
 
   async save(leak: ProfitLeak): Promise<ProfitLeak> {
-    await this.db.execute(UPSERT_SQL, [
+    const affected = await this.db.execute(UPSERT_SQL, [
       leak.id,
       leak.businessId,
       leak.category,
@@ -51,11 +51,12 @@ export class PostgresProfitLeakRepository implements ProfitLeakRepository {
         relatedRecordIds: leak.relatedRecordIds,
       }),
     ]);
+    if (affected === 0) throw new NotFoundError('Profit leak', leak.id);
     return leak;
   }
 
   async update(leak: ProfitLeak): Promise<ProfitLeak> {
-    await this.db.execute(UPDATE_SQL, [
+    const affected = await this.db.execute(UPDATE_SQL, [
       leak.status,
       leak.severity,
       leak.title,
@@ -72,6 +73,7 @@ export class PostgresProfitLeakRepository implements ProfitLeakRepository {
       leak.businessId,
       leak.id,
     ]);
+    if (affected === 0) throw new NotFoundError('Profit leak', leak.id);
     return leak;
   }
 
@@ -345,7 +347,8 @@ ON CONFLICT (id) DO UPDATE SET
   impact_period = EXCLUDED.impact_period,
   evidence = EXCLUDED.evidence,
   detected_at = EXCLUDED.detected_at,
-  detail = EXCLUDED.detail
+   detail = EXCLUDED.detail
+WHERE profit_leaks.business_id = EXCLUDED.business_id
 `;
 
 const UPDATE_SQL = `

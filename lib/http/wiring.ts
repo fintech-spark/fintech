@@ -11,7 +11,7 @@ import { PostgresSimulatorService } from '@/modules/simulator/application/postgr
 import { PostgresScenarioRepository } from '@/modules/simulator/infrastructure/postgres-scenario-repository';
 import { PostgresActionService } from '@/modules/actions/application/postgres-action-service';
 import { PostgresActionRepository } from '@/modules/actions/infrastructure/postgres-action-repository';
-import { createDefaultActionExecutorRegistry } from '@/modules/actions';
+import { createProductionActionExecutorRegistry, createPostgresInternalActionCapabilities } from '@/modules/actions';
 import {
   PostgresNotificationService,
   PostgresNotificationRepository,
@@ -100,8 +100,8 @@ export interface WiredIntelligence {
 /**
  * Builds the intelligence services graph for a verified tenant.
  *
- * Scoped directly through the TenantDatabaseClient so no statement
- * can escape business_id.
+ * Repositories explicitly bind the verified business id in every tenant query.
+ * The raw PostgreSQL transport itself does not inject filters or enforce RLS.
  */
 export function wireIntelligence(businessId: BusinessId): WiredIntelligence {
   const rootDb = getDatabaseClient();
@@ -124,7 +124,11 @@ export function wireIntelligence(businessId: BusinessId): WiredIntelligence {
     analytics,
     systemClock,
   );
-  const registry = createDefaultActionExecutorRegistry();
+  const registry = createProductionActionExecutorRegistry(
+    createPostgresInternalActionCapabilities(tenantDb, async (ctx, period) => ({
+      ...await analytics.getSnapshot(ctx, period),
+    })),
+  );
   const actions = new PostgresActionService(
     new PostgresActionRepository(tenantDb),
     registry,
@@ -165,7 +169,7 @@ export function wireIntelligence(businessId: BusinessId): WiredIntelligence {
       resolveRecipients: async (bizId) => {
         if (bizId !== businessId) return [];
         const rows = await tenantDb.query<{ user_id: string }>(
-          'SELECT user_id FROM business_members WHERE business_id = $1 AND role IN ($2, $3, $4)',
+          "SELECT user_id FROM business_members WHERE business_id = $1 AND status = 'active' AND role IN ($2, $3, $4)",
           [bizId, 'owner', 'admin', 'manager'],
         );
         return rows.map((r) => r.user_id as UserId);

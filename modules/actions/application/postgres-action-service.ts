@@ -1,4 +1,4 @@
-import { ConflictError, NotFoundError, ValidationError } from '@/lib/errors';
+import { AuthorizationError, ConflictError, NotFoundError, ValidationError } from '@/lib/errors';
 import {
   asUserId,
   type PaginatedResult,
@@ -11,6 +11,7 @@ import { randomUUID } from 'node:crypto';
 import type { ApprovalPolicy } from '../domain/rules';
 import {
   APPROVER_ROLES,
+  APPROVAL_TTL_MS,
   DEFAULT_APPROVAL_POLICY,
   buildAuditEntry,
   canCancel,
@@ -102,7 +103,13 @@ export class PostgresActionService {
     private readonly clock: Clock,
     private readonly eventBus: EventBus,
     private readonly approvalPolicy: ApprovalPolicy = DEFAULT_APPROVAL_POLICY,
-  ) {}
+    private readonly executionTimeoutMs = 30_000,
+  ) {
+    this.executors.freeze();
+    if (!Number.isSafeInteger(executionTimeoutMs) || executionTimeoutMs < 1 || executionTimeoutMs > 60_000) {
+      throw new ValidationError('Execution timeout must be between 1 and 60000 milliseconds.');
+    }
+  }
 
   async propose(ctx: TenantContext, input: ProposeActionInput): Promise<Action> {
     if (!canPropose(ctx.role)) {
@@ -110,7 +117,7 @@ export class PostgresActionService {
     }
     const action = buildProposedAction(ctx, input, this.clock.now());
     validateActionParameters(action);
-    return this.repository.save(action);
+    return this.repository.save(action, this.audit(ctx, action, null, 'proposed', 'Action proposed.'));
   }
 
   /** Moves a proposed action into drafting. */
@@ -125,6 +132,7 @@ export class PostgresActionService {
 
   async approve(ctx: TenantContext, id: string): Promise<Action> {
     const action = await this.loadOwned(ctx, id);
+    validateActionParameters(action);
     const check = checkApprovalPreconditions({
       action,
       actorId: ctx.userId,
@@ -139,7 +147,11 @@ export class PostgresActionService {
     }
 
     const approvedAt = this.clock.now();
-    const approved = await this.repository.recordApproval(
+    const updated: Action = { ...action, status: 'approved', approvedBy: asUserId(ctx.userId), approvedAt, updatedAt: approvedAt };
+    const approvalAudit = this.audit(ctx, updated, action.status, 'approved', check.explanation);
+    const approved = this.repository.persistTransition !== undefined
+      ? await this.repository.persistTransition(updated, action, approvalAudit)
+      : await this.repository.recordApproval(
       ctx.businessId,
       action.id,
       asUserId(ctx.userId),
@@ -152,14 +164,7 @@ export class PostgresActionService {
       });
     }
 
-    const updated: Action = {
-      ...action,
-      status: 'approved',
-      approvedBy: asUserId(ctx.userId),
-      approvedAt,
-      updatedAt: approvedAt,
-    };
-    await this.appendAudit(ctx, updated, 'awaiting_approval', 'approved', 'allowed', {
+    if (this.repository.persistTransition === undefined) await this.appendAudit(ctx, updated, 'awaiting_approval', 'approved', 'allowed', {
       message: check.explanation,
     });
     await this.publish(updated, 'action.approved', ctx.userId);
@@ -167,6 +172,7 @@ export class PostgresActionService {
   }
 
   async reject(ctx: TenantContext, id: string, reason: string): Promise<Action> {
+    if (!APPROVER_ROLES.includes(ctx.role)) throw new AuthorizationError('Role is not permitted to reject actions.');
     const action = await this.loadOwned(ctx, id);
     if (action.status !== 'awaiting_approval') {
       throw new ConflictError(
@@ -179,6 +185,7 @@ export class PostgresActionService {
 
   async cancel(ctx: TenantContext, id: string, reason = 'cancelled by request'): Promise<Action> {
     const action = await this.loadOwned(ctx, id);
+    assertCanManage(ctx, action);
     if (!canCancel(action.status)) {
       throw new ConflictError(`An action in state "${action.status}" cannot be cancelled.`, {
         reason: 'invalid_state_transition',
@@ -186,10 +193,21 @@ export class PostgresActionService {
     }
     const now = this.clock.now();
     const updated: Action = { ...action, status: 'cancelled', updatedAt: now };
-    await this.repository.update(updated);
-    await this.appendAudit(ctx, updated, action.status, 'cancelled', 'allowed', {
-      message: reason.slice(0, 500),
-    });
+    await this.persist(ctx, updated, action, reason.slice(0, 500));
+    return updated;
+  }
+
+  /** Stale approval is invalidated and must be explicitly approved again. */
+  async expire(ctx: TenantContext, id: string): Promise<Action> {
+    if (!APPROVER_ROLES.includes(ctx.role)) throw new AuthorizationError('Role is not permitted to expire approvals.');
+    const action = await this.loadOwned(ctx, id);
+    if (action.status !== 'approved' || action.approvedAt === undefined || this.clock.now().getTime() - action.approvedAt.getTime() <= APPROVAL_TTL_MS) {
+      throw new ConflictError('Only a stale, unexecuted approval can be expired.');
+    }
+    const { approvedBy, approvedAt, ...rest } = action;
+    void approvedBy; void approvedAt;
+    const updated: Action = { ...rest, status: 'awaiting_approval', updatedAt: this.clock.now() };
+    await this.persist(ctx, updated, action, 'Expired approval; fresh approval required.');
     return updated;
   }
 
@@ -210,6 +228,10 @@ export class PostgresActionService {
     if (action === null) {
       throw new NotFoundError('Action', input.id);
     }
+    validateActionParameters(action);
+    if (input.idempotencyKey !== undefined && !/^[\x21-\x7e]{1,255}$/.test(input.idempotencyKey)) {
+      throw new ValidationError('Execution idempotency key must be 1 to 255 printable characters.');
+    }
 
     const idempotencyKey = executionIdempotencyKey(action.id, input.idempotencyKey);
     const executorTypes = this.executors.types();
@@ -224,7 +246,7 @@ export class PostgresActionService {
       executionIdempotencyKey: idempotencyKey,
       keyAlreadyUsedByAnotherAction: await this.repository.isIdempotencyKeyBoundElsewhere(
         ctx.businessId,
-        action.id,
+        input.idempotencyKey ?? idempotencyKey,
         action.id,
       ),
       approvalPolicy: this.approvalPolicy,
@@ -273,6 +295,13 @@ export class PostgresActionService {
       ctx.businessId,
       action.id,
       this.clock.now(),
+      {
+        action,
+        actorId: ctx.userId,
+        parametersHash: hashActionParameters(action),
+        executionKey: input.idempotencyKey ?? idempotencyKey,
+        audit: this.audit(ctx, action, 'approved', 'executing', 'Execution claimed.', executor.executorId, idempotencyKey),
+      },
     );
     if (!claimed) {
       const explanation =
@@ -310,10 +339,19 @@ export class PostgresActionService {
     executor: NonNullable<ReturnType<ActionExecutorRegistry['resolve']>>,
     idempotencyKey: string,
   ): Promise<ExecutionOutcome> {
-    const now = this.clock.now();
+    const controller = new AbortController();
+    let timer: ReturnType<typeof setTimeout> | undefined;
     let outcome: ExecutorOutcome;
     try {
-      outcome = await executor.execute(action, buildExecutorContext(ctx, action));
+      outcome = await Promise.race([
+        executor.execute(action, { ...buildExecutorContext(ctx, action), signal: controller.signal }),
+        new Promise<ExecutorOutcome>((resolve) => {
+          timer = setTimeout(() => {
+            controller.abort();
+            resolve({ success: false, output: 'Execution timed out; its outcome is uncertain. Automatic retry is blocked.', errorCode: 'EXECUTION_TIMEOUT' });
+          }, this.executionTimeoutMs);
+        }),
+      ]);
     } catch (error) {
       outcome = {
         success: false,
@@ -321,7 +359,10 @@ export class PostgresActionService {
         errorCode: 'EXECUTOR_ERROR',
       };
       void error;
+    } finally {
+      if (timer !== undefined) clearTimeout(timer);
     }
+    const now = this.clock.now();
 
     const status: Extract<ActionStatus, 'completed' | 'failed'> = outcome.success
       ? 'completed'
@@ -339,17 +380,23 @@ export class PostgresActionService {
           ? {}
           : { affectedResources: outcome.affectedResources }),
         executorId: executor.executorId,
+        ...(outcome.data === undefined ? {} : { data: outcome.data }),
       },
     };
 
-    await this.repository.completeExecution(
+    const terminalAudit = this.audit(ctx, updated, 'executing', status, outcome.output.slice(0, 500), executor.executorId, idempotencyKey);
+    const completed = this.repository.persistTransition !== undefined
+      ? await this.repository.persistTransition(updated, { ...action, status: 'executing' }, terminalAudit)
+      : await this.repository.completeExecution(
       ctx.businessId,
       action.id,
       status,
       this.clock.now(),
+      updated.result,
     );
+    if (!completed) throw new ConflictError('Execution outcome could not be durably recorded. Do not retry the side effect.');
     const stored = { ...updated, id: action.id };
-    await this.appendAudit(
+    if (this.repository.persistTransition === undefined) await this.appendAudit(
       ctx,
       stored,
       'executing',
@@ -363,13 +410,12 @@ export class PostgresActionService {
       action: stored,
       executed: outcome.success,
       explanation: outcome.output,
-      auditEntryId: '',
+      auditEntryId: terminalAudit.id,
     };
   }
 
   async getById(ctx: TenantContext, id: string): Promise<Action | null> {
-    assertOpaqueId(id, 'id');
-    return this.repository.findById(ctx.businessId, id as Action['id']);
+    return this.loadOwnedOrNull(ctx, id);
   }
 
   async list(ctx: TenantContext, filters: ActionFilterInput): Promise<PaginatedResult<Action>> {
@@ -388,6 +434,7 @@ export class PostgresActionService {
 
   async listAudit(ctx: TenantContext, id: string): Promise<readonly ActionAuditEntry[]> {
     assertOpaqueId(id, 'id');
+    if (await this.loadOwnedOrNull(ctx, id) === null) return [];
     return this.repository.listAudit(ctx.businessId, id as Action['id']);
   }
 
@@ -406,6 +453,10 @@ export class PostgresActionService {
     next: ActionStatus,
   ): Promise<Action> {
     const action = await this.loadOwned(ctx, id);
+    assertCanManage(ctx, action);
+    if (action.status === 'failed' && (action.executedAt !== undefined || action.result !== undefined)) {
+      throw new ConflictError('A failed execution cannot be retried; propose and approve a new action.');
+    }
     if (!canTransitionActionTo(action.status, next)) {
       throw new ConflictError(
         `An action cannot move from "${action.status}" to "${next}".`,
@@ -413,10 +464,7 @@ export class PostgresActionService {
       );
     }
     const updated: Action = { ...action, status: next, updatedAt: this.clock.now() };
-    await this.repository.update(updated);
-    await this.appendAudit(ctx, updated, action.status, next, 'allowed', {
-      message: `Moved to ${next}.`,
-    });
+    await this.persist(ctx, updated, action, `Moved to ${next}.`);
     if (next === 'awaiting_approval') {
       await this.publish(updated, 'action.proposed', ctx.userId);
     }
@@ -437,7 +485,22 @@ export class PostgresActionService {
 
   private async loadOwnedOrNull(ctx: TenantContext, id: string): Promise<Action | null> {
     assertOpaqueId(id, 'id');
-    return this.repository.findById(ctx.businessId, id as Action['id']);
+    const action = await this.repository.findById(ctx.businessId, id as Action['id']);
+    return action?.businessId === ctx.businessId ? action : null;
+  }
+
+  private audit(ctx: TenantContext, action: Action, fromStatus: ActionStatus | null, toStatus: ActionStatus, message: string, executorId?: string, idempotencyKey?: string): ActionAuditEntry {
+    return buildAuditEntry({ id: randomUUID(), action, fromStatus, toStatus, outcome: 'allowed', actorId: ctx.userId, actorRole: ctx.role, actorIsMachine: false, message, executorId, idempotencyKey, now: this.clock.now(), correlationId: ctx.correlationId });
+  }
+
+  private async persist(ctx: TenantContext, updated: Action, expected: Action, message: string): Promise<void> {
+    const audit = this.audit(ctx, updated, expected.status, updated.status, message);
+    if (this.repository.persistTransition !== undefined) {
+      if (!await this.repository.persistTransition(updated, expected, audit)) throw new ConflictError('Action changed before the transition could be recorded.');
+    } else {
+      await this.repository.update(updated);
+      await this.repository.appendAudit(audit);
+    }
   }
 
   private async recordDenial(
@@ -573,7 +636,7 @@ function buildProposedAction(
     description: input.description,
     status: 'proposed',
     source: input.source,
-    parameters: input.parameters,
+    parameters: input.idempotencyKey === undefined ? input.parameters : { ...input.parameters, idempotencyKey: input.idempotencyKey },
     createdAt: now,
     updatedAt: now,
     createdBy: asUserId(ctx.userId),
@@ -611,3 +674,8 @@ function assertOpaqueId(value: string, field: string): void {
   }
 }
 
+function assertCanManage(ctx: TenantContext, action: Action): void {
+  if (ctx.userId !== action.createdBy && !APPROVER_ROLES.includes(ctx.role)) {
+    throw new AuthorizationError('Only the proposer or an approver can manage this action.');
+  }
+}

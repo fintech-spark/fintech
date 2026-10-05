@@ -132,7 +132,7 @@ describeDb('action_logs is append-only (migration 0012)', () => {
     await asUser(USER_A, async (c) => {
       await expect(
         c.query(`UPDATE public.action_logs SET business_id = '${BIZ_B}' WHERE correlation_id = 'corr-audit-immut-001'`),
-      ).resolves.toBeDefined();
+      ).rejects.toThrow(/permission denied/i); // Production action API owns all writes (0021).
     });
     const after = await client.query<{ business_id: string }>(
       `SELECT business_id FROM public.action_logs WHERE correlation_id = 'corr-audit-immut-001'`,
@@ -142,9 +142,9 @@ describeDb('action_logs is append-only (migration 0012)', () => {
 
   it('denies a member rewriting audit content', async () => {
     await asUser(USER_A, async (c) => {
-      await c.query(
+      await expect(c.query(
         `UPDATE public.action_logs SET reason = 'tampered' WHERE correlation_id = 'corr-audit-immut-001'`,
-      );
+      )).rejects.toThrow(/permission denied/i);
     });
     const after = await client.query<{ reason: string | null }>(
       `SELECT reason FROM public.action_logs WHERE correlation_id = 'corr-audit-immut-001'`,
@@ -154,7 +154,8 @@ describeDb('action_logs is append-only (migration 0012)', () => {
 
   it('denies a member deleting an audit row', async () => {
     await asUser(USER_A, async (c) => {
-      await c.query(`DELETE FROM public.action_logs WHERE correlation_id = 'corr-audit-immut-001'`);
+      await expect(c.query(`DELETE FROM public.action_logs WHERE correlation_id = 'corr-audit-immut-001'`))
+        .rejects.toThrow(/permission denied/i);
     });
     const after = await client.query(
       `SELECT 1 FROM public.action_logs WHERE correlation_id = 'corr-audit-immut-001'`,
@@ -172,7 +173,7 @@ describeDb('action_logs is append-only (migration 0012)', () => {
                    '${USER_A}', 'owner', 'hash-x', 'corr-audit-forged-001')`,
         ),
       ),
-    ).rejects.toThrow(/row-level security/i);
+    ).rejects.toThrow(/permission denied/i);
 
     const forged = await client.query(
       `SELECT 1 FROM public.action_logs WHERE correlation_id = 'corr-audit-forged-001'`,

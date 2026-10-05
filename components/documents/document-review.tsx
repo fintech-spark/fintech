@@ -21,14 +21,13 @@ import { useRouter } from "next/navigation";
 import { CircleCheck, CircleX, RefreshCw, TriangleAlert } from "lucide-react";
 
 import {
-  approveDocumentForMerchant,
   rejectDocumentForMerchant,
   type ReviewResult,
 } from "@/app/(dashboard)/documents/actions";
+import { ReviewedDocumentForm } from './reviewed-document-form';
 import { Button } from "@/components/ui/button";
 import {
   AlertDialog,
-  AlertDialogAction,
   AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
@@ -44,7 +43,6 @@ import { Spinner } from "@/components/ui/spinner";
 import { StatusBadge } from "@/components/common/status-badge";
 import type { WireDocument } from "@/lib/api/contracts";
 import { describeStatus, DOCUMENT_STATUS } from "@/lib/format/status";
-import { safeLabel } from "@/lib/format/labels";
 
 export function DocumentReview({
   businessId,
@@ -63,7 +61,7 @@ export function DocumentReview({
   const status = describeStatus(DOCUMENT_STATUS, document.status);
   const canDecide = document.status === "review_required" || document.status === "extracted";
 
-  function run(decision: "approve" | "reject") {
+  function run(decision: "reject") {
     if (decision === "reject" && reason.trim().length === 0) {
       // Stay open and explain, rather than dismissing the merchant's work.
       setReasonError("A reason is required so the document can be corrected.");
@@ -71,10 +69,7 @@ export function DocumentReview({
     }
     setReasonError(null);
     startTransition(async () => {
-      const outcome =
-        decision === "approve"
-          ? await approveDocumentForMerchant(businessId, document.id)
-          : await rejectDocumentForMerchant(businessId, document.id, reason);
+      const outcome = await rejectDocumentForMerchant(businessId, document.id, reason);
       setResult(outcome);
       // Only a recorded decision closes the dialog. An unconfirmable outcome
       // keeps it open so the merchant can read what happened.
@@ -90,11 +85,12 @@ export function DocumentReview({
     return (
       <Alert>
         <CircleCheck aria-hidden="true" />
-        <AlertTitle>No decision needed</AlertTitle>
+        <AlertTitle>{document.status === 'failed' ? 'Extraction needs attention' : 'Document state'}</AlertTitle>
         <AlertDescription>
-          This document is already {status.label.toLowerCase()}.{" "}
+          This document is {status.label.toLowerCase()}.{" "}
           {status.description}
         </AlertDescription>
+        <ReviewedDocumentForm businessId={businessId} document={document} />
       </Alert>
     );
   }
@@ -107,39 +103,9 @@ export function DocumentReview({
       </div>
 
       {result ? <ReviewOutcome result={result} /> : null}
+      <ReviewedDocumentForm businessId={businessId} document={document} />
 
       <div className="flex flex-wrap items-center gap-2">
-        <AlertDialog>
-          <AlertDialogTrigger asChild>
-            <Button disabled={pending || document.status === "approved"}>
-              {pending ? (
-                <Spinner data-icon="inline-start" />
-              ) : (
-                <CircleCheck data-icon="inline-start" />
-              )}
-              Confirm these details
-            </Button>
-          </AlertDialogTrigger>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Confirm these details?</AlertDialogTitle>
-              <AlertDialogDescription>
-                You are confirming that{" "}
-                <span className="font-medium text-foreground">
-                  {safeLabel(document.metadata.originalName)}
-                </span>{" "}
-                was read correctly. Once confirmed, it becomes part of your records
-                and can affect your totals. Merchant Brain cannot undo this for you.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Go back</AlertDialogCancel>
-              <AlertDialogAction onClick={() => run("approve")}>
-                Confirm details
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
 
         <AlertDialog
           open={rejectOpen}

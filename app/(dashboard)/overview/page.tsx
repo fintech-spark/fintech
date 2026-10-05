@@ -598,8 +598,8 @@ function NeedsAttentionCard({
         {items.length === 0 ? (
           <p className="text-sm text-muted-foreground">
             That means no overdue balances, nothing below its reorder point and
-            no documents waiting on you. It does not mean Merchant Brain has
-            analysed your business — that analysis is not connected yet.
+            no documents waiting on you. Review Profit Leaks and Business Brain
+            for deeper analysis; its coverage depends on the records available.
           </p>
         ) : (
           <ul className="flex flex-col divide-y divide-border">

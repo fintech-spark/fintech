@@ -31,7 +31,9 @@ import {
   BusinessRuleError,
   NotFoundError,
   StorageError,
+  ConflictError,
 } from '@/lib/errors';
+import { assertPermission } from '@/lib/http/auth-context';
 import {
   guardJSON,
   guardOutput,
@@ -45,7 +47,7 @@ import {
   OrderExtractionSchema,
   type EvidenceRef,
 } from '@/lib/ai/schemas';
-import type { Document, DocumentStatus } from '@/modules/documents/domain/types';
+import type { Document, DocumentStatus } from '@/modules/documents';
 import type { ExtractionResult, ExtractionField, ConfidenceLevel } from '../domain/types';
 import { classifyConfidence } from '../domain/types';
 import {
@@ -71,12 +73,14 @@ import type { ExtractionService } from './service';
 export interface DocumentSource {
   findById(businessId: BusinessId, id: DocumentId): Promise<Document | null>;
   updateStatus(businessId: BusinessId, id: DocumentId, status: DocumentStatus): Promise<void>;
+  claimProcessing?(businessId: BusinessId, id: DocumentId): Promise<boolean>;
 }
 
 /** Candidate-extraction persistence. Never writes authoritative business rows. */
 export interface ExtractionRepository {
   findByDocument(businessId: BusinessId, documentId: DocumentId): Promise<ExtractionResult | null>;
   save(result: ExtractionResult): Promise<ExtractionResult>;
+  findById?(businessId: BusinessId, extractionId: string): Promise<ExtractionResult | null>;
 }
 
 /** Supplies the raw bytes for a stored document, tenant-scoped. */
@@ -140,18 +144,18 @@ function validateAgainstFamily(
   evidence: readonly EvidenceRef[],
 ): readonly ExtractionField[] {
   if (family === 'invoice') {
-    const result = guardOutput(InvoiceExtractionSchema, data);
+    const result = guardOutput(InvoiceExtractionSchema.strict(), data);
     if (!result.passed) throw new SchemaMismatch(result.reason);
     return toExtractionFields(result.data, 'invoice', evidence);
   }
 
   if (family === 'expense') {
-    const result = guardOutput(ExpenseExtractionSchema, data);
+    const result = guardOutput(ExpenseExtractionSchema.strict(), data);
     if (!result.passed) throw new SchemaMismatch(result.reason);
     return toExtractionFields(result.data, 'expense', evidence);
   }
 
-  const result = guardOutput(OrderExtractionSchema, data);
+  const result = guardOutput(OrderExtractionSchema.strict(), data);
   if (!result.passed) throw new SchemaMismatch(result.reason);
   return toExtractionFields(result.data, 'order', evidence);
 }
@@ -190,6 +194,7 @@ export class DefaultExtractionService implements ExtractionService {
   }
 
   async extract(ctx: TenantContext, documentId: DocumentId): Promise<ExtractionResult> {
+    assertPermission(ctx, 'documents:write');
     const startedAt = Date.now();
     const { documents, content, repository, provider } = this.deps;
 
@@ -199,13 +204,19 @@ export class DefaultExtractionService implements ExtractionService {
     if (!document) {
       throw new NotFoundError('Document', documentId);
     }
+    if (document.businessId !== ctx.businessId) throw new NotFoundError('Document', documentId);
 
     // Idempotency: one extraction per document. A retry reuses the record
     // rather than creating a second one.
     const existing = await repository.findByDocument(ctx.businessId, documentId);
-    if (existing && existing.status !== 'failed') {
+    if (document.status === 'rejected') throw new ConflictError('A rejected document cannot be extracted again.');
+    if (existing && (existing.status === 'completed' || existing.status === 'validated')) {
+      if (document.status !== 'approved') {
+        await documents.updateStatus(ctx.businessId, documentId, 'review_required');
+      }
       return existing;
     }
+    if (document.status === 'approved') throw new ConflictError('An approved document cannot be extracted again.');
 
     const family = schemaFamilyForSource(document.sourceType);
     if (!family) {
@@ -215,10 +226,15 @@ export class DefaultExtractionService implements ExtractionService {
     }
 
     // 2. Load bytes through the tenant-scoped loader, then validate locally.
-    const bytes = await content.load(ctx.businessId, document.storagePath);
+    if (documents.claimProcessing && !(await documents.claimProcessing(ctx.businessId, documentId))) {
+      throw new ConflictError('Document is already processing or cannot be retried.');
+    }
 
     let file: ValidatedFile;
+    let bytes: Buffer;
     try {
+      bytes = await content.load(ctx.businessId, document.storagePath);
+      if (bytes.length !== document.fileSize) throw new StorageError('Stored file size does not match metadata.');
       file = validateExtractionInput({
         bytes,
         fileName: document.fileName,
@@ -231,39 +247,42 @@ export class DefaultExtractionService implements ExtractionService {
       );
     }
 
-    await documents.updateStatus(ctx.businessId, documentId, 'processing');
+    if (!documents.claimProcessing) await documents.updateStatus(ctx.businessId, documentId, 'processing');
 
     // 3. Build the request. No tools are attached — the model cannot act.
     const request = this.buildRequest(document, file, bytes, family);
 
     let attempts = 0;
     let lastCategory: FailureCategory = 'provider_unavailable';
+    let response: Awaited<ReturnType<AIProviderAdapter['complete']>> | undefined;
 
     while (attempts < this.config.maxAttempts) {
       attempts += 1;
       try {
-        const response = await this.completeWithTimeout(request);
-        const result = this.persist(ctx, document, family, response.content, response.usage);
-
-        await documents.updateStatus(ctx.businessId, documentId, 'extracted');
-        this.telemetry().record({
-          documentId,
-          status: 'completed',
-          provider: provider.provider,
-          modelId: this.config.model.modelId,
-          durationMs: Date.now() - startedAt,
-          attempts,
-          promptTokens: response.usage.promptTokens,
-          completionTokens: response.usage.completionTokens,
-        });
-
-        return result;
+        response = await this.completeWithTimeout(request);
+        break;
       } catch (error) {
         lastCategory = categorise(error);
 
         // Schema failures and unsupported input are permanent. Retrying them
         // costs money and cannot succeed.
         if (!TRANSIENT.has(lastCategory)) break;
+      }
+    }
+
+    if (response) {
+      try {
+        const result = await this.persist(ctx, document, family, response.content, response.usage, response.model);
+        await documents.updateStatus(ctx.businessId, documentId, 'extracted');
+        await documents.updateStatus(ctx.businessId, documentId, 'review_required');
+        this.telemetry().record({ documentId, status: 'completed', provider: provider.provider,
+          modelId: response.model ?? this.config.model.modelId, durationMs: Date.now() - startedAt,
+          attempts, promptTokens: response.usage.promptTokens, completionTokens: response.usage.completionTokens });
+        return result;
+      } catch (error) {
+        await documents.updateStatus(ctx.businessId, documentId, 'failed');
+        // Persistence failures never trigger another paid provider call.
+        throw error;
       }
     }
 
@@ -285,7 +304,9 @@ export class DefaultExtractionService implements ExtractionService {
   }
 
   async getResult(ctx: TenantContext, extractionId: string): Promise<ExtractionResult | null> {
-    return this.deps.repository.findByDocument(ctx.businessId, extractionId as DocumentId);
+    assertPermission(ctx, 'documents:read');
+    if (!this.deps.repository.findById) throw new BusinessRuleError('Extraction lookup is not configured.');
+    return this.deps.repository.findById(ctx.businessId, extractionId);
   }
 
   /** Phase 6 owns business-truth validation. Phase 5 does not approve records. */
@@ -298,6 +319,7 @@ export class DefaultExtractionService implements ExtractionService {
   }
 
   async getByDocumentId(ctx: TenantContext, documentId: DocumentId): Promise<readonly ExtractionResult[]> {
+    assertPermission(ctx, 'documents:read');
     const result = await this.deps.repository.findByDocument(ctx.businessId, documentId);
     return result ? [result] : [];
   }
@@ -317,10 +339,10 @@ export class DefaultExtractionService implements ExtractionService {
     const systemPrompt = buildExtractionSystemPrompt(document.sourceType);
     const schema =
       family === 'invoice'
-        ? InvoiceExtractionSchema
+         ? InvoiceExtractionSchema.strict()
         : family === 'expense'
-          ? ExpenseExtractionSchema
-          : OrderExtractionSchema;
+           ? ExpenseExtractionSchema.strict()
+           : OrderExtractionSchema.strict();
 
     // Text-like inputs go as text; images and PDFs go to the multimodal path so
     // visual documents are not degraded through lossy OCR. The attachment is
@@ -378,6 +400,7 @@ export class DefaultExtractionService implements ExtractionService {
     family: ExtractionSchemaFamily,
     content: string,
     usage: { promptTokens: number; completionTokens: number },
+    resolvedModel?: string,
   ): Promise<ExtractionResult> {
     void usage;
     const json = guardJSON(content);
@@ -402,7 +425,7 @@ export class DefaultExtractionService implements ExtractionService {
       fields,
       evidence,
       overallConfidence,
-      modelUsed: `${this.config.model.provider}:${this.config.model.modelId}#${EXTRACTION_PROMPT_VERSION}`,
+      modelUsed: `${this.config.model.provider}:${resolvedModel ?? this.config.model.modelId}#${EXTRACTION_PROMPT_VERSION}`,
       ...(this.config.persistRawOutput ? { rawOutput: content } : {}),
       extractedAt: new Date(),
     };

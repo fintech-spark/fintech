@@ -1,8 +1,7 @@
 // Merchant Brain: documents repository and service
 //
-// Metadata only. DocumentService does declare upload, updateStatus, approve and
-// reject, so those are implemented. Binary storage is out of scope: StorageAdapter
-// has no implementation, so a document carries an explicit storagePath.
+// RLS-backed metadata operations. Production bytes, extraction and promotion are
+// composed in lib/http/documents.ts; metadata-only approval fails closed.
 
 import 'server-only';
 
@@ -43,7 +42,8 @@ import { isOwnTenantStoragePath } from '../domain/rules';
 const DOCUMENT_COLUMNS = `
   id, business_id, source_type, file_name, mime_type, file_size, storage_path,
   status, original_name, content_hash, page_count, language, extraction_id,
-  rejection_reason, tags, uploaded_by, uploaded_at, processed_at, updated_at
+  rejection_reason, tags, uploaded_by, uploaded_at, processed_at, updated_at,
+  rag_indexing_status, rag_chunk_count, rag_indexing_error
 `;
 
 interface DocumentRow {
@@ -53,6 +53,7 @@ interface DocumentRow {
   page_count: number | null; language: string | null; extraction_id: string | null;
   rejection_reason: string | null; tags: string[] | null; uploaded_by: string;
   uploaded_at: string; processed_at: string | null; updated_at: string;
+  rag_indexing_status?: DocumentMetadata['ragIndexingStatus']; rag_chunk_count?: number; rag_indexing_error?: string | null;
 }
 
 function toDocument(row: DocumentRow): Document {
@@ -64,6 +65,9 @@ function toDocument(row: DocumentRow): Document {
     extractionId: toOptionalString(row.extraction_id),
     rejectionReason: toOptionalString(row.rejection_reason),
     tags: row.tags ?? undefined,
+    ragIndexingStatus: row.rag_indexing_status,
+    ragChunkCount: row.rag_chunk_count,
+    ragIndexingError: row.rag_indexing_error ?? undefined,
   };
 
   return {
@@ -84,6 +88,13 @@ function toDocument(row: DocumentRow): Document {
 
 export class PostgrestDocumentRepository {
   constructor(private readonly db: Db) {}
+
+  async findByContentHash(businessId: BusinessId, hash: string): Promise<Document | null> {
+    const rows = unwrap(await this.db.from('documents').select(DOCUMENT_COLUMNS)
+      .eq('business_id', businessId).eq('content_hash', hash).limit(1));
+    const row = firstOrNull<DocumentRow>(rows);
+    return row ? toDocument(row) : null;
+  }
 
   findById(businessId: BusinessId, id: DocumentId) {
     return this.db
@@ -136,6 +147,7 @@ export class PostgrestDocumentRepository {
     storagePath: string;
     uploadedBy: UserId;
     tags?: readonly string[];
+    contentHash?: string;
   }): Promise<Document> {
     const row = unwrap(
       await this.db
@@ -150,6 +162,7 @@ export class PostgrestDocumentRepository {
           storage_path: input.storagePath,
           status: 'uploaded',
           original_name: input.fileName,
+          content_hash: input.contentHash ?? null,
           tags: input.tags ?? null,
           uploaded_by: input.uploadedBy,
         })
@@ -164,9 +177,9 @@ export class PostgrestDocumentRepository {
     id: DocumentId,
     status: DocumentStatus,
     reason?: string,
+    expectedStatus?: DocumentStatus,
   ): Promise<Document> {
-    const row = unwrap(
-      await this.db
+    let query = this.db
         .from('documents')
         .update({
           status,
@@ -175,10 +188,9 @@ export class PostgrestDocumentRepository {
           updated_at: toIso(new Date()),
         })
         .eq('business_id', businessId)
-        .eq('id', id)
-        .select(DOCUMENT_COLUMNS)
-        .single(),
-    ) as DocumentRow;
+        .eq('id', id);
+    if (expectedStatus) query = query.eq('status', expectedStatus);
+    const row = unwrap(await query.select(DOCUMENT_COLUMNS).single()) as DocumentRow;
     return toDocument(row);
   }
 }
@@ -264,6 +276,9 @@ export class DefaultDocumentService {
 
     const existing = await this.repository.findById(ctx.businessId, id);
     if (!existing) throw new NotFoundError('Document', id);
+    if (status === 'rejected' && (!reason?.trim() || reason.length > 500)) {
+      throw new ValidationError('A rejection reason of 1–500 characters is required.');
+    }
 
     // Phase 1 transition table — no new statuses invented.
     const allowed = DOCUMENT_STATUS_TRANSITIONS[existing.status];
@@ -274,7 +289,10 @@ export class DefaultDocumentService {
       );
     }
 
-    return this.repository.setStatus(ctx.businessId, id, status, reason);
+    if (status === 'approved') {
+      throw new BusinessRuleError('Approval requires reviewed values and atomic ledger promotion.');
+    }
+    return this.repository.setStatus(ctx.businessId, id, status, reason, existing.status);
   }
 
   async approve(ctx: TenantContext, id: DocumentId): Promise<Document> {
@@ -291,4 +309,3 @@ export class DefaultDocumentService {
     }
   }
 }
-

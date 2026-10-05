@@ -23,7 +23,8 @@
 import 'server-only';
 
 import type { BusinessId, DocumentId } from '@/lib/types';
-import type { DatabaseClient } from '@/lib/database/client';
+import type { DatabaseClient, DatabaseTransaction } from '@/lib/database/client';
+import { AuthorizationError } from '@/lib/errors';
 import type {
   ChunkMetadata,
   EmbeddingChunk,
@@ -52,6 +53,7 @@ export interface SimilaritySearch {
 
 export interface ChunkStore {
   save(businessId: BusinessId, chunks: readonly EmbeddableChunk[]): Promise<number>;
+  replaceByDocument?(businessId: BusinessId, documentId: DocumentId, chunks: readonly EmbeddableChunk[]): Promise<number>;
   deleteByDocument(businessId: BusinessId, documentId: DocumentId): Promise<number>;
   search(businessId: BusinessId, request: SimilaritySearch): Promise<readonly ScoredChunk[]>;
 }
@@ -234,19 +236,16 @@ export class PgChunkStore implements ChunkStore {
   async save(businessId: BusinessId, chunks: readonly EmbeddableChunk[]): Promise<number> {
     if (chunks.length === 0) return 0;
 
+    return this.database.transaction((tx) => insertChunks(tx,businessId,chunks));
+  }
+
+  async replaceByDocument(businessId: BusinessId, documentId: DocumentId, chunks: readonly EmbeddableChunk[]): Promise<number> {
+    if (chunks.some((chunk) => chunk.documentId !== documentId)) throw new AuthorizationError('Index replacement contains a different document.');
     return this.database.transaction(async (tx) => {
-      let written = 0;
-      for (const chunk of chunks) {
-        const affected = await tx.execute(INSERT_CHUNK_SQL, [
-          businessId,
-          chunk.documentId,
-          chunk.content,
-          JSON.stringify({ ...chunk.metadata, businessId, embeddingModel: undefined }),
-          toVectorLiteral(chunk.embedding),
-        ]);
-        written += affected;
-      }
-      return written;
+      const parents = await tx.query<{id:string}>('SELECT id FROM documents WHERE business_id = $1 AND id = $2 FOR UPDATE',[businessId,documentId]);
+      if (parents.length !== 1) throw new AuthorizationError('Index document does not belong to this business.');
+      await tx.execute(DELETE_BY_DOCUMENT_SQL,[businessId,documentId]);
+      return insertChunks(tx,businessId,chunks);
     });
   }
 
@@ -290,3 +289,14 @@ export class PgChunkStore implements ChunkStore {
 
 /** Re-exported so callers do not need to reach into the domain module. */
 export type { RetrievalRequest };
+
+async function insertChunks(tx: Pick<DatabaseTransaction,'execute'>,businessId: BusinessId,chunks: readonly EmbeddableChunk[]): Promise<number> {
+  let written = 0;
+  for (const chunk of chunks) {
+    if (chunk.metadata.businessId !== businessId) throw new AuthorizationError('Chunk belongs to a different business.');
+    const affected = await tx.execute(INSERT_CHUNK_SQL,[businessId,chunk.documentId,chunk.content,JSON.stringify({...chunk.metadata,businessId}),toVectorLiteral(chunk.embedding)]);
+    if (affected !== 1) throw new Error('Index persistence could not be confirmed.');
+    written += affected;
+  }
+  return written;
+}

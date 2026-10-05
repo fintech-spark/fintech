@@ -51,7 +51,7 @@ FROM customers c
 LEFT JOIN transactions t
   ON t.business_id = $1
  AND t.counterparty_type = 'customer'
- AND t.counterparty_id = c.id
+ AND t.counterparty_id = c.id::text
  AND t.type = 'sale'
  AND t.status IN ('confirmed', 'completed')
  AND t.transaction_date >= $2::timestamptz
@@ -153,7 +153,7 @@ FROM suppliers s
 LEFT JOIN transactions t
   ON t.business_id = $1
  AND t.counterparty_type = 'supplier'
- AND t.counterparty_id = s.id
+ AND t.counterparty_id = s.id::text
  AND t.type = 'purchase'
  AND t.status IN ('confirmed', 'completed')
  AND t.transaction_date >= $2::timestamptz

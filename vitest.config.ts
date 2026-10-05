@@ -28,6 +28,7 @@ export default defineConfig({
     },
   },
   test: {
+    fileParallelism: !process.env.LOCAL_DATABASE_URL,
     environment: "node",
     include: ["tests/**/*.test.ts"],
     exclude: [...configDefaults.exclude, "tests/intelligence/live-db/**"],

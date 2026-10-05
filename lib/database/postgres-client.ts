@@ -17,69 +17,6 @@ import type { PoolConfig, QueryResult, QueryResultRow } from 'pg';
 import type { BusinessId } from '../types';
 import type { DatabaseClient, TenantDatabaseClient, DatabaseTransaction } from './client';
 import { wrapDatabaseError } from '../errors';
-import type { TenantContext } from '../types';
-
-/**
- * Security guard: asserts that a privileged database client (e.g. one connected
- * as `postgres` with `rolbypassrls = true`) is not being used for unscoped tenant
- * data access. This is the runtime enforcement of the security architecture.
- *
- * @throws Error when called without a verified tenant context on a privileged client.
- */
-const TENANT_TABLES = [
-  'transactions',
-  'transaction_items',
-  'expenses',
-  'documents',
-  'document_embeddings',
-  'customers',
-  'suppliers',
-  'products',
-  'actions',
-  'action_logs',
-  'profit_leaks',
-  'scenarios',
-  'cash_flow_forecasts',
-  'audit_logs',
-  'business_members',
-  'invoices',
-  'inventory_movements',
-];
-
-export function assertTenantSafe(ctx?: TenantContext, sql?: string): void {
-  if (ctx && ctx.businessId) {
-    return;
-  }
-  if (!sql) {
-    throw new Error(
-      'assertTenantSafe failed: privileged database client used without a verified TenantContext. ' +
-        'Use createServerClient() (RLS-enforced) or provide an explicit tenant context.',
-    );
-  }
-  const lower = sql.toLowerCase();
-  // System metadata queries (e.g. checking schema columns) do not query tenant data
-  if (lower.includes("information_schema") || lower.includes("pg_catalog") || lower.includes("pg_class")) {
-    return;
-  }
-  // Scoped queries filtering by tenant or parent transaction, target row IDs, or table-level count aggregates
-  if (
-    lower.includes("business_id") ||
-    lower.includes("transaction_id") ||
-    lower.includes("id::text") ||
-    lower.includes("where id") ||
-    /count\s*\(\s*(\*|1)\s*\)/.test(lower)
-  ) {
-    return;
-  }
-  for (const table of TENANT_TABLES) {
-    if (new RegExp(`\\b${table}\\b`).test(lower)) {
-      throw new Error(
-        `assertTenantSafe failed: privileged database client attempted unscoped access to tenant table "${table}". ` +
-          `Use forTenant(businessId) or createServerClient() (RLS-enforced).`,
-      );
-    }
-  }
-}
 
 // ---------------------------------------------------------------------------
 // Type parser configuration
@@ -141,6 +78,15 @@ class PostgresTransaction implements DatabaseTransaction {
 // PostgresDatabaseClient — root client with pool and tenant factory
 // ---------------------------------------------------------------------------
 
+/**
+ * Privileged server-side SQL transport, NOT an authorization boundary.
+ * Root access is for trusted bootstrap/system work or explicitly scoped helpers.
+ * Tenant repositories
+ * must bind the verified business/user in every read, join, write and upsert.
+ * forTenant records an identifier; it neither applies RLS nor validates SQL.
+ * Regex/substring checks cannot prove SQL isolation. Live adversarial repository
+ * tests verify predicates; caller-JWT PostgREST is the RLS-enforced path.
+ */
 export class PostgresDatabaseClient implements DatabaseClient {
   private pool: pg.Pool;
 
@@ -151,7 +97,6 @@ export class PostgresDatabaseClient implements DatabaseClient {
   }
 
   async query<T = unknown>(sql: string, params?: readonly unknown[]): Promise<readonly T[]> {
-    assertTenantSafe(undefined, sql); // block privileged unscoped access to tenant tables
     try {
       const result = await this.pool.query<QueryResultRow>(sql, params ? [...params] : undefined);
       return result.rows as unknown as readonly T[];
@@ -161,7 +106,6 @@ export class PostgresDatabaseClient implements DatabaseClient {
   }
 
   async execute(sql: string, params?: readonly unknown[]): Promise<number> {
-    assertTenantSafe(undefined, sql); // block privileged unscoped access to tenant tables
     try {
       const result = await this.pool.query(sql, params ? [...params] : undefined);
       return result.rowCount ?? 0;

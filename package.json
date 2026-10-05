@@ -6,6 +6,7 @@
     "test": "vitest run",
     "eval": "vitest run --config evals/vitest.eval.config.ts",
     "eval:watch": "vitest --config evals/vitest.eval.config.ts",
+    "eval:live": "vitest run --config evals/vitest.live.config.ts",
     "dev": "next dev",
     "build": "next build",
     "start": "next start",

@@ -1,4 +1,4 @@
-import type { BusinessId, PaginatedResult } from '@/lib/types';
+import type { BusinessId, PaginatedResult, UserId } from '@/lib/types';
 import { asBusinessId, asUserId } from '@/lib/types';
 import type {
   Notification,
@@ -72,14 +72,16 @@ export class PostgresNotificationRepository {
 
   async list(
     businessId: BusinessId,
+    userId: UserId,
     filters: NotificationFilters,
   ): Promise<PaginatedResult<Notification>> {
     const page = Math.max(1, filters.page ?? 1);
     const limit = Math.min(100, Math.max(1, filters.limit ?? 25));
     const offset = (page - 1) * limit;
 
-    const conditions: string[] = ['business_id = $1'];
-    const params: unknown[] = [businessId];
+    // Raw PG can bypass RLS: bind BOTH the verified tenant and recipient.
+    const conditions: string[] = ['business_id = $1', 'user_id = $2'];
+    const params: unknown[] = [businessId, userId];
 
     if (filters.status) {
       params.push(filters.status);
@@ -118,28 +120,28 @@ export class PostgresNotificationRepository {
     };
   }
 
-  async markAsRead(businessId: BusinessId, notificationId: string): Promise<void> {
+  async markAsRead(businessId: BusinessId, userId: UserId, notificationId: string): Promise<void> {
     await this.db.execute(
       `UPDATE notifications
        SET status = 'read', read_at = now(), updated_at = now()
-       WHERE business_id = $1 AND id = $2 AND status = 'unread'`,
-      [businessId, notificationId],
+       WHERE business_id = $1 AND user_id = $2 AND id = $3 AND status = 'unread'`,
+      [businessId, userId, notificationId],
     );
   }
 
-  async markAllAsRead(businessId: BusinessId): Promise<void> {
+  async markAllAsRead(businessId: BusinessId, userId: UserId): Promise<void> {
     await this.db.execute(
       `UPDATE notifications
        SET status = 'read', read_at = now(), updated_at = now()
-       WHERE business_id = $1 AND status = 'unread'`,
-      [businessId],
+       WHERE business_id = $1 AND user_id = $2 AND status = 'unread'`,
+      [businessId, userId],
     );
   }
 
-  async getUnreadCount(businessId: BusinessId): Promise<number> {
+  async getUnreadCount(businessId: BusinessId, userId: UserId): Promise<number> {
     const rows = await this.db.query<{ count: string }>(
-      `SELECT count(*)::text as count FROM notifications WHERE business_id = $1 AND status = 'unread'`,
-      [businessId],
+      `SELECT count(*)::text as count FROM notifications WHERE business_id = $1 AND user_id = $2 AND status = 'unread'`,
+      [businessId, userId],
     );
     return parseInt(rows[0]?.count ?? '0', 10);
   }

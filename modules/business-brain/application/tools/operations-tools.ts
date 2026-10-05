@@ -47,8 +47,7 @@ export function createInventoryStatusTool(database: DatabaseClient) {
       .strict(),
     outputSchema: z
       .object({
-        periodStart: z.string().min(1),
-        periodEnd: z.string().min(1),
+        ...periodOutputShape,
         productCount: z.number().int().nonnegative(),
         lowStockCount: z.number().int().nonnegative(),
         inventoryValueMinor: minorUnitsSchema,

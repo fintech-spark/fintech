@@ -241,6 +241,8 @@ export class VercelAIProviderAdapter implements AIProviderAdapter {
           model: languageModel,
           ...(request.systemPrompt ? { system: request.systemPrompt } : {}),
           messages,
+          abortSignal: AbortSignal.timeout(this.config.timeoutMs),
+          maxRetries: 0,
           maxOutputTokens: request.model.maxTokens ?? 4096,
           temperature: request.model.temperature ?? 0,
           // A schema means schema-CONSTRAINED generation, validated by the SDK
@@ -303,10 +305,10 @@ export class VercelAIProviderAdapter implements AIProviderAdapter {
       const result =
         inputs.length === 1
           ? await this.withTimeout(
-              aiEmbed({ model: embeddingModel, value: inputs[0] as string }),
+              aiEmbed({ model: embeddingModel, value: inputs[0] as string, abortSignal: AbortSignal.timeout(this.config.timeoutMs), maxRetries: 0, ...(this.provider === 'google' ? {providerOptions:{google:{outputDimensionality:1536}}}: {}) }),
             )
           : await this.withTimeout(
-              aiEmbedMany({ model: embeddingModel, values: inputs as string[] }),
+              aiEmbedMany({ model: embeddingModel, values: inputs as string[], abortSignal: AbortSignal.timeout(this.config.timeoutMs), maxRetries: 0, ...(this.provider === 'google' ? {providerOptions:{google:{outputDimensionality:1536}}}: {}) }),
             );
 
       // The single-value path returns one EmbedResult; the batch path returns

@@ -132,7 +132,7 @@ test.describe("public entry point", () => {
     // `Origin` against the origin the Next production server reports for itself,
     // and it reports `localhost` regardless of the Host header. A cross-origin
     // rejection here would be the CSRF guard working, not a sign-out failure.
-    const origin = "http://localhost:3000";
+    const origin = "http://localhost:3001";
     await context.addCookies([
       { name: SCENARIO_COOKIE, value: "default", domain: "localhost", path: "/" },
       { name: "sb-access-token", value: "e2e-access-token", domain: "localhost", path: "/" },

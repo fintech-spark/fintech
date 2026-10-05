@@ -32,7 +32,10 @@ export interface ActionRepository {
    * Insert an action, or return the existing one when the idempotency key is
    * already bound within this tenant. Never creates a second row for one key.
    */
-  save(action: Action): Promise<Action>;
+  save(action: Action, audit?: ActionAuditEntry): Promise<Action>;
+
+  /** Production CAS + audit transaction; legacy repository doubles may omit it. */
+  persistTransition?(action: Action, expected: Action, entry: ActionAuditEntry): Promise<boolean>;
 
   update(action: Action): Promise<Action>;
 
@@ -48,6 +51,7 @@ export interface ActionRepository {
     businessId: BusinessId,
     id: ActionId,
     now: Date,
+    guard?: { readonly action: Action; readonly actorId: UserId; readonly parametersHash: string; readonly executionKey: string; readonly audit: ActionAuditEntry },
   ): Promise<boolean>;
 
   /** Terminal transition after execution, also conditional on current state. */
@@ -56,6 +60,7 @@ export interface ActionRepository {
     id: ActionId,
     status: Extract<ActionStatus, 'completed' | 'failed'>,
     now: Date,
+    result?: Action['result'],
   ): Promise<boolean>;
 
   /** Append an entry to the action's immutable trail. */

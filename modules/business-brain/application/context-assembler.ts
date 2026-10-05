@@ -33,7 +33,9 @@ import type { RetrievalPolicy } from '@/modules/rag';
 import { assessFreshness } from '@/modules/rag';
 import type { AIContext } from '../domain/context';
 import type { EvidencePacket } from '../domain/evidence';
+import type { ToolCallRecord } from '../domain/types';
 import { compileContext } from './context-compiler';
+import type { CompileOutput } from './context-compiler';
 import { assembleContextPrompt } from './prompt-builder';
 import type { AssembledPrompt } from './prompt-builder';
 import type { ContextBudget } from './context-compiler';
@@ -50,6 +52,7 @@ export interface AssemblyRequest {
 }
 
 export interface AssemblyResult {
+  readonly toolRecords?: readonly ToolCallRecord[];
   readonly context: AIContext;
   readonly evidence: EvidencePacket;
   readonly prompt: AssembledPrompt;
@@ -58,6 +61,7 @@ export interface AssemblyResult {
 }
 
 export interface AssemblerDependencies {
+  readonly authorizeEvidence?: (ctx: TenantContext, compiled: CompileOutput) => Promise<CompileOutput>;
   readonly registry: ToolRegistry;
   readonly retriever?: RagRetriever;
   readonly retrievalPolicy?: RetrievalPolicy;
@@ -117,6 +121,7 @@ export function planToolCalls(
 }
 
 export class ContextAssembler {
+  private readonly authorizeEvidence: AssemblerDependencies['authorizeEvidence'];
   private readonly registry: ToolRegistry;
   private readonly retriever: RagRetriever | undefined;
   private readonly retrievalPolicy: RetrievalPolicy | undefined;
@@ -124,6 +129,7 @@ export class ContextAssembler {
   private readonly now: () => Date;
 
   constructor(dependencies: AssemblerDependencies) {
+    this.authorizeEvidence = dependencies.authorizeEvidence;
     this.registry = dependencies.registry;
     this.retriever = dependencies.retriever;
     this.retrievalPolicy = dependencies.retrievalPolicy;
@@ -137,10 +143,14 @@ export class ContextAssembler {
 
     const plan = request.toolCalls ?? this.planFrom(request.question);
     const envelopes: ToolEnvelope<unknown>[] = [];
+    const toolRecords: ToolCallRecord[] = [];
 
     for (const call of plan) {
       try {
-        envelopes.push(await session.call(call.tool, call.input));
+        const started = this.now().getTime();
+        const envelope = await session.call(call.tool, call.input);
+        envelopes.push(envelope);
+        toolRecords.push({ toolName: call.tool, input: call.input && typeof call.input === "object" && !Array.isArray(call.input) ? call.input as Record<string, unknown> : {}, output: { source: envelope.provenance.source, version: envelope.provenance.version }, latencyMs: Math.max(0, this.now().getTime() - started) });
       } catch (error) {
         // A failed tool degrades the answer; it does not fail the request. The
         // reason is recorded so the compiler can tell the model that evidence
@@ -153,11 +163,11 @@ export class ContextAssembler {
     const retrieval = retrievalEnabled
       ? await this.retrieve(ctx, request, toolFailures)
       : undefined;
-    const chunks = retrieval?.chunks ?? [];
+    const chunks = (retrieval?.chunks ?? []).filter((item) => item.chunk.businessId === ctx.businessId && item.chunk.metadata.businessId === ctx.businessId);
     const freshness =
       chunks.length > 0 ? assessFreshness(chunks, this.retrievalPolicy, this.now()) : undefined;
 
-    const compiled = compileContext({
+    let compiled = compileContext({
       question: request.question,
       correlationId: ctx.correlationId,
       toolEnvelopes: envelopes,
@@ -173,9 +183,12 @@ export class ContextAssembler {
       now: this.now(),
     });
 
+    if (this.authorizeEvidence) compiled = await this.authorizeEvidence(ctx, compiled);
+
     const withFailures = appendToolFailures(compiled.context, toolFailures);
 
     return {
+      toolRecords,
       context: withFailures,
       evidence: compiled.evidence,
       prompt: assembleContextPrompt(withFailures, compiled.evidence),

@@ -6,9 +6,9 @@ export interface Document {
 }
 export type DocumentSourceType = 'invoice' | 'receipt' | 'upi_screenshot' | 'pdf' | 'audio' | 'csv' | 'excel' | 'whatsapp_export' | 'text' | 'image' | 'other';
 export type DocumentStatus = 'uploaded' | 'validating' | 'queued' | 'processing' | 'extracted' | 'review_required' | 'approved' | 'rejected' | 'failed';
-export interface DocumentMetadata { readonly originalName: string; readonly contentHash?: string; readonly pageCount?: number; readonly language?: string; readonly extractionId?: string; readonly rejectionReason?: string; readonly tags?: readonly string[]; }
+export interface DocumentMetadata { readonly originalName: string; readonly contentHash?: string; readonly pageCount?: number; readonly language?: string; readonly extractionId?: string; readonly rejectionReason?: string; readonly tags?: readonly string[]; readonly ragIndexingStatus?: 'pending'|'indexed'|'insufficient_evidence'|'failed'; readonly ragIndexingError?: string; readonly ragChunkCount?: number; }
 export const DOCUMENT_STATUS_TRANSITIONS: Record<DocumentStatus, readonly DocumentStatus[]> = {
   uploaded: ['validating', 'failed'], validating: ['queued', 'failed'], queued: ['processing'],
-  processing: ['extracted', 'failed'], extracted: ['review_required', 'approved'], review_required: ['approved', 'rejected'],
+  processing: ['extracted', 'failed'], extracted: ['review_required', 'approved', 'rejected'], review_required: ['approved', 'rejected'],
   approved: [], rejected: [], failed: ['queued'],
 };

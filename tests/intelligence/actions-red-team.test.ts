@@ -539,7 +539,7 @@ describe('action audit trail', () => {
     for (const entry of entries) {
       expect(entry.businessId).toBe(TENANT_A);
       expect(entry.correlationId).toBeTruthy();
-      expect(entry.parametersHash).toMatch(/^[0-9a-f]{8}$/);
+      expect(entry.parametersHash).toMatch(/^[0-9a-f]{64}$/);
       expect(entry.createdAt).toBeInstanceOf(Date);
     }
   });
@@ -633,7 +633,7 @@ describe('action audit trail', () => {
       correlationId: 'corr-1',
     });
     expect(JSON.stringify(entry)).not.toContain('overdue');
-    expect(entry.parametersHash).toHaveLength(8);
+    expect(entry.parametersHash).toHaveLength(64);
   });
 });
 

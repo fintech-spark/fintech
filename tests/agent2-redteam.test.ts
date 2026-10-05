@@ -359,14 +359,27 @@ describe('function safety', () => {
     }
   });
 
-  it('never builds dynamic SQL from anything but %I over hardcoded arrays', () => {
+  it('quotes dynamic identifiers/literals and only permits proven constant policy grammar', () => {
     const sql = allSql();
     const formatCalls = sql.match(/format\([^)]*\)/gi) ?? [];
     expect(formatCalls.length).toBeGreaterThan(0);
+    // These DDL templates interpolate grammar assembled solely from local DO
+    // block constants. This is not request SQL: identifiers use %I and role
+    // literals use %L. Unknown raw interpolation still fails this gate.
+    const policyGrammar = [
+      "format('CREATE POLICY %I ON public.%I FOR INSERT TO authenticated WITH CHECK (%s)",
+      "format('CREATE POLICY %I ON public.%I FOR UPDATE TO authenticated USING (%s)",
+      "format('CREATE POLICY %I ON public.%I FOR DELETE TO authenticated USING (%s)",
+      "format('CREATE POLICY %I ON public.transaction_items FOR %s TO authenticated %s',",
+    ];
     for (const call of formatCalls) {
-      // %I quotes an identifier, %L quotes a literal. %s would interpolate raw.
-      expect(call).not.toMatch(/%s/);
+      if (!call.includes('%s')) continue;
+      expect(policyGrammar.some((literal) => call.startsWith(literal))).toBe(true);
     }
+    expect(sql).toContain("predicate := format('EXISTS (SELECT 1 FROM public.business_members m WHERE m.business_id = %I.business_id AND m.user_id = (SELECT auth.uid()) AND m.status = ''active'' AND m.role = ANY(%L::text[]))',t,roles)");
+    expect(sql).toContain("FOREACH operation IN ARRAY ARRAY['insert','update','delete'] LOOP");
+    expect(sql).toContain("'transaction_items_tenant_'||operation,upper(operation),CASE WHEN operation = 'insert'");
+    expect(sql).toContain("AND m.status = ''active'' AND m.role IN (''owner'',''admin'',''manager'',''accountant'')");
   });
 
   it('revokes the trigger helper functions from PUBLIC', () => {

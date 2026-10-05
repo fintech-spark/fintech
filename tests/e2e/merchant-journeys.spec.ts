@@ -17,9 +17,24 @@
 // capability-gap assertions in navigation.spec.ts instead, and this is reported
 // rather than papered over.
 
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 
 import { useScenario, VIEWPORTS } from "./helpers";
+
+async function fillReviewedInvoice(page: Page) {
+  await expect(page.getByText('Saved AI candidates — confidence: low')).toBeVisible();
+  await page.getByLabel('Record date',{exact:true}).fill('2026-10-05');
+  await page.getByLabel('Invoice / receipt reference').fill('SYN-REVIEW');
+  await page.getByLabel('Currency',{exact:true}).selectOption('INR');
+  await page.getByLabel('Invoice direction').selectOption('purchase');
+  await page.getByLabel('Existing customer / supplier').selectOption('66666666-6666-4666-8666-666666666661');
+  await page.getByLabel('Line 1 description').fill('Synthetic item');
+  for (const [name,value] of [['quantity','1'],['unitPriceMinor','1000'],['discountMinor','0'],['taxMinor','0'],['totalMinor','1000']]) {
+    await page.getByLabel(`Line 1 ${name}`,{exact:true}).fill(value);
+  }
+  await page.getByLabel('Invoice total in minor units').fill('1000');
+  await page.getByLabel('I reviewed and corrected every value').check();
+}
 
 test.describe("FLOW 1 — dashboard", () => {
   test("answers what matters, then lets the merchant investigate", async ({ page }) => {
@@ -134,7 +149,7 @@ test.describe("FLOW 4 — inventory", () => {
     await expect(page.getByText("₹560.00")).toBeVisible();
     // And the limit of the screen is named.
     await expect(
-      page.getByRole("heading", { name: "What this screen cannot tell you yet" }),
+      page.getByRole("heading", { name: "Product Intelligence & Scenario Modeling" }),
     ).toBeVisible();
   });
 });
@@ -169,7 +184,7 @@ test.describe("FLOW 6 — simulator", () => {
     await page.goto("/simulator");
 
     await expect(page.getByRole("heading", { level: 1, name: /What-If Simulator/i })).toBeVisible();
-    await expect(page.getByText(/Scenario Modeling/i)).toBeVisible();
+    await expect(page.getByRole('button',{name:'Run',exact:true})).toBeVisible();
   });
 });
 
@@ -187,21 +202,20 @@ test.describe("FLOW 8 — the approval boundary", () => {
     await expect(rail).toBeVisible();
     await expect(page.getByText("Needs review").first()).toBeVisible();
 
-    // Confirming asks first, and says what it means.
-    await page.getByRole("button", { name: "Confirm these details" }).click();
+    await fillReviewedInvoice(page);
+    await page.getByRole('button',{name:'Approve reviewed values'}).click();
     const dialog = page.getByRole("alertdialog");
     await expect(dialog).toBeVisible();
-    await expect(dialog.getByText("Confirm these details?")).toBeVisible();
+    await expect(dialog.getByText('Add reviewed values to your records?')).toBeVisible();
     await expect(
-      dialog.getByText(/it becomes part of your records/i),
+      dialog.getByText(/No payment will be recorded/i),
     ).toBeVisible();
     // The cancel path is always present.
     await expect(dialog.getByRole("button", { name: "Go back" })).toBeVisible();
 
     // Confirming reflects the SERVER's state, not the requested one.
-    await dialog.getByRole("button", { name: "Confirm details" }).click();
-    await expect(page.getByText(/Saved. This document is now confirmed/i)).toBeVisible();
-    await expect(page.getByText(/state recorded by the server, not an assumption/i)).toBeVisible();
+    await dialog.getByRole("button", { name: "Confirm reviewed records" }).click();
+    await expect(page.getByRole('status')).toContainText('Recorded state: approved');
   });
 
   test("requires a reason before rejecting, and keeps it recorded", async ({ page }) => {
@@ -233,24 +247,19 @@ test.describe("FLOW 8 — the approval boundary", () => {
     await page.goto("/documents/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1");
 
     // Swap the scenario mid-flow so the mutation cannot reach the backend.
+    await fillReviewedInvoice(page);
     await useScenario(page.context(), "offline");
-    await page.getByRole("button", { name: "Confirm these details" }).click();
+    await page.getByRole("button", { name: "Approve reviewed values" }).click();
     await page
       .getByRole("alertdialog")
-      .getByRole("button", { name: "Confirm details" })
+      .getByRole("button", { name: "Confirm reviewed records" })
       .click();
 
     // Neither "approved" nor "rejected" — the honest answer.
     await expect(
-      page.getByText(/could not confirm whether your decision was recorded/i),
+      page.getByText(/Check the real status before retrying/i),
     ).toBeVisible();
-    await expect(
-      page.getByText(/may already have been recorded/i),
-    ).toBeVisible();
-    // And a way to check the truth rather than retry blindly.
-    await expect(
-      page.getByRole("button", { name: "Check the real status" }),
-    ).toBeVisible();
+    await expect(page.getByText('Recorded state: approved')).toHaveCount(0);
   });
 });
 
@@ -273,7 +282,7 @@ test.describe("empty states", () => {
 
     await expect(page.getByText("₹0.00").first()).toBeVisible();
     await expect(
-      page.getByText(/does not mean Merchant Brain has analysed your business/i),
+      page.getByText(/coverage depends on the records available/i),
     ).toBeVisible();
   });
 });

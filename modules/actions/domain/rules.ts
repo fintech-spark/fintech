@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import type {
   Action,
   ActionAuditEntry,
@@ -212,8 +213,8 @@ export function checkExecutionPreconditions(input: {
   // approver from carrying out what they just authorised, which is the normal and
   // intended flow and would leave a consequential action with nobody able to run it.
   if (
-    action.createdBy === actorId &&
-    requiresDistinctApprover(action, input.approvalPolicy)
+    requiresDistinctApprover(action, input.approvalPolicy) &&
+    (action.createdBy === actorId || action.createdBy === action.approvedBy)
   ) {
     return deny(
       'self_approval_forbidden',
@@ -227,13 +228,13 @@ export function checkExecutionPreconditions(input: {
       `The approval is ${Math.round(approvalAge / 60_000)} minute(s) old; it must be renewed.`,
     );
   }
-  if (approvalAge < 0) {
+  if (!Number.isFinite(approvalAge) || approvalAge < 0) {
     return deny('approval_replay', 'The recorded approval time is in the future.');
   }
 
   const currentHash = hashActionParameters(action);
   if (
-    input.parametersHashAtApproval !== undefined &&
+    input.parametersHashAtApproval === undefined ||
     input.parametersHashAtApproval !== currentHash
   ) {
     return deny(
@@ -298,24 +299,14 @@ function deny(reason: ActionDenialReason, explanation: string): ExecutionCheck {
 // ---------------------------------------------------------------------------
 
 /**
- * FNV-1a 32-bit hash as 8 lowercase hex characters.
- *
- * Declared locally because the actions module may not import a sibling, and the
- * shared `lib` kernel has no hashing primitive. Chosen because it needs no runtime
- * dependency and is stable across Node versions, which is what makes tamper
- * detection reproducible in tests and in production.
+ * SHA-256 binds approvals and execution keys without attacker-feasible collisions.
  */
 function hashString(value: string): string {
-  let hash = 0x811c9dc5;
-  for (let index = 0; index < value.length; index += 1) {
-    hash ^= value.charCodeAt(index);
-    hash = Math.imul(hash, 0x01000193) >>> 0;
-  }
-  return hash.toString(16).padStart(8, '0');
+  return createHash('sha256').update(value).digest('hex');
 }
 
 /**
- * Content hash of an action's parameters.
+ * SHA-256 content hash of an action's parameters.
  *
  * Keys are sorted and values are canonicalised so that a semantically identical
  * parameter set always hashes identically regardless of insertion order. Any

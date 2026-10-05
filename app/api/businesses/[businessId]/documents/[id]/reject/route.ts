@@ -8,9 +8,11 @@ import { wireClient } from '@/lib/http/wiring';
  * POST /api/documents/:id/reject — a reason is mandatory.
  */
 export const POST = withApi(async (request: Request, route) => {
+  assertTrustedOrigin(request);
   const { ctx, db } = await resolveTenantContext(request, route.params.businessId);
   assertPermission(ctx, 'documents:write');
   const services = wireClient(db);
   const body = await parseJsonBody(request, rejectDocumentSchema);
   return { data: await services.documents.reject(ctx, parseUuid(route.params.id, 'id') as never, body.reason) };
 });
+import { assertTrustedOrigin } from '@/lib/auth/http';

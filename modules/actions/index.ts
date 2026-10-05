@@ -105,6 +105,8 @@ export type {
 };
 
 export { PostgresActionService } from './application/postgres-action-service';
+export { createProductionActionExecutorRegistry, type InternalActionCapabilities } from './application/production-executors';
+export { createPostgresInternalActionCapabilities } from './infrastructure/internal-action-capabilities';
 
 /**
  * Application contract for secure action execution.
@@ -120,6 +122,7 @@ export interface ActionService {
   approve(ctx: TenantContext, id: string): Promise<Action>;
   reject(ctx: TenantContext, id: string, reason: string): Promise<Action>;
   cancel(ctx: TenantContext, id: string, reason?: string): Promise<Action>;
+  expire(ctx: TenantContext, id: string): Promise<Action>;
   execute(ctx: TenantContext, input: ExecuteActionInput): Promise<ExecutionOutcome>;
   getById(ctx: TenantContext, id: string): Promise<Action | null>;
   list(ctx: TenantContext, filters: ActionFilterInput): Promise<PaginatedResult<Action>>;

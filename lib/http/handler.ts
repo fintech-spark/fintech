@@ -7,6 +7,7 @@ import { NextResponse } from 'next/server';
 import { toErrorResponse } from './errors';
 import { ValidationError } from '@/lib/errors';
 import { asBusinessId, type BusinessId } from '@/lib/types';
+import { assertTrustedOrigin } from '@/lib/auth/http';
 
 export interface ApiSuccess<T> {
   readonly data: T;
@@ -40,6 +41,7 @@ export type ApiHandler<T> = (request: Request, context: RouteContext) => Promise
 export function withApi<T>(handler: ApiHandler<T>) {
   return async (request: Request, context: NextRouteContext): Promise<Response> => {
     try {
+      assertTrustedOrigin(request);
       const params = context?.params ? await context.params : {};
       const result = await handler(request, { params });
       return NextResponse.json(

@@ -19,7 +19,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
-import { approveActionForMerchant, executeActionForMerchant } from "@/app/(dashboard)/actions/actions";
+import { approveActionForMerchant, executeActionForMerchant, transitionActionForMerchant } from "@/app/(dashboard)/actions/actions";
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import type { WireAction } from "@/lib/api/contracts";
 
 interface ActionsClientProps {
@@ -31,6 +33,18 @@ export function ActionsClient({ businessId, initialActions }: ActionsClientProps
   const [actions, setActions] = React.useState<readonly WireAction[]>(initialActions);
   const [processingId, setProcessingId] = React.useState<string | null>(null);
   const [feedback, setFeedback] = React.useState<{ message: string; isError?: boolean } | null>(null);
+  const [reason, setReason] = React.useState('');
+
+  const handleTransition = async (id: string, transition: 'draft' | 'submit' | 'reject' | 'cancel') => {
+    setProcessingId(id); setFeedback(null);
+    try {
+      const result = await transitionActionForMerchant(businessId,id,transition,reason);
+      if (result.outcome === 'confirmed') {
+        setActions((prev) => prev.map((action) => action.id === id ? result.action : action));
+        setFeedback({message:`Recorded state: ${result.action.status}`});
+      } else setFeedback({message:result.message,isError:true});
+    } finally { setProcessingId(null); }
+  };
 
   const handleApprove = async (actionId: string) => {
     setProcessingId(actionId);
@@ -67,6 +81,8 @@ export function ActionsClient({ businessId, initialActions }: ActionsClientProps
   const getStatusBadge = (status: string) => {
     switch (status.toLowerCase()) {
       case "proposed":
+      case "drafted":
+      case "awaiting_approval":
         return (
           <Badge variant="outline" className="border-caution-border bg-caution-subtle text-caution-foreground">
             <Clock className="size-3 mr-1" /> Pending Approval
@@ -122,7 +138,7 @@ export function ActionsClient({ businessId, initialActions }: ActionsClientProps
           </div>
           <CardDescription>
             Consequential financial actions require two distinct user accounts (proposer and approver).
-            Every approved action creates an immutable cryptographic audit record.
+            Lifecycle transitions are audited and approvals are bound to a SHA-256 parameter hash. Reports, price changes and supplier changes have internal executors; messaging and reorders are unsupported.
           </CardDescription>
         </CardHeader>
       </Card>
@@ -142,6 +158,10 @@ export function ActionsClient({ businessId, initialActions }: ActionsClientProps
       )}
 
       {/* Action List */}
+      {actions.some((action) => ['proposed','drafted','awaiting_approval'].includes(action.status)) && <div className="grid gap-2">
+        <Label htmlFor="action-reason">Reason for rejection or cancellation</Label>
+        <Input id="action-reason" value={reason} onChange={(event) => setReason(event.target.value)} maxLength={500}/>
+      </div>}
       {actions.length === 0 ? (
         <Card className="border-dashed border-border py-12 text-center">
           <CardHeader>
@@ -184,7 +204,11 @@ export function ActionsClient({ businessId, initialActions }: ActionsClientProps
               <CardContent className="flex flex-col gap-4">
                 {/* Controls */}
                 <div className="flex items-center justify-end gap-2 pt-2 border-t border-border/40">
-                  {action.status.toLowerCase() === "proposed" && (
+                  {action.status === 'proposed' && <Button size="sm" disabled={processingId === action.id} onClick={() => handleTransition(action.id,'draft')}>Prepare draft</Button>}
+                  {action.status === 'drafted' && <Button size="sm" disabled={processingId === action.id} onClick={() => handleTransition(action.id,'submit')}>Submit for approval</Button>}
+                  {['proposed','drafted'].includes(action.status) && <Button variant="outline" size="sm" disabled={processingId === action.id || !reason.trim()} onClick={() => handleTransition(action.id,'cancel')}>Cancel</Button>}
+                  {action.status === 'awaiting_approval' && <Button variant="outline" size="sm" disabled={processingId === action.id || !reason.trim()} onClick={() => handleTransition(action.id,'reject')}>Reject</Button>}
+                  {action.status.toLowerCase() === "awaiting_approval" && (
                     <Button
                       size="sm"
                       onClick={() => handleApprove(action.id)}
@@ -221,6 +245,8 @@ export function ActionsClient({ businessId, initialActions }: ActionsClientProps
                       <span>Executed and Audited</span>
                     </div>
                   )}
+                  {action.result?.output && <p className="text-xs text-muted-foreground">{action.result.output}</p>}
+                  {action.result?.data && <pre className="max-w-full overflow-auto text-xs">{JSON.stringify(action.result.data,null,2)}</pre>}
                 </div>
               </CardContent>
             </Card>

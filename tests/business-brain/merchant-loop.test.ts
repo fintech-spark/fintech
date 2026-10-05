@@ -104,7 +104,7 @@ describe('Business Brain — End-to-End Merchant Loop ("Why did my profit fall l
       complete: vi.fn(async (req: CompletionRequest): Promise<CompletionResponse> => {
         expect(req.systemPrompt).toContain('You are the business analysis system for a small merchant');
         return {
-          content: 'Your net profit fell last month primarily because supplier procurement costs rose 15% as noted in the supplier notice, while rent (200.00 INR) and utility expenses (150.00 INR) remained fixed against 500.00 INR in sales.',
+          content: JSON.stringify({ answer: "Whether profit fell last month is not established by the supplied reporting window. Check the recorded supplier notice.", claimType: "interpretation", evidence: JSON.parse(String(req.messages.at(-1)?.content).match(/<citation_registry>([\s\S]*?)<\/citation_registry>/)?.[1] ?? "[]").slice(0, 1), missingInformation: ["comparison period"], conflicts: [], confidence: "low" }),
           usage: { promptTokens: 350, completionTokens: 60, totalTokens: 410 },
           finishReason: 'stop',
           // The resolved id, as a real adapter reports it. The service must
@@ -192,19 +192,40 @@ describe('Business Brain — End-to-End Merchant Loop ("Why did my profit fall l
   });
 
   it('wireBusinessBrain supports RAG retriever wiring and executes retrieval', async () => {
+    const sessionId = "cccccccc-0000-4000-8000-000000000001";
+    const docId = "dddddddd-0000-4000-8000-000000000001";
+    const chunkId = "eeeeeeee-0000-4000-8000-000000000001";
+    const content = "Supplier surcharge applied to delivery charges";
+    const db = createFakeDatabase([
+      { match: "SELECT m.id", rows: [] },
+      { match: "FROM business_members", rows: [{ role: "owner" }] },
+      { match: "SELECT s.id", rows: [{ id: sessionId }] },
+      { match: "FROM document_embeddings", rows: [{ content, uploaded_at: "2026-10-01T00:00:00.000Z" }] },
+      { match: "FROM businesses", rows: [] },
+      { match: "FROM suppliers", rows: [] },
+      { match: "INSERT INTO chat_sessions", rows: [] },
+      { match: "INSERT INTO chat_messages", rows: [] },
+      { match: "UPDATE chat_sessions", rows: [] },
+    ]);
+    const database = await import("@/lib/database");
+    const databaseSpy = vi.spyOn(database, "getDatabaseClient").mockReturnValue(db as never);
     const { wireBusinessBrain } = await import('@/lib/ai/composition');
     const mockRetriever = {
       retrieve: vi.fn(async () => ({
         chunks: [
           {
             chunk: {
-              id: 'doc-chunk-1',
+              id: chunkId,
               businessId: BUSINESS_A,
-              documentId: 'doc-1' as never,
+              documentId: docId as never,
               sourceId: 'doc-1',
               sourceType: 'invoice' as const,
-              content: 'Supplier surcharge of 15% applied to delivery charges',
+              content,
               metadata: {
+                businessId: BUSINESS_A,
+                sourceId: docId,
+                sourceType: "invoice",
+                sourceTimestamp: "2026-10-01T00:00:00.000Z",
                 chunkIndex: 0,
                 totalChunks: 1,
                 chunkerVersion: 'v1',
@@ -221,18 +242,31 @@ describe('Business Brain — End-to-End Merchant Loop ("Why did my profit fall l
       })),
     };
 
-    const { brain } = wireBusinessBrain(BUSINESS_A, { retriever: mockRetriever as never });
+    // A local provider double is mandatory even when developer credentials exist.
+    const provider: AIProviderAdapter = {
+      provider: 'google',
+      complete: vi.fn(async (request): Promise<CompletionResponse> => {
+        const registry: readonly Record<string, unknown>[] = JSON.parse(String(request.messages.at(-1)?.content).match(/<citation_registry>([\s\S]*?)<\/citation_registry>/)?.[1] ?? '[]');
+        const citation = registry.find((item) => String(item.sourceId).startsWith('[E-'));
+        return { content: JSON.stringify({ answer: 'Recorded supplier context.', claimType: 'interpretation', evidence: [citation], missingInformation: [], conflicts: [], confidence: 'low' }), usage: { promptTokens: 0, completionTokens: 0, totalTokens: 0 }, finishReason: 'stop' };
+      }),
+      embed: vi.fn(),
+    };
+    const { brain } = wireBusinessBrain(BUSINESS_A, { retriever: mockRetriever as never, adapter: provider });
     const tenantCtx = tenantFor(BUSINESS_A);
 
     const result = await brain.query(tenantCtx, {
       businessId: BUSINESS_A,
       userId: tenantCtx.userId,
-      sessionId: 'session-rag-test',
+      sessionId,
       message: 'Why did my supplier charges increase?',
     });
 
     expect(mockRetriever.retrieve).toHaveBeenCalledTimes(1);
     expect(result.evidence.some((e) => e.type === 'rag_document')).toBe(true);
     expect(result.metadata.ragContextUsed).toBe(true);
+    expect(result.metadata.degradedReason).toBeUndefined();
+    expect(result.evidence[0].provenance).toMatchObject({ businessId: BUSINESS_A, userId: tenantCtx.userId, sourceIds: [`[E-${chunkId}]`] });
+    databaseSpy.mockRestore();
   });
 });

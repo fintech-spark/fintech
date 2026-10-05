@@ -169,6 +169,19 @@ export function handleApiRequest(
     const resourceId = segments[4];
 
     switch (resource) {
+      case 'ai':
+        if (resourceId === 'history') return ok({messages:[]});
+        return fail(422,'BusinessRuleError','UNSUPPORTED','Synthetic chat requires an explicit response fixture');
+      case 'transactions':
+      case 'expenses':
+      case 'notifications':
+      case 'actions':
+      case 'profit-leaks':
+        return list([],url,true);
+      case 'simulator':
+        return list([],url,true);
+      case 'cash-flow':
+        return ok(null);
       case undefined:
         return ok(business);
       case "members":
@@ -237,7 +250,7 @@ export function handleApiRequest(
         }
         if (segments[5] === "status") return ok(found);
         return found
-          ? ok(found)
+          ? ok({...found,extraction:{id:'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',overallConfidence:'low',fields:[],evidence:[]}})
           : fail(404, "NotFoundError", "NOT_FOUND", "Document not found");
       }
       default:

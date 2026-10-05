@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       run_evals:
-        description: "Run paid/provider-backed Promptfoo evaluations"
+        description: "Run paid/provider-backed synthetic evaluations"
         required: true
         default: false
         type: boolean
@@ -13,7 +13,7 @@ permissions:
   contents: read
 
 jobs:
-  promptfoo:
+  provider-evals:
     if: inputs.run_evals == true
     runs-on: ubuntu-latest
     steps:
@@ -26,19 +26,21 @@ jobs:
           cache: npm
       - name: Install dependencies
         run: npm ci
-      - name: Require an explicit local eval config
-        run: test -f evals/promptfooconfig.yaml
-      - name: Run Promptfoo
-        run: npx --yes promptfoo@latest eval evals/promptfooconfig.yaml --no-cache
+      - name: Offline evaluations
+        run: npm run eval
+      - name: Run real provider evaluations
+        run: npm run eval:live -- --reporter=default --reporter=json --outputFile=evals/provider-results.json
         env:
-          PROMPTFOO_API_KEY: ${{ secrets.PROMPTFOO_API_KEY }}
-          PROMPTFOO_MODEL: ${{ secrets.PROMPTFOO_MODEL }}
+          AI_EVAL_LIVE: '1'
+          AI_EVAL_PROVIDER: ${{ vars.AI_EVAL_PROVIDER || 'google' }}
+          AI_EVAL_MODEL: ${{ vars.AI_EVAL_MODEL }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
       - name: Upload evaluation output
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: promptfoo-results
-          path: |
-            promptfoo-output.json
-            promptfoo-results.json
+          name: provider-eval-results
+          path: evals/provider-results.json
           if-no-files-found: ignore

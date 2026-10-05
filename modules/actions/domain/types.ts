@@ -26,6 +26,7 @@ export type ActionType =
   | 'change_supplier'
   | 'reduce_expense'
   | 'create_transaction'
+  | 'generate_report'
   | 'custom';
 
 export type ActionStatus =
@@ -41,6 +42,8 @@ export type ActionStatus =
 export type ActionSource = 'ai_recommendation' | 'profit_leak' | 'cash_flow_risk' | 'manual';
 
 export interface ActionResult {
+  /** Deterministic report payload, persisted with the execution outcome. */
+  readonly data?: Readonly<Record<string, unknown>>;
   readonly success: boolean;
   readonly output?: string;
   readonly error?: string;

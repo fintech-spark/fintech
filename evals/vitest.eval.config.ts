@@ -8,10 +8,8 @@ import path from 'node:path';
 // API key, no budget approval and no network. That separation is what lets the
 // evaluation suite run in CI today.
 //
-// Provider-backed evals (extraction accuracy, grounding, hallucination rate,
-// multi-model agreement) are NOT wired here: they need a model, a budget and an
-// approved secret policy. `evals/promptfooconfig.yaml` stays the placeholder for
-// those. See `evals/README.md`.
+// Live provider calls run only through evals/vitest.live.config.ts with an
+// explicit AI_EVAL_LIVE=1 opt-in. They are excluded from this offline gate.
 
 const root = path.resolve(import.meta.dirname, '..');
 

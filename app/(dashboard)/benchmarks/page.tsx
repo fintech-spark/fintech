@@ -133,21 +133,21 @@ export default async function BenchmarksPage() {
   const recentTrends = [...nationalTrend].slice(-6).reverse();
 
   return (
-    <div className="space-y-8 p-4 md:p-8 max-w-7xl mx-auto">
+    <div className="flex w-full min-w-0 max-w-7xl flex-col gap-8 p-4 md:p-8 mx-auto">
       {/* Page Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b pb-6">
         <div>
-          <div className="flex items-center gap-2 mb-1">
+          <div className="flex flex-wrap items-center gap-2 mb-1">
             <Badge variant="outline" className="text-xs uppercase tracking-wider text-muted-foreground">
               National Reference Dataset
             </Badge>
             <Badge variant="secondary" className={cn("text-xs", toneSurfaceClasses("positive"))}>
-              <CheckCircle2 className="h-3 w-3 mr-1" /> Verified 119k Records
+              <CheckCircle2 className="h-3 w-3 mr-1" /> Public reference data
             </Badge>
           </div>
           <h1 className="text-3xl font-bold tracking-tight">Market Benchmarks</h1>
           <p className="text-muted-foreground text-sm mt-1">
-            Official PhonePe Pulse payment trends (Q1 2018 – Q2 2026). Public national benchmarks for market context.
+            PhonePe Pulse payment trends through Q{period.quarter} {period.year}. Public national benchmarks for market context.
           </p>
         </div>
         <FreshnessLine updatedAt={loadedAt} />

@@ -1,13 +1,15 @@
 import { withApi } from "@/lib/http/handler";
-import { assertPermission, resolveTenantContext } from "@/lib/http/auth-context";
+import { assertPermission, extractAccessToken, resolveTenantContext } from "@/lib/http/auth-context";
+import { AuthenticationError } from "@/lib/errors";
+import { assertTrustedOrigin } from "@/lib/auth/http";
 import { parseJsonBody } from "@/lib/http/params";
 import { wireBusinessBrain } from "@/lib/ai/composition";
 import { z } from "zod";
 
 const aiChatSchema = z.object({
-  message: z.string().min(1).max(4000),
+  message: z.string().trim().min(1).max(4000),
   sessionId: z.string().uuid().optional(),
-});
+}).strict();
 
 /**
  * POST /api/businesses/[businessId]/ai/chat
@@ -19,6 +21,8 @@ const aiChatSchema = z.object({
  * - Returns structured response with cited evidence and confidence
  */
 export const POST = withApi(async (request: Request, route) => {
+  assertTrustedOrigin(request);
+  if (!extractAccessToken(request)) throw new AuthenticationError();
   const { ctx } = await resolveTenantContext(request, route.params.businessId);
   // Business Brain answers questions from the merchant's own financial records,
   // so it is an analytics capability: a role without analytics:read has no
