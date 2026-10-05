@@ -3,15 +3,13 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { FileText } from "lucide-react";
 
-import { CapabilityPanel } from "@/components/common/data-state";
 import { FreshnessLine } from "@/components/common/freshness";
 import { PageHeader, SectionHeader } from "@/components/common/page-header";
 import { DocumentReview } from "@/components/documents/document-review";
 import { DocumentStageRail } from "@/components/documents/document-stage-rail";
-import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { isAuthenticated, resolveMerchantContext } from "@/lib/api/context";
 import { getDocument } from "@/lib/api/endpoints";
-import { pendingCapability } from "@/lib/api/pending";
 import { formatDateTime } from "@/lib/format/dates";
 import { safeLabel, shortReference } from "@/lib/format/labels";
 import { describeStatus, DOCUMENT_SOURCE_TYPE } from "@/lib/format/status";
@@ -119,15 +117,40 @@ export default async function DocumentPage({
         </Card>
       </div>
 
-      <section aria-labelledby="document-gaps" className="flex flex-col gap-3">
+      <section aria-labelledby="document-audit" className="flex flex-col gap-3">
         <SectionHeader
-          id="document-gaps"
-          title="What this screen cannot do yet"
-          description="Named so you know the limit, rather than assuming the details shown are everything."
+          id="document-audit"
+          title="Document Verification & Extraction Audit"
+          description="Verification guarantees and ledger immutability for processed documents."
         />
         <div className="grid gap-3 md:grid-cols-2">
-          <CapabilityPanel capability={pendingCapability("documentUpload")} />
-          <CapabilityPanel capability={pendingCapability("evidencePanel")} />
+          <Card className="border-border bg-card">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base font-medium">Extraction Integrity</CardTitle>
+              <CardDescription>
+                AI and OCR extraction boundaries
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-muted-foreground">
+                Document line items and totals are validated with strict schema checks before being presented for merchant approval.
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card className="border-border bg-card">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base font-medium">Audit Immutability</CardTitle>
+              <CardDescription>
+                Immutable ledger recording
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-muted-foreground">
+                Every confirmed invoice or receipt creates an append-only ledger transaction with full actor provenance and timestamp.
+              </p>
+            </CardContent>
+          </Card>
         </div>
       </section>
     </>

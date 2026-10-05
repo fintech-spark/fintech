@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
-
-import { CapabilityPanel } from "@/components/common/data-state";
+import Link from "next/link";
+import { ArrowRight } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { FreshnessLine } from "@/components/common/freshness";
 import { MetricCard } from "@/components/common/metric-card";
 import { PageHeader, SectionHeader } from "@/components/common/page-header";
@@ -15,7 +17,6 @@ import {
 } from "@/components/data/params";
 import { isAuthenticated, resolveMerchantContext } from "@/lib/api/context";
 import { getReceivableTotals, listCustomers, listReceivables } from "@/lib/api/endpoints";
-import { pendingCapability } from "@/lib/api/pending";
 import { settle } from "@/lib/api/settle";
 import { safeLabel } from "@/lib/format/labels";
 import { formatMoney } from "@/lib/format/money";
@@ -107,7 +108,37 @@ export default async function ReceivablesPage({
         />
       </section>
 
-      <CapabilityPanel capability={pendingCapability("actions")} />
+      <section aria-labelledby="receivables-actions" className="flex flex-col gap-3">
+        <SectionHeader
+          id="receivables-actions"
+          title="Operational Action Center"
+          description="Prepare and execute payment reminders, customer statements, or credit term reviews with dual approval."
+        />
+        <Card className="border-border bg-card">
+          <CardHeader className="pb-3">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <CardTitle className="text-base font-medium">Overdue Balance Collection Actions</CardTitle>
+                <CardDescription>
+                  Actions move through draft, approval, execution, and audit trail on the server.
+                </CardDescription>
+              </div>
+              <Button asChild size="sm">
+                <Link href="/actions">
+                  Open Action Center <ArrowRight className="ml-1.5 size-4" />
+                </Link>
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground">
+              {totals.ok && totals.value.overdue > 0
+                ? `${formatMoney({ amount: totals.value.overdue, currency })} is currently overdue across customer balances. Review proposed collection workflows or draft custom actions in the Action Center.`
+                : "All receivables are currently within terms. You can review scheduled reminder templates or draft credit actions in the Action Center."}
+            </p>
+          </CardContent>
+        </Card>
+      </section>
     </>
   );
 }

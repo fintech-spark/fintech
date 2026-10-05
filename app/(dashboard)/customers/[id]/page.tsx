@@ -2,16 +2,17 @@ import { CardHeading } from "@/components/common/card-heading";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
-import { CapabilityPanel } from "@/components/common/data-state";
+import Link from "next/link";
+import { ArrowRight } from "lucide-react";
 import { FreshnessLine } from "@/components/common/freshness";
 import { MoneyValue } from "@/components/common/money";
 import { PageHeader, SectionHeader } from "@/components/common/page-header";
 import { StatusBadge } from "@/components/common/status-badge";
 import { ReceivablesTable } from "@/components/customers/receivables-table";
-import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { isAuthenticated, resolveMerchantContext } from "@/lib/api/context";
 import { getCustomer, getCustomerBalance, listReceivables } from "@/lib/api/endpoints";
-import { pendingCapability } from "@/lib/api/pending";
 import { settle } from "@/lib/api/settle";
 import { formatDate } from "@/lib/format/dates";
 import { safeLabel } from "@/lib/format/labels";
@@ -138,7 +139,35 @@ export default async function CustomerPage({
         />
       </section>
 
-      <CapabilityPanel capability={pendingCapability("actions")} />
+      <section aria-labelledby="customer-actions" className="flex flex-col gap-3">
+        <SectionHeader
+          id="customer-actions"
+          title="Customer Actions"
+          description="Prepare and execute statements, reminder notices, and account actions."
+        />
+        <Card className="border-border bg-card">
+          <CardHeader className="pb-3">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <CardTitle className="text-base font-medium">Customer Action Workflow</CardTitle>
+                <CardDescription>
+                  Actions move through proposal, dual approval, execution, and audit log.
+                </CardDescription>
+              </div>
+              <Button asChild size="sm" variant="outline">
+                <Link href="/actions">
+                  Open Action Center <ArrowRight className="ml-1.5 size-4" />
+                </Link>
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground">
+              Review and approve automated payment reminder notices, WhatsApp drafts, or custom payment agreements for this customer in the Action Center.
+            </p>
+          </CardContent>
+        </Card>
+      </section>
     </>
   );
 }

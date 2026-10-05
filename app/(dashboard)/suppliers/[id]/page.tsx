@@ -2,16 +2,17 @@ import { CardHeading } from "@/components/common/card-heading";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
-import { CapabilityPanel } from "@/components/common/data-state";
+import Link from "next/link";
+import { ArrowRight } from "lucide-react";
 import { FreshnessLine } from "@/components/common/freshness";
 import { MoneyValue } from "@/components/common/money";
 import { PageHeader, SectionHeader } from "@/components/common/page-header";
 import { StatusBadge } from "@/components/common/status-badge";
 import { PayablesTable } from "@/components/suppliers/payables-table";
-import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { isAuthenticated, resolveMerchantContext } from "@/lib/api/context";
 import { getSupplier, getSupplierPricing, listPayables } from "@/lib/api/endpoints";
-import { pendingCapability } from "@/lib/api/pending";
 import { settle } from "@/lib/api/settle";
 import { formatDate } from "@/lib/format/dates";
 import { safeLabel, shortReference } from "@/lib/format/labels";
@@ -174,7 +175,35 @@ export default async function SupplierPage({
         <PayablesTable result={payables} currency={currency} supplierNames={names} />
       </section>
 
-      <CapabilityPanel capability={pendingCapability("profitLeaks")} />
+      <section aria-labelledby="supplier-leaks" className="flex flex-col gap-3">
+        <SectionHeader
+          id="supplier-leaks"
+          title="Supplier Price Leaks"
+          description="Check for unexpected unit price increases and invoice variances from this vendor."
+        />
+        <Card className="border-border bg-card">
+          <CardHeader className="pb-3">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <CardTitle className="text-base font-medium">Vendor Pricing Analysis</CardTitle>
+                <CardDescription>
+                  Merchant Brain tracks historical invoice prices to catch quiet price increases.
+                </CardDescription>
+              </div>
+              <Button asChild size="sm" variant="outline">
+                <Link href="/profit-leaks">
+                  View Profit Leaks <ArrowRight className="ml-1.5 size-4" />
+                </Link>
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground">
+              Review any active profit leak findings flagged for this supplier&apos;s product catalogue in the central Profit Leaks detector.
+            </p>
+          </CardContent>
+        </Card>
+      </section>
     </>
   );
 }

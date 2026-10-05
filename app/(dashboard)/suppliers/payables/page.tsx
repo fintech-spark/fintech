@@ -1,10 +1,13 @@
 import type { Metadata } from "next";
 
-import { CapabilityPanel } from "@/components/common/data-state";
+import Link from "next/link";
+import { ArrowRight } from "lucide-react";
 import { FreshnessLine } from "@/components/common/freshness";
 import { MetricCard } from "@/components/common/metric-card";
 import { PageHeader, SectionHeader } from "@/components/common/page-header";
 import { PayablesTable } from "@/components/suppliers/payables-table";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import {
   PARAM,
   PAYABLE_STATUS_VALUES,
@@ -15,7 +18,6 @@ import {
 } from "@/components/data/params";
 import { isAuthenticated, resolveMerchantContext } from "@/lib/api/context";
 import { getPayableTotals, listPayables, listSuppliers } from "@/lib/api/endpoints";
-import { pendingCapability } from "@/lib/api/pending";
 import { settle } from "@/lib/api/settle";
 import { safeLabel } from "@/lib/format/labels";
 import { formatMoney } from "@/lib/format/money";
@@ -94,7 +96,37 @@ export default async function PayablesPage({
         <PayablesTable result={payables} currency={currency} supplierNames={supplierNames} />
       </section>
 
-      <CapabilityPanel capability={pendingCapability("cashFlow")} />
+      <section aria-labelledby="payables-cash-flow" className="flex flex-col gap-3">
+        <SectionHeader
+          id="payables-cash-flow"
+          title="Cash Flow Horizon"
+          description="Model how scheduled supplier bills affect your bank liquidity over the next 30 days."
+        />
+        <Card className="border-border bg-card">
+          <CardHeader className="pb-3">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <CardTitle className="text-base font-medium">30-Day Liquidity Forecast</CardTitle>
+                <CardDescription>
+                  Deterministic cash projections combine pending bills with expected receivables.
+                </CardDescription>
+              </div>
+              <Button asChild size="sm">
+                <Link href="/cash-flow">
+                  View Cash Flow Forecast <ArrowRight className="ml-1.5 size-4" />
+                </Link>
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground">
+              {totals.ok && totals.value.overdue > 0
+                ? `${formatMoney({ amount: totals.value.overdue, currency })} in overdue supplier bills requires near-term cash allocation. Inspect your net cash runway in the Cash Flow workspace.`
+                : "Supplier disbursements are mapped against cash receipts to give you a clear view of liquidity risks before payment deadlines arrive."}
+            </p>
+          </CardContent>
+        </Card>
+      </section>
     </>
   );
 }

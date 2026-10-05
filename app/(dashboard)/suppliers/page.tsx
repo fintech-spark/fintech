@@ -1,12 +1,12 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { CircleDollarSign } from "lucide-react";
+import { ArrowRight, CircleDollarSign } from "lucide-react";
 
-import { CapabilityPanel } from "@/components/common/data-state";
 import { FreshnessLine } from "@/components/common/freshness";
 import { MetricCard } from "@/components/common/metric-card";
 import { PageHeader, SectionHeader } from "@/components/common/page-header";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { SuppliersTable } from "@/components/suppliers/suppliers-table";
 import {
   PARAM,
@@ -19,7 +19,6 @@ import {
 } from "@/components/data/params";
 import { isAuthenticated, resolveMerchantContext } from "@/lib/api/context";
 import { getPayableTotals, listSuppliers } from "@/lib/api/endpoints";
-import { pendingCapability } from "@/lib/api/pending";
 import { settle } from "@/lib/api/settle";
 import { formatMoney } from "@/lib/format/money";
 import type { CurrencyCode } from "@/lib/types";
@@ -105,7 +104,35 @@ export default async function SuppliersPage({
         />
       </section>
 
-      <CapabilityPanel capability={pendingCapability("profitLeaks")} />
+      <section aria-labelledby="supplier-intelligence" className="flex flex-col gap-3">
+        <SectionHeader
+          id="supplier-intelligence"
+          title="Supplier Price & Profit Leak Intelligence"
+          description="Identify supplier price creep, unexpected invoice surcharges, and procurement variances."
+        />
+        <Card className="border-border bg-card">
+          <CardHeader className="pb-3">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <CardTitle className="text-base font-medium">Supplier Price Increase Monitoring</CardTitle>
+                <CardDescription>
+                  Continuous detection monitors purchase order pricing against historical baselines.
+                </CardDescription>
+              </div>
+              <Button asChild size="sm" variant="outline">
+                <Link href="/profit-leaks">
+                  Inspect Supplier Leaks <ArrowRight className="ml-1.5 size-4" />
+                </Link>
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground">
+              Merchant Brain automatically compares line items across repeat invoices from suppliers to surface cost increases before they reduce gross margins.
+            </p>
+          </CardContent>
+        </Card>
+      </section>
     </>
   );
 }

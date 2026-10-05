@@ -1,12 +1,12 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { CircleDollarSign } from "lucide-react";
+import { ArrowRight, CircleDollarSign } from "lucide-react";
 
-import { CapabilityPanel } from "@/components/common/data-state";
 import { FreshnessLine } from "@/components/common/freshness";
 import { MetricCard } from "@/components/common/metric-card";
 import { PageHeader, SectionHeader } from "@/components/common/page-header";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { CustomersTable } from "@/components/customers/customers-table";
 import {
   PARAM,
@@ -19,7 +19,6 @@ import {
 } from "@/components/data/params";
 import { isAuthenticated, resolveMerchantContext } from "@/lib/api/context";
 import { getReceivableTotals, listCustomers } from "@/lib/api/endpoints";
-import { pendingCapability } from "@/lib/api/pending";
 import { settle } from "@/lib/api/settle";
 import { formatMoney } from "@/lib/format/money";
 import type { CurrencyCode } from "@/lib/types";
@@ -107,7 +106,35 @@ export default async function CustomersPage({
         />
       </section>
 
-      <CapabilityPanel capability={pendingCapability("businessBrain")} />
+      <section aria-labelledby="customer-intelligence" className="flex flex-col gap-3">
+        <SectionHeader
+          id="customer-intelligence"
+          title="Customer & Receivables Intelligence"
+          description="Use Business Brain to analyze customer buying frequency, overdue risk, and debt collection."
+        />
+        <Card className="border-border bg-card">
+          <CardHeader className="pb-3">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <CardTitle className="text-base font-medium">Ask Merchant Brain About Customers</CardTitle>
+                <CardDescription>
+                  Natural-language synthesis grounded in your invoices and counterparty transaction records.
+                </CardDescription>
+              </div>
+              <Button asChild size="sm">
+                <Link href="/business-brain">
+                  Ask Business Brain <ArrowRight className="ml-1.5 size-4" />
+                </Link>
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground">
+              Try asking questions like &ldquo;Which customers have the highest overdue balance?&rdquo; or &ldquo;Who stopped buying this month?&rdquo; to receive deterministic answers with full evidence citations.
+            </p>
+          </CardContent>
+        </Card>
+      </section>
     </>
   );
 }

@@ -3,17 +3,16 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { CapabilityPanel } from "@/components/common/data-state";
+import { ArrowRight } from "lucide-react";
 import { FreshnessLine } from "@/components/common/freshness";
 import { MoneyValue } from "@/components/common/money";
 import { PageHeader, SectionHeader } from "@/components/common/page-header";
 import { StatusBadge } from "@/components/common/status-badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { isAuthenticated, resolveMerchantContext } from "@/lib/api/context";
 import { getProduct } from "@/lib/api/endpoints";
-import { pendingCapability } from "@/lib/api/pending";
 import { formatQuantity } from "@/lib/format/money";
 import { safeLabel } from "@/lib/format/labels";
 import {
@@ -159,29 +158,58 @@ export default async function ProductPage({
         </Card>
       </div>
 
-      <section aria-labelledby="not-available" className="flex flex-col gap-3">
+      <section aria-labelledby="product-intelligence" className="flex flex-col gap-3">
         <SectionHeader
-          id="not-available"
-          title="What this screen cannot tell you yet"
-          description="Named so you know the limit of the product, rather than assuming the number is all there is."
+          id="product-intelligence"
+          title="Product Intelligence & Scenario Modeling"
+          description="Evaluate margin stability and test hypothetical price adjustments for this SKU."
         />
         <div className="grid gap-3 md:grid-cols-2">
-          <CapabilityPanel
-            capability={pendingCapability("profitLeaks")}
-            action={
-              <Button variant="outline" size="sm" asChild>
-                <Link href="/profit-leaks">Open Profit leaks</Link>
+          <Card className="border-border bg-card">
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="text-base font-medium">Profit Leak & Margin Health</CardTitle>
+                  <CardDescription>
+                    Continuous rule-based detection scans for cost spikes and price erosion.
+                  </CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="flex flex-col justify-between gap-3">
+              <p className="text-sm text-muted-foreground">
+                Check whether supplier price creep or discount structures have compressed gross profit on this product.
+              </p>
+              <Button variant="outline" size="sm" asChild className="w-fit">
+                <Link href="/profit-leaks">
+                  Inspect Profit Leaks <ArrowRight className="ml-1.5 size-4" />
+                </Link>
               </Button>
-            }
-          />
-          <CapabilityPanel
-            capability={pendingCapability("simulator")}
-            action={
-              <Button variant="outline" size="sm" asChild>
-                <Link href="/simulator">Open Simulator</Link>
+            </CardContent>
+          </Card>
+
+          <Card className="border-border bg-card">
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="text-base font-medium">What-If Price Simulation</CardTitle>
+                  <CardDescription>
+                    Model price increases or volume elasticity without altering business truth.
+                  </CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="flex flex-col justify-between gap-3">
+              <p className="text-sm text-muted-foreground">
+                Test how a 5% or 10% change in retail price or cost of goods influences overall net margins.
+              </p>
+              <Button variant="outline" size="sm" asChild className="w-fit">
+                <Link href="/simulator">
+                  Launch Simulator <ArrowRight className="ml-1.5 size-4" />
+                </Link>
               </Button>
-            }
-          />
+            </CardContent>
+          </Card>
         </div>
       </section>
     </>

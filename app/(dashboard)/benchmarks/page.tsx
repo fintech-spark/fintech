@@ -85,12 +85,24 @@ function getShareWidthClass(sharePct: number): string {
   return "w-1/12";
 }
 
+import { wireBenchmarks } from "@/lib/http/wiring";
+
 export default async function BenchmarksPage() {
   const context = await resolveMerchantContext();
   if (!isAuthenticated(context)) return null;
 
   const loadedAt = new Date();
-  const benchmarkResult = await settle(getPulseBenchmarks());
+  let benchmarkResult = await settle(getPulseBenchmarks());
+
+  if (!benchmarkResult.ok) {
+    try {
+      const { pulse } = wireBenchmarks();
+      const summary = await pulse.getBenchmarkSummary();
+      benchmarkResult = { ok: true, value: summary as never };
+    } catch {
+      // fallback failed, will show error banner
+    }
+  }
 
   if (!benchmarkResult.ok) {
     return (

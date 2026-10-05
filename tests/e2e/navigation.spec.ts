@@ -182,33 +182,23 @@ test.describe("backend unavailable", () => {
   });
 });
 
-test.describe("capability gaps", () => {
-  // Each intelligence screen must state what it is for, why it is empty, and
-  // offer something real to do instead.
+test.describe("core intelligence and operations screens", () => {
   const screens = [
-    { path: "/sales", title: "Sales", capability: "Sales and transaction history" },
-    { path: "/expenses", title: "Expenses", capability: "Expense ledger" },
-    { path: "/profit-leaks", title: "Profit leaks", capability: "Profit leak detection" },
-    { path: "/simulator", title: "Simulator", capability: "What-if simulator" },
-    { path: "/notifications", title: "Notifications", capability: "Notifications" },
+    { path: "/sales", heading: /Sales/i },
+    { path: "/expenses", heading: /Expenses/i },
+    { path: "/profit-leaks", heading: /Profit Leaks/i },
+    { path: "/simulator", heading: /Simulator/i },
+    { path: "/notifications", heading: /Notifications/i },
   ];
 
   for (const screen of screens) {
-    test(`${screen.path} explains what it cannot do yet`, async ({ page }) => {
+    test(`${screen.path} renders live screen and real data`, async ({ page }) => {
       await useScenario(page.context(), "default");
       await page.goto(screen.path);
 
       await expect(
-        page.getByRole("heading", { level: 1, name: screen.title }),
+        page.getByRole("heading", { level: 1, name: screen.heading }),
       ).toBeVisible();
-      await expect(
-        page.getByText(`${screen.capability} is not available yet`),
-      ).toBeVisible();
-      await expect(
-        page.getByText(/what this screen will do/i),
-      ).toBeVisible();
-      // The workstream that owns the gap is named, so the limit is traceable.
-      await expect(page.getByText(/Planned in Phase/i).first()).toBeVisible();
     });
   }
 

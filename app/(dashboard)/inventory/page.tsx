@@ -1,11 +1,13 @@
 import { CardHeading } from "@/components/common/card-heading";
 import type { Metadata } from "next";
 
-import { CapabilityPanel } from "@/components/common/data-state";
+import Link from "next/link";
+import { ArrowRight } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { FreshnessLine } from "@/components/common/freshness";
 import { MoneyValue } from "@/components/common/money";
 import { PageHeader, SectionHeader } from "@/components/common/page-header";
-import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { InventoryTable } from "@/components/inventory/inventory-table";
 import { LowStockPanel } from "@/components/inventory/low-stock-panel";
 import {
@@ -21,7 +23,6 @@ import { isAuthenticated, resolveMerchantContext } from "@/lib/api/context";
 import { getInventoryValue, listLowStockProducts, listProducts } from "@/lib/api/endpoints";
 import type { Page } from "@/lib/api/client";
 import type { WireProduct } from "@/lib/api/contracts";
-import { pendingCapability } from "@/lib/api/pending";
 import { settle, type Settled } from "@/lib/api/settle";
 import { formatCount } from "@/lib/format/money";
 import type { CurrencyCode } from "@/lib/types";
@@ -181,7 +182,35 @@ export default async function InventoryPage({
         />
       </section>
 
-      <CapabilityPanel capability={pendingCapability("profitLeaks")} />
+      <section aria-labelledby="inventory-intelligence" className="flex flex-col gap-3">
+        <SectionHeader
+          id="inventory-intelligence"
+          title="Profit Leak & Margin Intelligence"
+          description="Identify negative margin SKUs, inventory shrinkage, and supplier price variance across your stock."
+        />
+        <Card className="border-border bg-card">
+          <CardHeader className="pb-3">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <CardTitle className="text-base font-medium">Active Inventory Profit Leaks</CardTitle>
+                <CardDescription>
+                  Continuous automated detection scans your unit costs, selling prices, and reorder points.
+                </CardDescription>
+              </div>
+              <Button asChild size="sm" variant="outline">
+                <Link href="/profit-leaks">
+                  Inspect Profit Leaks <ArrowRight className="ml-1.5 size-4" />
+                </Link>
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground">
+              Merchant Brain cross-references product purchase prices with recent sales to flag margin compression before profits erode. View detailed leak findings with underlying evidence in the Profit Leaks workspace.
+            </p>
+          </CardContent>
+        </Card>
+      </section>
     </>
   );
 }

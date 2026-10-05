@@ -14,7 +14,7 @@
 import Link from "next/link";
 import { Boxes } from "lucide-react";
 
-import { CapabilityPanel, EmptyPanel, ErrorPanel } from "@/components/common/data-state";
+import { EmptyPanel, ErrorPanel } from "@/components/common/data-state";
 import { MoneyValue } from "@/components/common/money";
 import { StatusBadge } from "@/components/common/status-badge";
 import { Button } from "@/components/ui/button";
@@ -22,7 +22,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { formatQuantity } from "@/lib/format/money";
 import { safeLabel } from "@/lib/format/labels";
 import { describeStatus, STOCK_LEVEL, stockLevel } from "@/lib/format/status";
-import { pendingCapability } from "@/lib/api/pending";
 import type { Settled } from "@/lib/api/settle";
 import type { WireProduct } from "@/lib/api/contracts";
 import type { CurrencyCode } from "@/lib/types";
@@ -127,8 +126,14 @@ export function LowStockPanel({
           </>
         )}
 
-        <div className="mt-4">
-          <CapabilityPanel capability={pendingCapability("simulator")} />
+        <div className="mt-4 flex flex-col gap-2 rounded-lg border border-border bg-surface-sunken p-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-col">
+            <span className="text-sm font-medium">Model Reorder & Stockout Scenarios</span>
+            <span className="text-xs text-muted-foreground">Test how purchase quantities, supplier pricing, and demand swings affect working capital.</span>
+          </div>
+          <Button variant="outline" size="sm" asChild className="shrink-0">
+            <Link href="/simulator">Launch Simulator</Link>
+          </Button>
         </div>
       </CardContent>
     </Card>

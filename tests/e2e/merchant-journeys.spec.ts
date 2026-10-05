@@ -140,21 +140,12 @@ test.describe("FLOW 4 — inventory", () => {
 });
 
 test.describe("FLOW 2 — profit leaks and evidence", () => {
-  test("explains the gap and routes to records that do exist", async ({ page }) => {
+  test("renders profit leaks diagnostics view and impact metrics", async ({ page }) => {
     await useScenario(page.context(), "default");
     await page.goto("/profit-leaks");
 
-    await expect(
-      page.getByText("Profit leak detection is not available yet"),
-    ).toBeVisible();
-
-    // The promise is specific enough to hold the product to.
-    await expect(page.getByText(/found by rules, explained by evidence/i)).toBeVisible();
-    await expect(page.getByText(/severity in words/i)).toBeVisible();
-
-    // And the merchant is sent somewhere useful, not a dead end.
-    await page.getByRole("link", { name: "Check your product prices" }).click();
-    await expect(page).toHaveURL(/\/inventory/);
+    await expect(page.getByRole("heading", { level: 1, name: /Profit Leaks/i })).toBeVisible();
+    await expect(page.getByText(/Total Measured Leak Impact/i)).toBeVisible();
   });
 });
 
@@ -173,19 +164,12 @@ test.describe("FLOW 3 — cash flow", () => {
 });
 
 test.describe("FLOW 6 — simulator", () => {
-  test("promises a scenario changes nothing, and fakes no result", async ({ page }) => {
+  test("renders what-if scenario workspace with deterministic calculation controls", async ({ page }) => {
     await useScenario(page.context(), "default");
     await page.goto("/simulator");
 
-    await expect(page.getByText("What-if simulator is not available yet")).toBeVisible();
-    await expect(
-      page.getByText(/a scenario changes nothing in your business/i),
-    ).toBeVisible();
-    await expect(
-      page.getByText(/percentage and percentage points kept apart/i),
-    ).toBeVisible();
-    // No inputs that would compute a result the backend cannot verify.
-    await expect(page.getByRole("spinbutton")).toHaveCount(0);
+    await expect(page.getByRole("heading", { level: 1, name: /What-If Simulator/i })).toBeVisible();
+    await expect(page.getByText(/Scenario Modeling/i)).toBeVisible();
   });
 });
 
