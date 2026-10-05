@@ -21,6 +21,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { resolveMerchantContext } from "@/lib/api/context";
+import { isDemoMode } from "@/lib/demo";
 import { pendingCapability } from "@/lib/api/pending";
 import { initials } from "@/lib/format/labels";
 import { cn } from "@/lib/utils";
@@ -40,6 +41,9 @@ export async function AppShell({
   }
 
   if (context.status === "unauthenticated") {
+    if (isDemoMode()) {
+      return null;
+    }
     return <NeedsAccount />;
   }
 

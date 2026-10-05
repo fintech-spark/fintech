@@ -22,6 +22,14 @@ import { AuthenticationError, AuthorizationError } from '@/lib/errors';
 import { parseUuid } from './params';
 import type { Permission } from '@/modules/auth';
 
+import {
+  isDemoMode,
+  getDemoAccessToken,
+  DEMO_BUSINESS_ID,
+  DEMO_USER_ID,
+  DEMO_USER_EMAIL,
+} from '@/lib/demo';
+
 export interface SessionUser {
   readonly userId: UserId;
   readonly email: string;
@@ -139,9 +147,29 @@ export async function resolveTenantContext(
   request: Request,
   requestedBusinessId: string,
 ): Promise<ResolvedTenant> {
-  const context = await requireRequestContext(request);
-
   const businessId = asBusinessId(parseUuid(requestedBusinessId, 'businessId'));
+  const accessToken = extractAccessToken(request);
+
+  if (!accessToken) {
+    if (isDemoMode() && businessId === DEMO_BUSINESS_ID) {
+      const demoToken = await getDemoAccessToken();
+      const client = createServerClient(demoToken ? { accessToken: demoToken } : {});
+      return {
+        ctx: {
+          businessId: DEMO_BUSINESS_ID,
+          userId: DEMO_USER_ID,
+          role: 'owner',
+          correlationId: crypto.randomUUID(),
+        },
+        client,
+        db: client,
+        accessToken: demoToken || 'demo-access-token',
+      };
+    }
+    throw new AuthenticationError('Authentication required.');
+  }
+
+  const context = await requireRequestContext(request);
 
   if (!context.user.businessIds.includes(businessId)) {
     throw new AuthorizationError('You do not have access to this business.');

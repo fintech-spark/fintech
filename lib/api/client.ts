@@ -20,6 +20,7 @@ import "server-only";
 import { cookies, headers } from "next/headers";
 import { z } from "zod";
 
+import { isDemoMode, getDemoAccessToken } from "@/lib/demo";
 import {
   ApiError,
   CapabilityUnavailableError,
@@ -221,6 +222,17 @@ export async function apiFetch<T>(
   const rawCookieHeader = incoming.get("cookie");
   const cookieHeader = rawCookieHeader ?? (await sessionCookieHeader());
   if (cookieHeader) requestHeaders.set("cookie", cookieHeader);
+
+  if (
+    isDemoMode() &&
+    !requestHeaders.has("authorization") &&
+    (!cookieHeader || !cookieHeader.includes("sb-access-token"))
+  ) {
+    const demoToken = await getDemoAccessToken();
+    if (demoToken) {
+      requestHeaders.set("authorization", `Bearer ${demoToken}`);
+    }
+  }
 
   if (options.body !== undefined) {
     requestHeaders.set("content-type", "application/json");

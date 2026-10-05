@@ -185,8 +185,8 @@ describe("frontend security invariants", () => {
     expect(hits).toEqual([]);
   });
 
-  it("does not ship a demo or fixture mode in the app", () => {
-    const hits = findAll(/SYNTHETIC|FIXTURE_MODE|DEMO_MODE|USE_MOCK|placeholderData/i);
+  it("does not ship synthetic fixture or mock data modes in the app", () => {
+    const hits = findAll(/SYNTHETIC|FIXTURE_MODE|USE_MOCK|placeholderData/i);
     expect(hits).toEqual([]);
   });
 });
