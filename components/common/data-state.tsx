@@ -255,18 +255,19 @@ export function ErrorPanel({
 }) {
   // We do not know whether the server received the request. Saying "failed"
   // would be a guess, so an indeterminate failure is named as such.
-  const indeterminate = error.isIndeterminate;
+  const indeterminate = error?.isIndeterminate;
   const message = indeterminate
     ? "We could not confirm whether that went through."
-    : error.userMessage;
+    : error?.userMessage || error?.message || "Something went wrong while loading this.";
+  const recovery = error?.recovery || "Please try refreshing the page or try again in a few moments.";
 
   const content = (
     <Alert variant="destructive" className={cn("items-start", className)}>
       <CircleAlert aria-hidden="true" />
       <AlertTitle>{message}</AlertTitle>
       <AlertDescription className="flex flex-col gap-1">
-        <span>{indeterminate ? error.recovery : error.recovery}</span>
-        {error.reference ? (
+        <span>{recovery}</span>
+        {error?.reference ? (
           <span className="text-xs">
             Quote reference <span className="font-mono">{error.reference}</span>{" "}
             if you contact support.

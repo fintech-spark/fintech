@@ -52,6 +52,7 @@ export function SimulatorClient({
       const res = await fetch(`/api/businesses/${encodeURIComponent(businessId)}/simulator/scenarios`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({
           name: name.trim() || `${deltaNum > 0 ? "+" : ""}${deltaNum}% ${paramType.replace("_", " ")}`,
           description: `Hypothetical ${deltaNum}% adjustment applied across product baseline.`,
@@ -60,6 +61,7 @@ export function SimulatorClient({
               type: paramType,
               currentValue: 0,
               newValue: bps,
+              value: bps,
               unit: "percentage",
             },
           ],
@@ -68,14 +70,21 @@ export function SimulatorClient({
 
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        throw new Error(data.message || data.error || `Failed to calculate simulation (${res.status})`);
+        const rawErr =
+          data.error?.message ||
+          data.message ||
+          (typeof data.error === "string" ? data.error : null) ||
+          `Failed to calculate simulation (${res.status})`;
+        throw new Error(typeof rawErr === "string" ? rawErr : JSON.stringify(rawErr));
       }
 
-      const scenario = (await res.json()) as WireScenario;
+      const json = await res.json();
+      const scenario = (json.data ?? json) as WireScenario;
       setScenarios((prev) => [scenario, ...prev]);
       setActiveScenario(scenario);
     } catch (err: unknown) {
-      setErrorMsg(err instanceof Error ? err.message : "Failed to calculate simulation");
+      const msg = err instanceof Error ? err.message : String(err);
+      setErrorMsg(msg === "[object Object]" ? "Failed to calculate simulation. Please check your connection and parameters." : msg);
     } finally {
       setCalculating(false);
     }

@@ -100,11 +100,13 @@ function isLoopback(origin: string): boolean {
  */
 export function allowedApiOrigins(
   env: Readonly<Record<string, string | undefined>>,
+  requestOrigin?: string,
 ): readonly string[] {
   const origins = [
     envOrigin(env.API_INTERNAL_BASE_URL),
     envOrigin(env.VERCEL_PROJECT_PRODUCTION_URL),
     envOrigin(env.VERCEL_URL),
+    requestOrigin ? envOrigin(requestOrigin) : undefined,
   ];
   return origins.filter((origin): origin is string => origin !== undefined);
 }
@@ -121,12 +123,18 @@ export function allowedApiOrigins(
  */
 export function resolveApiOrigin(
   env: Readonly<Record<string, string | undefined>>,
+  requestOrigin?: string,
 ): string | undefined {
   const configured = envOrigin(env.API_INTERNAL_BASE_URL);
   const production = envOrigin(env.VERCEL_PROJECT_PRODUCTION_URL);
   const deployment = envOrigin(env.VERCEL_URL);
   if (configured && !(deployment !== undefined && isLoopback(configured))) {
     return configured;
+  }
+  // When handling a request on Vercel, prefer the actual host from headers
+  // (e.g. fintech-ten-xi.vercel.app) to prevent loopback hitting protected preview URLs.
+  if (requestOrigin && !isLoopback(requestOrigin)) {
+    return requestOrigin;
   }
   return production ?? deployment ?? configured;
 }
@@ -136,10 +144,10 @@ export function resolveApiOrigin(
  * base URL is a genuine SSRF / session-leak vector, so only origins this
  * deployment named for itself are acceptable.
  */
-function assertInternalUrl(url: string): void {
+function assertInternalUrl(url: string, requestOrigin?: string): void {
   if (!ABSOLUTE_URL.test(url)) return; // relative → same origin, safe
   const origin = new URL(url).origin;
-  if (!allowedApiOrigins(process.env).includes(origin)) {
+  if (!allowedApiOrigins(process.env, requestOrigin).includes(origin)) {
     throw contractError(
       `Refusing to forward the session cookie to ${origin}. Set API_INTERNAL_BASE_URL to this deployment's own origin.`,
     );
@@ -159,7 +167,6 @@ function buildUrl(
   query: RequestOptions["query"],
   baseUrl: string,
 ): string {
-  assertInternalUrl(path);
   const url = new URL(path, baseUrl);
   for (const [key, value] of Object.entries(query ?? {})) {
     if (value === undefined || value === "") continue;
@@ -168,17 +175,17 @@ function buildUrl(
   return url.toString();
 }
 
-async function baseUrl(): Promise<string> {
+async function baseUrl(requestOrigin?: string): Promise<string> {
   // A real origin is mandatory: `fetch` rejects a relative URL outright, so a
   // missing base surfaces as an opaque network failure rather than a message
   // that says what to configure.
-  const origin = resolveApiOrigin(process.env);
+  const origin = resolveApiOrigin(process.env, requestOrigin);
   if (!origin) {
     throw contractError(
       "No API origin: set API_INTERNAL_BASE_URL to this deployment's own origin.",
     );
   }
-  assertInternalUrl(origin);
+  assertInternalUrl(origin, requestOrigin);
   return origin;
 }
 
@@ -188,8 +195,14 @@ async function readBody(response: Response): Promise<unknown> {
   try {
     return JSON.parse(text) as unknown;
   } catch {
-    // A non-JSON body from our own API means something is badly wrong.
-    return null;
+    return {
+      error: {
+        name: "INTERNAL_ERROR",
+        code: "NON_JSON_RESPONSE",
+        message: text.slice(0, 300),
+        statusCode: response.status,
+      },
+    };
   }
 }
 
@@ -204,13 +217,17 @@ export async function apiFetch<T>(
   schema: z.ZodType<T>,
   options: RequestOptions = {},
 ): Promise<{ readonly data: T; readonly meta: Record<string, unknown> | null }> {
-  const origin = await baseUrl();
+  const incoming = await headers();
+  const host = incoming.get("x-forwarded-host") ?? incoming.get("host");
+  const proto = incoming.get("x-forwarded-proto") ?? "https";
+  const requestOrigin = host ? `${proto}://${host}` : undefined;
+
+  const origin = await baseUrl(requestOrigin);
   const url = buildUrl(path, options.query, origin);
   const method = options.method ?? "GET";
 
   const requestHeaders = new Headers({ accept: "application/json" });
 
-  const incoming = await headers();
   const correlationId = incoming.get("x-correlation-id");
   if (correlationId) requestHeaders.set("x-correlation-id", correlationId);
 

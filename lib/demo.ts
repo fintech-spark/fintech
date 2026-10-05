@@ -75,24 +75,32 @@ export async function getDemoAccessToken(): Promise<string | null> {
 
   try {
     const client = createServerClient();
-    const authEmail = process.env.DEMO_AUTH_EMAIL || 'demo@merchantbrain.internal';
-    const authPassword = process.env.DEMO_AUTH_PASSWORD || 'DemoPassword123!';
-    const { data, error } = await client.auth.signInWithPassword({
+    const authEmail = process.env.DEMO_AUTH_EMAIL || DEMO_USER_EMAIL;
+    const authPassword = process.env.DEMO_AUTH_PASSWORD || DEMO_USER_PASSWORD;
+    let res = await client.auth.signInWithPassword({
       email: authEmail,
       password: authPassword,
     });
 
-    if (error || !data.session?.access_token) {
+    if (res.error || !res.data.session?.access_token) {
+      res = await client.auth.signInWithPassword({
+        email: 'demo@merchantbrain.internal',
+        password: 'DemoPassword123!',
+      });
+    }
+
+    if (res.error || !res.data.session?.access_token) {
       return null;
     }
 
-    const expiresIn = data.session.expires_in ?? 3600;
+    const expiresIn = res.data.session.expires_in ?? 3600;
     cachedDemoToken = {
-      token: data.session.access_token,
+      token: res.data.session.access_token,
       expiresAt: now + expiresIn * 1000,
     };
-    return data.session.access_token;
+    return res.data.session.access_token;
   } catch {
     return null;
   }
 }
+
