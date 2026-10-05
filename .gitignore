@@ -36,6 +36,7 @@ npm-debug.log*
 .omnirush/
 __agent__/
 .commandcode/
+.kilo/
 
 # Agent claim leases (per-machine runtime state)
 .agents/claims/
