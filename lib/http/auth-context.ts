@@ -27,7 +27,6 @@ import {
   getDemoAccessToken,
   DEMO_BUSINESS_ID,
   DEMO_USER_ID,
-  DEMO_USER_EMAIL,
 } from '@/lib/demo';
 
 export interface SessionUser {

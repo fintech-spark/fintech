@@ -40,9 +40,9 @@ vi.mock("next/headers", () => ({
 
 import { resolveMerchantContext } from "@/lib/api/context";
 import { AppShell } from "@/components/layout/app-shell";
-import { requireRequestContext, resolveTenantContext } from "@/lib/http/auth-context";
+import { resolveTenantContext } from "@/lib/http/auth-context";
 import { DEMO_BUSINESS_ID, DEMO_BUSINESS_NAME, DEMO_USER_ID, DEMO_USER_EMAIL } from "@/lib/demo";
-import { AuthenticationError, AuthorizationError } from "@/lib/errors";
+import { AuthenticationError } from "@/lib/errors";
 
 describe("Demo Mode /overview Regression Tests", () => {
   const originalDemoMode = process.env.DEMO_MODE;

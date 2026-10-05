@@ -32,30 +32,34 @@
 -- ---------------------------------------------------------------------------
 -- 1. Chunk provenance columns
 -- ---------------------------------------------------------------------------
-ALTER TABLE public.document_embeddings
-  ADD COLUMN IF NOT EXISTS chunk_index    integer,
-  ADD COLUMN IF NOT EXISTS total_chunks    integer,
-  ADD COLUMN IF NOT EXISTS chunker_version text,
-  ADD COLUMN IF NOT EXISTS embedding_model text,
+ALTER TABLE document_embeddings
+  ADD COLUMN IF NOT EXISTS chunk_index    integer;
+ALTER TABLE document_embeddings
+  ADD COLUMN IF NOT EXISTS total_chunks    integer;
+ALTER TABLE document_embeddings
+  ADD COLUMN IF NOT EXISTS chunker_version text;
+ALTER TABLE document_embeddings
+  ADD COLUMN IF NOT EXISTS embedding_model text;
+ALTER TABLE document_embeddings
   ADD COLUMN IF NOT EXISTS content_hash    text;
 
 -- Ordering must be a whole number, and a chunk cannot claim more of the
 -- document than the document has.
-ALTER TABLE public.document_embeddings
+ALTER TABLE document_embeddings
   DROP CONSTRAINT IF EXISTS chk_embeddings_chunk_index;
-ALTER TABLE public.document_embeddings
+ALTER TABLE document_embeddings
   ADD CONSTRAINT chk_embeddings_chunk_index
   CHECK (chunk_index IS NULL OR chunk_index >= 0);
 
-ALTER TABLE public.document_embeddings
+ALTER TABLE document_embeddings
   DROP CONSTRAINT IF EXISTS chk_embeddings_total_chunks;
-ALTER TABLE public.document_embeddings
+ALTER TABLE document_embeddings
   ADD CONSTRAINT chk_embeddings_total_chunks
   CHECK (total_chunks IS NULL OR total_chunks >= 1);
 
-ALTER TABLE public.document_embeddings
+ALTER TABLE document_embeddings
   DROP CONSTRAINT IF EXISTS chk_embeddings_chunk_position;
-ALTER TABLE public.document_embeddings
+ALTER TABLE document_embeddings
   ADD CONSTRAINT chk_embeddings_chunk_position
   CHECK (
     chunk_index IS NULL
@@ -63,15 +67,15 @@ ALTER TABLE public.document_embeddings
     OR (chunk_index < total_chunks)
   );
 
-COMMENT ON COLUMN public.document_embeddings.chunk_index IS
+COMMENT ON COLUMN document_embeddings.chunk_index IS
   'Zero-based position of this chunk within its document. Null for rows written before Phase 7.';
-COMMENT ON COLUMN public.document_embeddings.total_chunks IS
+COMMENT ON COLUMN document_embeddings.total_chunks IS
   'Total chunks produced for the source document at indexing time.';
-COMMENT ON COLUMN public.document_embeddings.chunker_version IS
+COMMENT ON COLUMN document_embeddings.chunker_version IS
   'Version of the chunker that produced this chunk. A change invalidates the stored vector.';
-COMMENT ON COLUMN public.document_embeddings.embedding_model IS
+COMMENT ON COLUMN document_embeddings.embedding_model IS
   'Model id that produced the vector. Detects a dimension change after a model swap.';
-COMMENT ON COLUMN public.document_embeddings.content_hash IS
+COMMENT ON COLUMN document_embeddings.content_hash IS
   'SHA-256 of the redacted chunk text. Duplicate-suppression and re-index signal.';
 
 -- ---------------------------------------------------------------------------
@@ -80,21 +84,21 @@ COMMENT ON COLUMN public.document_embeddings.content_hash IS
 
 -- Lookup by document and chunk order, covering the re-index path.
 CREATE INDEX IF NOT EXISTS idx_embeddings_document_chunk
-  ON public.document_embeddings (business_id, document_id, chunk_index);
+  ON document_embeddings (business_id, document_id, chunk_index);
 
 -- Duplicate suppression and change detection.
 CREATE INDEX IF NOT EXISTS idx_embeddings_content_hash
-  ON public.document_embeddings (business_id, content_hash)
+  ON document_embeddings (business_id, content_hash)
   WHERE content_hash IS NOT NULL;
 
 -- Re-embedding every chunk produced by a superseded chunker version.
 CREATE INDEX IF NOT EXISTS idx_embeddings_chunker_version
-  ON public.document_embeddings (business_id, chunker_version)
+  ON document_embeddings (business_id, chunker_version)
   WHERE chunker_version IS NOT NULL;
 
 -- Metadata filters (source type) without a sequential scan.
 CREATE INDEX IF NOT EXISTS idx_embeddings_metadata_gin
-  ON public.document_embeddings USING gin (metadata jsonb_path_ops);
+  ON document_embeddings USING gin (metadata jsonb_path_ops);
 
 -- ---------------------------------------------------------------------------
 -- 3. Guarded retrieval function
