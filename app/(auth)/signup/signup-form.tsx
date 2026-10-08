@@ -10,10 +10,10 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { CheckCircle2, Loader2 } from "lucide-react";
+import { AlertCircle, CheckCircle2, Loader2 } from "lucide-react";
 
 import {
   MIN_PASSWORD_LENGTH,
@@ -30,8 +30,10 @@ import { Label } from "@/components/ui/label";
 
 export function SignupForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [formError, setFormError] = useState<string | null>(null);
   const [confirmationSent, setConfirmationSent] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   const {
     register,
@@ -43,6 +45,7 @@ export function SignupForm() {
   });
 
   async function onSubmit(values: SignupInput) {
+    if (isSubmitting) return;
     setFormError(null);
     const result = await postAuthRequest<SignupResponseData>("/api/auth/signup", values);
 
@@ -56,23 +59,33 @@ export function SignupForm() {
       return;
     }
 
-    router.push("/overview");
+    const redirectParam = searchParams.get("redirect") || searchParams.get("next");
+    const target =
+      redirectParam &&
+      redirectParam.startsWith("/") &&
+      !redirectParam.startsWith("//") &&
+      !redirectParam.startsWith("/\\") &&
+      !redirectParam.includes("://")
+        ? redirectParam
+        : "/overview";
+
+    router.push(target);
     router.refresh();
   }
 
   if (confirmationSent) {
     return (
       <Card>
-        <CardHeader>
+        <CardHeader className="border-b border-border/70 pb-4">
           <CardTitle className="inline-flex items-center gap-2 text-xl">
             <CheckCircle2 className="size-5 text-primary" aria-hidden="true" />
-            Check your email
+            <h1 className="text-xl font-medium tracking-tight">Check your email</h1>
           </CardTitle>
           <CardDescription>
             We sent a confirmation link to your address. Open it, then sign in to continue.
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="pt-5">
           <Button asChild className="w-full">
             <Link href="/login">Go to sign in</Link>
           </Button>
@@ -83,14 +96,16 @@ export function SignupForm() {
 
   return (
     <Card>
-      <CardHeader>
-        <CardTitle className="text-xl">Create your account</CardTitle>
+      <CardHeader className="border-b border-border/70 pb-4">
+        <CardTitle className="text-xl">
+          <h1 className="text-xl font-medium tracking-tight">Create your account</h1>
+        </CardTitle>
         <CardDescription>
           Start with {APP_NAME}. You can add your business after signing in.
         </CardDescription>
       </CardHeader>
 
-      <CardContent>
+      <CardContent className="pt-5">
         <form
           onSubmit={handleSubmit(onSubmit)}
           noValidate
@@ -99,6 +114,7 @@ export function SignupForm() {
         >
           {formError ? (
             <Alert variant="destructive">
+              <AlertCircle className="size-4 shrink-0" aria-hidden="true" />
               <AlertDescription>{formError}</AlertDescription>
             </Alert>
           ) : null}
@@ -110,6 +126,7 @@ export function SignupForm() {
               type="text"
               autoComplete="name"
               placeholder="Ravi Kumar"
+              disabled={isSubmitting}
               aria-invalid={errors.name ? true : undefined}
               aria-describedby={errors.name ? "name-error" : undefined}
               {...register("name")}
@@ -128,6 +145,7 @@ export function SignupForm() {
               type="email"
               autoComplete="email"
               placeholder="you@example.com"
+              disabled={isSubmitting}
               aria-invalid={errors.email ? true : undefined}
               aria-describedby={errors.email ? "email-error" : undefined}
               {...register("email")}
@@ -140,11 +158,25 @@ export function SignupForm() {
           </div>
 
           <div className="flex flex-col gap-2">
-            <Label htmlFor="password">Password</Label>
+            <div className="flex items-center justify-between">
+              <Label htmlFor="password">Password</Label>
+              <Button
+                type="button"
+                variant="link"
+                size="sm"
+                className="h-auto p-0 text-xs"
+                onClick={() => setShowPassword((current) => !current)}
+                aria-pressed={showPassword}
+                disabled={isSubmitting}
+              >
+                {showPassword ? "Hide" : "Show"}
+              </Button>
+            </div>
             <Input
               id="password"
-              type="password"
+              type={showPassword ? "text" : "password"}
               autoComplete="new-password"
+              disabled={isSubmitting}
               aria-invalid={errors.password ? true : undefined}
               aria-describedby={
                 errors.password ? "password-hint password-error" : "password-hint"

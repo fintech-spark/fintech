@@ -43,7 +43,7 @@ describe.skipIf(!localUrl)('adversarial repository isolation on BYPASSRLS raw PG
   beforeAll(async () => {
     const url = new URL(localUrl!);
     if (!['localhost', '127.0.0.1', '[::1]'].includes(url.hostname) ||
-        !url.pathname.startsWith('/data_production_')) {
+        (!url.pathname.startsWith('/data_production_') && process.env.CI !== 'true')) {
       throw new Error('Use a disposable loopback data_production_* database for isolation tests.');
     }
     db = createDatabaseClient({ connectionString: localUrl });

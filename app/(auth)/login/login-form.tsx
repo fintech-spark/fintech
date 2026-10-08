@@ -9,10 +9,10 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Loader2 } from "lucide-react";
+import { AlertCircle, Loader2 } from "lucide-react";
 
 import { loginSchema, type LoginInput } from "@/lib/auth/schemas";
 import { postAuthRequest, type LoginResponseData } from "@/lib/auth/api-client";
@@ -25,6 +25,7 @@ import { Label } from "@/components/ui/label";
 
 export function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [formError, setFormError] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
 
@@ -38,6 +39,7 @@ export function LoginForm() {
   });
 
   async function onSubmit(values: LoginInput) {
+    if (isSubmitting) return;
     setFormError(null);
     const result = await postAuthRequest<LoginResponseData>("/api/auth/login", values);
 
@@ -46,7 +48,17 @@ export function LoginForm() {
       return;
     }
 
-    router.push("/overview");
+    const redirectParam = searchParams.get("redirect") || searchParams.get("next");
+    const target =
+      redirectParam &&
+      redirectParam.startsWith("/") &&
+      !redirectParam.startsWith("//") &&
+      !redirectParam.startsWith("/\\") &&
+      !redirectParam.includes("://")
+        ? redirectParam
+        : "/overview";
+
+    router.push(target);
     router.refresh();
   }
 
@@ -54,7 +66,7 @@ export function LoginForm() {
     <Card>
       <CardHeader className="border-b border-border/70 pb-4">
         <CardTitle className="text-xl">
-          <h2>Sign in</h2>
+          <h1 className="text-xl font-medium tracking-tight">Sign in</h1>
         </CardTitle>
         <CardDescription>
           Use the email address registered with {APP_NAME}.
@@ -70,6 +82,7 @@ export function LoginForm() {
         >
           {formError ? (
             <Alert variant="destructive">
+              <AlertCircle className="size-4 shrink-0" aria-hidden="true" />
               <AlertDescription>{formError}</AlertDescription>
             </Alert>
           ) : null}
@@ -81,6 +94,7 @@ export function LoginForm() {
               type="email"
               autoComplete="email"
               placeholder="you@example.com"
+              disabled={isSubmitting}
               aria-invalid={errors.email ? true : undefined}
               aria-describedby={errors.email ? "email-error" : undefined}
               {...register("email")}
@@ -103,6 +117,7 @@ export function LoginForm() {
                   className="h-auto p-0 text-xs"
                   onClick={() => setShowPassword((current) => !current)}
                   aria-pressed={showPassword}
+                  disabled={isSubmitting}
                 >
                   {showPassword ? "Hide" : "Show"}
                 </Button>
@@ -119,6 +134,7 @@ export function LoginForm() {
               id="password"
               type={showPassword ? "text" : "password"}
               autoComplete="current-password"
+              disabled={isSubmitting}
               aria-invalid={errors.password ? true : undefined}
               aria-describedby={errors.password ? "password-error" : undefined}
               {...register("password")}

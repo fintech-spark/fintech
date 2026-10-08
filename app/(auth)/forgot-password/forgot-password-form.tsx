@@ -48,16 +48,16 @@ export function ForgotPasswordForm() {
   if (submitted) {
     return (
       <Card>
-        <CardHeader>
+        <CardHeader className="border-b border-border/70 pb-4">
           <CardTitle className="inline-flex items-center gap-2 text-xl">
             <CheckCircle2 className="size-5 text-primary" aria-hidden="true" />
-            Check your email
+            <h1 className="text-xl font-medium tracking-tight">Check your email</h1>
           </CardTitle>
           <CardDescription>
             If an account is associated with that email, we have sent instructions to reset your password.
           </CardDescription>
         </CardHeader>
-        <CardContent className="flex flex-col gap-4">
+        <CardContent className="flex flex-col gap-4 pt-5">
           <Button asChild className="w-full">
             <Link href="/login">Return to sign in</Link>
           </Button>
@@ -68,14 +68,16 @@ export function ForgotPasswordForm() {
 
   return (
     <Card>
-      <CardHeader>
-        <CardTitle className="text-xl">Reset your password</CardTitle>
+      <CardHeader className="border-b border-border/70 pb-4">
+        <CardTitle className="text-xl">
+          <h1 className="text-xl font-medium tracking-tight">Reset your password</h1>
+        </CardTitle>
         <CardDescription>
           Enter your email address and we will send you a link to reset your password for {APP_NAME}.
         </CardDescription>
       </CardHeader>
 
-      <CardContent>
+      <CardContent className="pt-5">
         <form
           onSubmit={handleSubmit(onSubmit)}
           noValidate
