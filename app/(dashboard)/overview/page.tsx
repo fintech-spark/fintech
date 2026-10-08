@@ -1,4 +1,5 @@
 import { CardHeading } from "@/components/common/card-heading";
+import type { Metadata } from "next";
 import Link from "next/link";
 import {
   Activity,
@@ -65,7 +66,7 @@ function formatRupeeAmount(val: number | null): string {
   return `₹${new Intl.NumberFormat("en-IN").format(Math.round(val))}`;
 }
 
-export const metadata = { title: "Overview" };
+export const metadata: Metadata = { title: "Overview" };
 
 export default async function OverviewPage() {
   const context = await resolveMerchantContext();

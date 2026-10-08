@@ -1,6 +1,7 @@
 # Authorization Matrix — Merchant Brain
 
 Authoritative sources of truth:
+
 1. **Application-Layer RBAC**: `lib/http/auth-context.ts` (`hasPermission`, `assertPermission`) and domain rules (`modules/actions/domain/rules.ts`).
 2. **Database-Layer RLS**: `supabase/migrations/20261002000004_rls_tenant_isolation.sql` through `20261002000012_audit_immutability_and_rag_search_path.sql`.
 
@@ -11,7 +12,7 @@ Authoritative sources of truth:
 ## 1. Application-Layer Permission Matrix (`lib/http/auth-context.ts`)
 
 | Domain / Permission | `owner` | `admin` | `manager` | `accountant` | `staff` |
-|---|:---:|:---:|:---:|:---:|:---:|
+| --- | :---: | :---: | :---: | :---: | :---: |
 | `transactions:read` | ✅ | ✅ | ✅ | ✅ | ✅ |
 | `transactions:create` / `update` / `delete` | ✅ | ✅ | ✅ | ✅ | ❌ |
 | `inventory:read` | ✅ | ✅ | ✅ | ❌ | ✅ |
@@ -32,6 +33,7 @@ Authoritative sources of truth:
 | `business:update` / `members:*` | ✅ | ✅ *(no owner-grant)* | ❌ | ❌ | ❌ |
 
 ### Key Application Invariants
+
 - **`actions:execute` is strictly owner-only**: Neither `admin`, `manager`, `accountant`, nor `staff` can execute actions (`lib/http/auth-context.ts:217`; `modules/actions/domain/rules.ts:68`).
 - **Segregation of duties**: The action proposer cannot be the executor (`domain/rules.ts`), and AI-recommended actions always require a human approval.
 - **Fail-closed verification**: `assertPermission` throws `AuthorizationError` (HTTP 403) on missing permissions. Tenant membership is checked via `auth_user_businesses()`.
@@ -41,7 +43,7 @@ Authoritative sources of truth:
 ## 2. Database-Layer RLS Matrix (`supabase/migrations/`)
 
 | Role | Business Scope | Operations | Notes |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | `anon` | None | SELECT denied on all tenant tables | Can access only public/auth endpoints; RLS yields empty set |
 | `authenticated` | Own active memberships only (`auth_user_businesses()`, status='active') | SELECT/INSERT/UPDATE/DELETE on own business rows; child tables via parent EXISTS; self-only on users | No `users` DELETE policy; `users.id` immutable; `users.email` immutable (0006) |
 | `authenticated` on `business_members` (self) | Own row + same business | SELECT self or same-biz; admin-only INSERT/UPDATE/DELETE | `business_id` and `user_id` immutable |
@@ -50,6 +52,7 @@ Authoritative sources of truth:
 | `service_role` (admin client) | All businesses | All operations, RLS bypassed | Only via `lib/supabase/admin-client.ts`; `import 'server-only';` enforced; key must not be in `NEXT_PUBLIC_*`; requires `{ bypassRowLevelSecurity: true }` |
 
 ## 3. Access Controls Enforced at DB Layer
+
 - **Tenant isolation**: `business_id IN (SELECT auth_user_businesses())` (plain tables) or `EXISTS (SELECT 1 FROM parent WHERE ...)` (child tables).
 - **Ownership immutability**: `prevent_business_id_mutation()` + `prevent_parent_id_mutation()` triggers on every affected table.
 - **Membership immutability**: `business_members.user_id` frozen; `users.id` frozen.

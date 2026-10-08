@@ -8,7 +8,7 @@ change to a merchant's business. Read this before calling anything in
 
 ## 1. The lifecycle
 
-```
+```text
 proposed -> drafted -> awaiting_approval -> approved -> executing -> completed
                  |            |                                      |
                  v            v                                      v
@@ -21,7 +21,7 @@ proposed -> drafted -> awaiting_approval -> approved -> executing -> completed
 `ACTION_STATUS_TRANSITIONS` is the single source of truth:
 
 | From | Permitted next |
-|---|---|
+| --- | --- |
 | `proposed` | `drafted`, `cancelled` |
 | `drafted` | `awaiting_approval`, `cancelled` |
 | `awaiting_approval` | `approved`, `cancelled` |
@@ -48,7 +48,7 @@ is not a control.
 ### Who may do what
 
 | Operation | Roles |
-|---|---|
+| --- | --- |
 | Propose / draft / request approval | `owner`, `admin`, `manager`, `accountant`, `staff` |
 | **Approve** | `owner`, `admin`, `manager` |
 | **Execute** | `owner` *(strictly owner-only per `rules.ts:68` and `auth-context.ts:217`)* |
@@ -79,7 +79,7 @@ with nobody able to run it.
 confirmation immediately before execution".
 
 | Situation | Denial reason |
-|---|---|
+| --- | --- |
 | `now - approved_at > TTL` | `approval_expired` |
 | `approved_at` in the future | `approval_replay` |
 | No approval recorded | `approval_required` |
@@ -114,7 +114,7 @@ or replayed approval matches zero rows and the original approver is preserved.
 ### Idempotency
 
 | Layer | Mechanism |
-|---|---|
+| --- | --- |
 | Proposal | `actions.idempotency_key` with the partial unique index `(business_id, idempotency_key)`. One key → one action per tenant. A unique violation is translated into a read of the existing row. |
 | Execution | `executionIdempotencyKey(actionId, requestKey)` derives a stable key, and the single-winner claim collapses repeats. |
 | Replay after completion | The action is no longer `approved`, so a repeat is refused as `already_executed` with no side effect. |
@@ -203,7 +203,7 @@ A state transition and its audit entry must both land. The repository exposes
 ## 9. Denial reasons
 
 | Reason | Meaning |
-|---|---|
+| --- | --- |
 | `cross_tenant` | The action does not belong to the requesting business. |
 | `insufficient_role` | The actor's role may not perform this operation. |
 | `approval_required` | No recorded approval. |

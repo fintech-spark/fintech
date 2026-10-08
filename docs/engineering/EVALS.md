@@ -20,6 +20,7 @@ npm run eval
 ```
 
 This executes 35 automated synthetic evaluation tests:
+
 - `evals/extraction/extraction.eval.test.ts`: schema validity, field extraction, multi-currency detection.
 - `evals/business-brain/business-brain.eval.test.ts`: grounded analysis, evidence containment, and arithmetic protection.
 - `evals/security/ai-security.eval.test.ts`: prompt injection defense, delimiter isolation, and data exfiltration blocking.

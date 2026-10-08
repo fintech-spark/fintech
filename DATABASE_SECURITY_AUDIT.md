@@ -14,7 +14,7 @@ Phase 1 delivered a well-structured schema: 27 tables, correct FK relationships,
 defensive CHECK constraints, and a clean tenant model. **It delivered zero security.**
 
 | Control | Expected | Actual |
-|---|---|---|
+| --- | --- | --- |
 | `ENABLE ROW LEVEL SECURITY` | 27 tables | **0** |
 | `CREATE POLITY` / policies | per-table per-role | **0** |
 | `GRANT` / `REVOKE` | least privilege | **0** |
@@ -54,7 +54,7 @@ Inspected on disk, not assumed:
 
 ## 3. Tenant model
 
-```
+```text
 users (global, auth-level)
   └─ business_members (business_id, user_id, role)   ← authorization join
        └─ businesses (tenant root)
@@ -71,7 +71,7 @@ users (global, auth-level)
 ### Ownership representation — three tiers
 
 | Tier | Tables | Count |
-|---|---|---|
+| --- | --- | --- |
 | **Direct `business_id`** | see §4 | 21 |
 | **Indirect (inherit via parent FK)** | `transaction_items`, `action_logs`, `chat_messages` | 3 |
 | **Tenant root / global / internal** | `businesses`, `users`, `_migrations` | 3 |
@@ -86,7 +86,7 @@ Legend — **RLS:** is Row Level Security enabled · **Pol:** policies defined �
 ### Tier 1 — direct `business_id` (21 tables)
 
 | Table | business_id | RLS | Pol | S | I | U | D | Cross-tenant attack | Required fix |
-|---|---|---|---|---|---|---|---|---|---|
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | `transactions` | ✅ direct | ❌ | ❌ | ALL | ALL | ALL | ALL | Read/alter any business's ledger | RLS + policies |
 | `transaction_items` | ⚠️ via `transactions` | ❌ | ❌ | ALL | ALL | ALL | ALL | Insert lines onto another business's transaction | RLS via parent join |
 | `expenses` | ✅ direct | ❌ | ❌ | ALL | ALL | ALL | ALL | Read/alter any business's expenses | RLS + policies |
@@ -119,7 +119,7 @@ Legend — **RLS:** is Row Level Security enabled · **Pol:** policies defined �
 ### Tier 3 — root / global / internal (3 tables)
 
 | Table | RLS | Pol | Risk | Required fix |
-|---|---|---|---|---|
+| --- | --- | --- | --- | --- |
 | `businesses` | ❌ | ❌ | Tenant root readable/writable by all | RLS + policies |
 | `users` | ❌ | ❌ | Global user table readable by all | RLS + policies |
 | `_migrations` | ❌ | ❌ | Internal bookkeeping | Revoke from `anon`/`authenticated` |
@@ -130,7 +130,7 @@ Legend — **RLS:** is Row Level Security enabled · **Pol:** policies defined �
 
 ### AP-1 — Unauthenticated cross-tenant read (CRITICAL)
 
-```
+```text
 Attacker (no account, holds public anon key)
   → GET https://<project>.supabase.co/rest/v1/transactions
   → PostgREST assumes role `authenticated` / `anon`
@@ -142,7 +142,7 @@ Attacker (no account, holds public anon key)
 
 ### AP-2 — Cross-tenant write / delete (CRITICAL)
 
-```
+```text
 Attacker
   → DELETE /rest/v1/transactions?id=eq.<victim-uuid>
   → no RLS → row deleted
@@ -152,7 +152,7 @@ Attacker
 
 ### AP-3 — Cross-tenant insert with forged `business_id` (CRITICAL)
 
-```
+```text
 Attacker
   → POST /rest/v1/transactions  { "business_id": "<victim>", ... }
   → no RLS, no policy, FK only checks the business exists
@@ -166,7 +166,7 @@ Attacker
 `transaction_items`, `action_logs`, `chat_messages` have **no `business_id`**.
 Their only ownership signal is the parent FK.
 
-```
+```text
 Attacker
   → POST /rest/v1/transaction_items  { "transaction_id": "<victim-tx>", ... }
   → FK is satisfied (parent exists)
@@ -179,7 +179,7 @@ likely to be missed by a naive "add `business_id` to every table" fix.
 
 ### AP-5 — Privilege escalation via `business_members` (CRITICAL)
 
-```
+```text
 Attacker (member of Business A with role 'staff')
   → PATCH /rest/v1/business_members?user_id=eq.<self>
   → { "role": "owner" }
@@ -190,7 +190,7 @@ Attacker (member of Business A with role 'staff')
 
 ### AP-6 — Audit trail tampering (HIGH)
 
-```
+```text
 Attacker
   → DELETE /rest/v1/audit_logs?business_id=eq.<victim>
   → no RLS → compliance evidence destroyed
@@ -213,7 +213,7 @@ application — which would be a new vulnerability.
 ### 6.1 Authentication vs authorization
 
 | Layer | State |
-|---|---|
+| --- | --- |
 | Authentication | **Superseded — implemented after this audit.** Session verification now lives in `lib/http/auth-context.ts` (`requireRequestContext`: cookie/Bearer extraction → `getUser()` JWT revalidation → `auth_user_businesses()` RPC). `AuthService` in `modules/auth` remains an interface with no implementing class. |
 | Authorization | **Superseded — implemented after this audit.** `hasPermission(role, permission)` (`lib/http/auth-context.ts`) is enforced inside the seven PostgREST repositories and, since the Phase 4 hardening, via `assertPermission` on the analytics, cash-flow, profit-leak, simulator and AI chat routes. |
 | Tenant context | **Superseded — implemented after this audit.** `resolveTenantContext` populates `TenantContext` from the route param re-validated against the DB-derived membership set; tenant identity is never taken from a request body or query. |
@@ -234,7 +234,7 @@ cannot be written against a principal that does not exist yet.
 ### 6.3 Ownership mutation risks
 
 | Field | Risk |
-|---|---|
+| --- | --- |
 | `business_id` on Tier-1 tables | Mutable via UPDATE unless a policy blocks cross-tenant reassignment. A policy must prevent changing `business_id` to a tenant the caller does not belong to. |
 | `transaction_items.transaction_id` | Reassigning a line item to another transaction must be blocked. |
 | `action_logs.action_id` | Same. |
@@ -259,7 +259,7 @@ cannot be written against a principal that does not exist yet.
 Only two functions exist, both safe:
 
 | Function | Security | `SET search_path` | Verdict |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | `set_updated_at()` | INVOKER | ❌ | Safe; harden |
 | `gen_uuid()` | INVOKER | n/a (SQL) | Safe |
 
@@ -279,7 +279,7 @@ unavoidable, it must set `search_path` explicitly and be reviewed line by line.
 ### 6.7 API / server action risks
 
 | Surface | State |
-|---|---|
+| --- | --- |
 | API routes | Only `GET /api/health` — unauthenticated, returns static JSON. **Safe.** |
 | Server actions | None. |
 | Middleware | None. |
@@ -305,7 +305,7 @@ database.** RLS must land first.
 The three child tables are the highest-risk items in the schema:
 
 | Child | Parent | Ownership path | Why it is hard |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | `transaction_items` | `transactions` | `transaction_items.transaction_id → transactions.business_id` | Policy must join to parent; a `USING` clause on the child alone cannot see `business_id`. |
 | `action_logs` | `actions` | `action_logs.action_id → actions.business_id` | Same. |
 | `chat_messages` | `chat_sessions` | `chat_messages.session_id → chat_sessions.business_id` | Same. |
@@ -330,7 +330,7 @@ The exact claim key depends on the auth design Model 2 chooses.
 ## 7. Classification summary
 
 | Classification | Count | Items |
-|---|---|---|
+| --- | --- | --- |
 | **CONFIRMED VULNERABILITY** | 27 | Every table: no RLS, no policies, default permissive grants |
 | **CONFIRMED VULNERABILITY** | 3 | Child tables with no `business_id` and no parent-join policy |
 | **CONFIRMED VULNERABILITY** | 1 | `business_members` writable by all → privilege escalation |
@@ -406,7 +406,7 @@ No `SECURITY DEFINER` functions should be added.
 ### 9.1 Exact files Model 2 should modify
 
 | File | Change |
-|---|---|
+| --- | --- |
 | `supabase/migrations/20261002000004_rls_policies.sql` | **new** — enable RLS, create policies |
 | `supabase/migrations/20261002000005_storage_policies.sql` | **new** — bucket + storage policies |
 | `supabase/migrations/20261002000000_init_extensions.sql` | add `SET search_path` to `set_updated_at()` |
@@ -418,7 +418,7 @@ No `SECURITY DEFINER` functions should be added.
 ### 9.2 Files Model 2 must NOT modify
 
 | File | Reason |
-|---|---|
+| --- | --- |
 | `modules/*/domain/types.ts` | domain model is stable |
 | `modules/*/domain/rules.ts` | business rules are stable |
 | `lib/boundaries.ts` | module dependency graph is locked |

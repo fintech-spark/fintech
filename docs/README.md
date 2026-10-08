@@ -6,7 +6,7 @@ task needs — this page is the map, not a reading list.
 ## Start here
 
 | File | Why |
-|---|---|
+| --- | --- |
 | [`../AI_CONTEXT.md`](../AI_CONTEXT.md) | **The authoritative statement of what we are building and how.** It wins on conflict. Read it first |
 | [`../AGENTS.md`](../AGENTS.md) | Agent instructions and the mandatory Step 0 skill triage |
 | [`../SKILLS.md`](../SKILLS.md) | The generated skill index — read this to decide which skills to load |
@@ -15,7 +15,7 @@ task needs — this page is the map, not a reading list.
 ## Product
 
 | File | Contents |
-|---|---|
+| --- | --- |
 | [`product/PRODUCT_SPEC.md`](product/PRODUCT_SPEC.md) | Problem, target user, what we are and are not building |
 | [`product/ROADMAP.md`](product/ROADMAP.md) | The 14 phases and the gate before each one |
 | [`product/DESIGN_SYSTEM.md`](product/DESIGN_SYSTEM.md) | Design tokens, components, and UI conventions |
@@ -23,7 +23,7 @@ task needs — this page is the map, not a reading list.
 ## AI
 
 | File | Contents |
-|---|---|
+| --- | --- |
 | [`ai/AI_RULES.md`](ai/AI_RULES.md) | Reliability rules: what a model may and may not be trusted with |
 | [`ai/AI_EVIDENCE_RULES.md`](ai/AI_EVIDENCE_RULES.md) | The claim envelope and evidence requirements |
 | [`ai/AI_ACTION_POLICY.md`](ai/AI_ACTION_POLICY.md) | Authority limits and prohibited actions |
@@ -34,7 +34,7 @@ task needs — this page is the map, not a reading list.
 ## Engineering
 
 | File | Contents |
-|---|---|
+| --- | --- |
 | [`engineering/DATABASE.md`](engineering/DATABASE.md) | Schema, table groups, client abstraction, migrations |
 | [`engineering/DATABASE_DECISIONS.md`](engineering/DATABASE_DECISIONS.md) | Phase 1 tradeoffs and why they were chosen |
 | [`engineering/API_RULES.md`](engineering/API_RULES.md) | API contract rules (no unapproved endpoints) |
@@ -50,7 +50,7 @@ task needs — this page is the map, not a reading list.
 ## Security
 
 | File | Contents |
-|---|---|
+| --- | --- |
 | [`../SECURITY.md`](../SECURITY.md) | Security policy (root, because GitHub links it) |
 | [`security/FILE_SECURITY.md`](security/FILE_SECURITY.md) | Upload limits, MIME/magic-byte validation, formula injection |
 | [`security/GITHUB_SECURITY.md`](security/GITHUB_SECURITY.md) | Branch protection, GHAS, owner actions |
@@ -58,7 +58,7 @@ task needs — this page is the map, not a reading list.
 ## Agents
 
 | File | Contents |
-|---|---|
+| --- | --- |
 | [`agents/COORDINATION.md`](agents/COORDINATION.md) | The claim protocol so concurrent agents do not clobber each other |
 | [`agents/DEFINITION_OF_DONE.md`](agents/DEFINITION_OF_DONE.md) | The per-change acceptance checklist |
 | [`agents/MCP_SETUP.md`](agents/MCP_SETUP.md) | Which MCP servers are used, which are rejected, and why |
@@ -68,7 +68,7 @@ task needs — this page is the map, not a reading list.
 These stay at the repository root because a tool or GitHub itself looks for them there:
 
 | File | Required at root because |
-|---|---|
+| --- | --- |
 | `README.md` | GitHub renders it on the repository home page |
 | `CONTRIBUTING.md`, `SECURITY.md` | GitHub links these from the repo UI |
 | `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, `AI_CONTEXT.md` | Each coding agent looks for its own file at the project root |

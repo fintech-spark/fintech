@@ -14,7 +14,7 @@ across WhatsApp, UPI, paper invoices, receipts, spreadsheets, and memory. A merc
 *sales have gone down* — but not why, which products, which customers, where the cash went,
 or what would happen if they changed something.
 
-```
+```text
 DATA → UNDERSTANDING → DIAGNOSIS → SIMULATION → DECISION → ACTION
 ```
 
@@ -27,7 +27,7 @@ broker. AI is provider-agnostic.
 The rule the whole design protects:
 
 | Layer | Owns |
-|---|---|
+| --- | --- |
 | PostgreSQL | the facts |
 | Analytics and rules | the numbers (deterministic) |
 | RAG | the context (unstructured) |
@@ -44,7 +44,7 @@ irreversible action.**
 Full documentation lives in [`docs/`](docs/README.md).
 
 | Start with | Why |
-|---|---|
+| --- | --- |
 | [`AI_CONTEXT.md`](AI_CONTEXT.md) | **The authoritative statement of the project.** It wins on conflict |
 | [`AGENTS.md`](AGENTS.md) | Agent instructions and mandatory skill triage |
 | [`SKILLS.md`](SKILLS.md) | The skill index agents read first |

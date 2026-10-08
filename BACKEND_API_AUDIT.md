@@ -15,7 +15,7 @@ All 19 modules declare service interfaces. The seven Phase 3 modules have
 invented for Phase 3; it shipped in Phase 1.
 
 | Module | Service interface | Repository interface |
-|---|---|---|
+| --- | --- | --- |
 | `auth` | 5 methods | — |
 | `businesses` | 4 methods | 4 methods |
 | `transactions` | 5 methods | 5 methods |
@@ -45,7 +45,7 @@ Real, tested, deterministic logic already exists:
 `lib/errors.ts` maps 1:1 to the required HTTP categories:
 
 | Class | code | status |
-|---|---|---|
+| --- | --- | --- |
 | `ValidationError` | `VALIDATION_ERROR` | 400 |
 | `AuthenticationError` | `UNAUTHENTICATED` | 401 |
 | `AuthorizationError` | `FORBIDDEN` | 403 |
@@ -84,7 +84,7 @@ per resource, no sort allowlist.
 ## 2. Gaps
 
 | # | Gap | Severity |
-|---|---|---|
+| --- | --- | --- |
 | G1 | **Zero repository implementations.** All 28 files are interfaces; no `implements`, no `.query()` outside `lib/database`. | Blocker |
 | G2 | **No `AuthService` implementation.** No session → `TenantContext` resolution exists. | Blocker |
 | G3 | **No HTTP layer.** Only `app/api/health/route.ts`. | Blocker |
@@ -112,7 +112,7 @@ exposes no write path. I will not add one.
 ## 3. Decisions required before implementation
 
 | ID | Question | Proposed default |
-|---|---|---|
+| --- | --- | --- |
 | D1 | Data access: PostgREST (`createServerClient`) or raw SQL (`pg`)? | **PostgREST.** RLS is written against `auth.uid()`; the `pg` path uses `DATABASE_URL`, which on Supabase Cloud has `rolbypassrls=true` and would silently bypass every policy (documented in `lib/supabase/admin-client.ts`). |
 | D2 | Where does `businessId` come from? | **Derived server-side** via `auth_user_businesses()`. Never from the request body. |
 | D3 | Body-schema validation | New `lib/validation/*.ts` using the existing `lib/validators.ts` primitives |

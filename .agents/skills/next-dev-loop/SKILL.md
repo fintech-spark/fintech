@@ -41,9 +41,9 @@ source or to a weaker probe — this skill assumes both views are live
 at the versions above.
 
 - Upgrade Next.js: `pnpm next upgrade` (or `npx next upgrade`).
-  Docs: https://nextjs.org/docs/app/getting-started/upgrading
+  Docs: <https://nextjs.org/docs/app/getting-started/upgrading>
   (version-16 guide:
-  https://nextjs.org/docs/app/guides/upgrading/version-16)
+  <https://nextjs.org/docs/app/guides/upgrading/version-16>)
 - Install or upgrade `agent-browser`: `npm i -g agent-browser@latest`.
   If the CLI isn't on `PATH`, install it before continuing — preflight
   expects to invoke it directly.
@@ -169,7 +169,7 @@ manual rather than from memory.
 All tools below are present once preflight passes. If `tools/list`
 is missing any of them, preflight should have refused — re-check.
 
-```
+```text
 # /_next/mcp                 notes
 get_project_metadata         projectPath, devServerUrl, bundler
 get_routes                   fs-scan; no browser session needed

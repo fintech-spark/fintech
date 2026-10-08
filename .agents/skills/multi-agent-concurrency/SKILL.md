@@ -101,7 +101,7 @@ Unexpected modifications, deletions, or new files mean another agent acted. Resp
 
 Keep it append-only and machine-readable so agents can parse it:
 
-```
+```markdown
 ## Active claims
 | scope | owner | since | expires | note |
 |---|---|---|---|---|

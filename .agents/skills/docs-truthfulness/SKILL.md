@@ -30,7 +30,7 @@ which one you changed.
 ## Currently stale — fix or flag when you touch these
 
 | Claim | Reality |
-|---|---|
+| --- | --- |
 | `README.md` "RAG context" | **Corrected.** `wireBusinessBrain` connects `PgChunkStore` + `DefaultRAGService` with `ProviderEmbeddingProvider` when an adapter is present, and the README reflects this |
 | `DATABASE_SECURITY_AUDIT.md` auth/authz rows | **Corrected.** Superseded, pointing at `lib/http/auth-context.ts` |
 | commit `144b8fa` / `WAVE1_REDO_REPORT.md:56` "structured output enforced" | Superseded: the adapter now routes a caller-supplied Zod schema to `Output.object({ schema })` and fails closed on empty output. The historical report still describes the old state — treat it as history, not documentation |

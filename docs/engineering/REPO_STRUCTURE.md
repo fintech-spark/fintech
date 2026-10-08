@@ -8,7 +8,7 @@
 We use a **single trunk** workflow:
 
 | Branch | Purpose |
-|---|---|
+| --- | --- |
 | `main` | Sole long-lived branch. All work merges here. |
 | `feature/<name>` | Short-lived feature branches, opened as PRs against `main`. |
 | `fix/<name>` | Short-lived bugfix branches. |
@@ -19,7 +19,7 @@ recovery without cluttering the active branch list.
 
 ## Directory Map
 
-```
+```text
 /
 ├── .agents/                   # Antigravity engineering system
 │   ├── agents/                # Specialised sub-agent personas
@@ -140,7 +140,7 @@ recovery without cluttering the active branch list.
 ## Root-Level Files
 
 | File | Purpose |
-|---|---|
+| --- | --- |
 | `README.md` | Project overview and quick-start |
 | `AGENTS.md` | Antigravity agent instructions (tie-breaker: AI_CONTEXT.md wins) |
 | `AI_CONTEXT.md` | **Single authoritative source** of what Merchant Brain is |

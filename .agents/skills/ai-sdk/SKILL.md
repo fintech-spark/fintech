@@ -3,12 +3,12 @@ name: ai-sdk
 description: 'Answer questions about the AI SDK and help build AI-powered features. Use when developers: (1) Ask about AI SDK functions like generateText, streamText, ToolLoopAgent, embed, or tools, (2) Want to build AI agents, chatbots, RAG systems, or text generation features, (3) Have questions about AI providers (OpenAI, Anthropic, Google, etc.), streaming, tool calling, structured output, or embeddings, (4) Use React hooks like useChat or useCompletion. Triggers on: "AI SDK", "Vercel AI SDK", "generateText", "streamText", "add AI to my app", "build an agent", "tool calling", "structured output", "useChat".'
 ---
 
-## What the AI SDK Is
+# What the AI SDK Is
 
 The AI SDK by Vercel (the `ai` package on npm) is a TypeScript toolkit for building AI applications. It provides a unified API across model providers for text generation, structured output, tool calling, agents, embeddings, and framework UI integrations.
 
-- Repository: https://github.com/vercel/ai
-- Documentation: https://ai-sdk.dev/docs
+- Repository: <https://github.com/vercel/ai>
+- Documentation: <https://ai-sdk.dev/docs>
 
 ## Critical: Do Not Trust Your Own Memory
 
@@ -23,7 +23,7 @@ The `ai` package ships its full documentation and source code inside `node_modul
 1. Ensure `ai` is installed. Check `node_modules/ai/` or locate the workspace package in a monorepo that depends on `ai` (e.g. `apps/<name>/node_modules/ai/`). If `ai` is not installed anywhere in the project, install **only** the `ai` package into the target package using the project's package manager (e.g. `pnpm add ai --filter <pkg>` or `npm install ai`). Install provider packages (e.g. `@ai-sdk/openai`) and framework packages (e.g. `@ai-sdk/react`) later, when the task requires them.
 2. Read and grep the bundled docs at `node_modules/ai/docs/` (or `<package>/node_modules/ai/docs/`) and the source at `node_modules/ai/src/`.
 3. Provider and framework packages bundle their own docs at `node_modules/@ai-sdk/<name>/docs/` (or `<package>/node_modules/@ai-sdk/<name>/docs/`).
-4. If something isn't in the bundled docs, search https://ai-sdk.dev/docs. You can append `.md` to any docs page URL to get its markdown, and search via `https://ai-sdk.dev/api/search-docs?q=your_query`.
+4. If something isn't in the bundled docs, search <https://ai-sdk.dev/docs>. You can append `.md` to any docs page URL to get its markdown, and search via `https://ai-sdk.dev/api/search-docs?q=your_query`.
 5. If you cannot find support for an answer in the docs or source, say so explicitly — do not guess.
 
 ## AI Gateway: The Fastest Way to Start
@@ -56,7 +56,7 @@ When multiple versions of a model exist, prefer the one with the highest version
 
 Use the SDK's built-in agent abstraction (such as `ToolLoopAgent`) rather than hand-rolling tool-calling loops. For end-to-end type safety, infer the UI message type from your agent definition when consuming it on the client (e.g. with `useChat`). Consuming an agent is framework-specific: check `package.json` to detect the stack, then follow the matching quickstart.
 
-Look up the current agent, tool, and type-safety APIs in the bundled docs (`node_modules/ai/docs/`, especially the agents section) or at https://ai-sdk.dev/docs.
+Look up the current agent, tool, and type-safety APIs in the bundled docs (`node_modules/ai/docs/`, especially the agents section) or at <https://ai-sdk.dev/docs>.
 
 ## DevTools
 
@@ -71,7 +71,7 @@ Outdated installs are the most common source of errors. Compare the installed ve
 - **Installed:** the `version` field in `node_modules/ai/package.json`.
 - **Latest:** run `npm view ai version`.
 
-If the installed version is a major version (or more) behind the latest, tell the user they are on an old release, and recommend upgrading before continuing. Migration guides are at https://ai-sdk.dev/docs/migration-guides.
+If the installed version is a major version (or more) behind the latest, tell the user they are on an old release, and recommend upgrading before continuing. Migration guides are at <https://ai-sdk.dev/docs/migration-guides>.
 
 ## After Making Changes
 
